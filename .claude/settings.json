@@ -1,0 +1,13 @@
+{
+  "enabledMcpjsonServers": ["godot"],
+  "permissions": {
+    "allow": [
+      "mcp__godot",
+      "Bash(git:*)",
+      "Bash(npm:*)",
+      "Bash(npx:*)",
+      "Bash(node:*)",
+      "Bash(\"/c/Users/belya/Desktop/projects/Godot/Godot.exe\":*)"
+    ]
+  }
+}
