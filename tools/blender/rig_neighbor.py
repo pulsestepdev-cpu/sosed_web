@@ -109,9 +109,9 @@ for i in range(3):
 # Точки для предметов (в Godot — BoneAttachment3D, центр предмета = голова кости):
 #  HandGrip  — центр кулака; ось кости = ось бутылки, смотрит в сторону горлышка (к большому пальцу).
 #  HandPhone — центр телефона, лежащего на ладони экраном от неё; ось кости = длинная сторона
-#              телефона (вдоль пальцев), центр сдвинут к большому пальцу — телефон держат двумя руками.
+#              телефона (вдоль пальцев); большой палец лежит на экране.
 SIDE.append(("HandGrip", (0.805, 0.035, 1.15), (0.805, -0.045, 1.15), "Hand"))
-SIDE.append(("HandPhone", (0.778, -0.005, 1.1665), (0.858, -0.005, 1.1665), "Hand"))
+SIDE.append(("HandPhone", (0.778, 0.02, 1.1665), (0.858, 0.02, 1.1665), "Hand"))
 FINGER_BONES = ["Hand%s%d" % (f, i) for f in FINGERS for i in (1, 2, 3)] + ["HandThumb%d" % i for i in (1, 2, 3)]
 arm_data = bpy.data.armatures.new("Rig")
 rig = bpy.data.objects.new("Rig", arm_data)
@@ -207,6 +207,23 @@ for side in ("Left", "Right"):
                 groups[n].add([v.index], w, "REPLACE")
             else:
                 groups[n].remove([v.index])
+# Живот: вся передняя часть пуза — на кости Belly (тепловая карта отдаёт её в основном позвоночнику),
+# чтобы живот целиком сплющивался о пол и колыхался. Чем дальше вперёд и ближе к центру — тем сильнее.
+_sm = lambda f: (lambda c: c * c * (3 - 2 * c))(max(0.0, min(1.0, f)))
+belly_g = body.vertex_groups["Belly"]
+for v in body.data.vertices:
+    x, y, z = v.co
+    if y > 0.0 or abs(x) > 0.30 or not 0.62 < z < 1.16:
+        continue
+    k = _sm((-y - 0.02) / 0.12) * _sm(min(z - 0.62, 1.16 - z) / 0.12) * _sm((0.30 - abs(x)) / 0.12)
+    if k < 0.02:
+        continue
+    for g in v.groups:
+        if g.group != belly_g.index:
+            g.weight *= (1 - k)
+    old = next((g.weight for g in v.groups if g.group == belly_g.index), 0.0)
+    belly_g.add([v.index], old * (1 - k) + k, "REPLACE")
+
 unweighted = sum(1 for v in body.data.vertices if not v.groups or max(g.weight for g in v.groups) < 1e-3)
 print("WEIGHTS groups=%d unweighted_verts=%d of %d" % (len(body.vertex_groups), unweighted, len(body.data.vertices)))
 
@@ -247,6 +264,7 @@ class Pose:
         self.r = {n: [0.0, 0.0, 0.0] for n in BONES}
         self.loc = [0.0, 0.0, 0.0]     # смещение Hips в мировых осях (м)
         self.belly = 0.0               # «вдох» живота: 0 — как в модели
+        self.squash = 0.0              # живот сплющен о пол (0..1): жир расползается в стороны
     def add(self, bone, rx=0.0, ry=0.0, rz=0.0):
         r = self.r[bone]; r[0] += rx; r[1] += ry; r[2] += rz
         return self
@@ -323,8 +341,10 @@ def lie_back_pose(p, k=1.0):
     return p
 
 def lie_front_pose(p, k=1.0):
+    """Лёжа на животе: живот сплющивается о пол (не держит тело, как мяч), грудь и щека на полу."""
     p.add("Hips", rx=88 * k)
-    p.move(y=-0.25 * k, z=-0.46 * k)
+    p.move(y=-0.25 * k, z=-0.595 * k)
+    p.squash += max(0.0, k)
     return p
 
 # ---------------------------------------------------------------- анимации
@@ -386,18 +406,27 @@ def a_walk_drunk(t):
 DRINK = {"Arm": [-62.0, 10.0, -38.0], "ForeArm": [0.0, 0.0, -110.0], "Hand": [0.0, -15.0, 10.0]}
 # поза подъёма (рука поднята, ещё не запрокинул): бутылка стоймя перед грудью; от неё — к DRINK
 DRINK_LIFT = {"Arm": [-52.0, 18.0, -38.0], "ForeArm": [0.0, 0.0, -100.0], "Hand": [0.0, 10.0, 10.0]}
+# поднёс горлышко к губам, бутылка почти горизонтально, голова ещё прямо
+DRINK_APPROACH = {"Arm": [-80.0, 15.0, -38.0], "ForeArm": [30.0, 0.0, -60.0], "Hand": [0.0, -10.0, -20.0]}
 PHONE = {"Arm": [-26.0, 10.0, -18.0], "ForeArm": [0.0, 0.0, -92.0], "Hand": [0.0, -10.0, 8.0]}
+BULB = {"Arm": [-10.0, -140.0, -10.0], "ForeArm": [0.0, 0.0, -20.0], "Hand": [0.0, 0.0, 0.0]}
+
+def drink_phase(t):
+    """0 — рука опущена, 1 — бутылка у груди, 2 — горлышко у губ, 3 — пьёт запрокинув."""
+    return keys(t, [(0, 0), (0.18, 1), (0.27, 2), (0.37, 3), (0.68, 3), (0.76, 2), (0.84, 1), (0.96, 0)])
 
 @anim("drink", 90)
 def a_drink(t):
     p = stand(t)
-    up = keys(t, [(0, 0), (0.22, 1), (0.72, 1), (0.88, 0), (1, 0)])
-    tilt = keys(t, [(0, 0), (0.25, 0), (0.35, 1), (0.68, 1), (0.78, 0), (1, 0)])
+    ph = drink_phase(t)
+    tilt = max(0.0, min(1.0, ph - 2))
     gulp = S(t * 6) * tilt
-    # правая рука несёт бутылку ко рту: углы в DRINK подбирает solve() — горлышко в рот
+    # правая рука: опущена -> у груди -> у губ -> запрокинул; позы подбирает solve()
+    stages = [None, DRINK_LIFT, DRINK_APPROACH, DRINK]
+    i = min(2, int(ph)); f = ph - i
     for b in ("Arm", "ForeArm", "Hand"):
-        lift = DRINK_LIFT[b]
-        p.side("R", b, *[up * lerp(lift[i], DRINK[b][i], tilt) for i in range(3)])
+        a0 = stages[i][b] if stages[i] else [0.0, 0.0, 0.0]
+        p.side("R", b, *[lerp(a0[k], stages[i + 1][b][k], f) for k in range(3)])
     p.add("Head", rx=-24 * tilt + 2 * gulp)
     p.add("Neck", rx=-10 * tilt)
     p.add("Spine2", rx=-6 * tilt)
@@ -431,29 +460,35 @@ def a_work(t):
 
 @anim("bulb", 60)
 def a_bulb(t):
-    """Меняет лампочку: руки вверх, правая крутит."""
+    """Меняет лампочку: правая снизу держит лампочку над головой и вкручивает — поворот кисти,
+    перехват, снова поворот. Левая держится за стремянку."""
     p = stand(t, breath=0.4)
-    tw = S(t * 3)
     p.add("Spine", rx=-6); p.add("Spine2", rx=-6)
-    p.add("Head", rx=-30)
-    p.side("R", "Arm", ry=-150, rx=-10, rz=-10)
-    p.side("R", "ForeArm", rz=-12, rx=40 * tw)
-    p.side("R", "Hand", rx=30 * tw)
-    p.side("L", "Arm", ry=-135, rx=-15, rz=-14)
-    p.side("L", "ForeArm", rz=-20)
-    p.move(z=0.01 * abs(tw))
+    p.add("Head", rx=-32, rz=-8)
+    for b in ("Arm", "ForeArm", "Hand"):     # углы в BULB подбирает solve(): ладонь под лампочкой
+        p.side("R", b, *BULB[b])
+    p.side("R", "ForeArm", rx=bulb_twist(t))  # проворот предплечья = вращение лампочки
+    p.side("L", "Arm", rx=-45, ry=12, rz=-8)
+    p.side("L", "ForeArm", rz=-45)
     return p
+
+def bulb_u(t):
+    return (t * 3) % 1.0                      # три оборота за клип
+
+def bulb_twist(t):
+    u = bulb_u(t)
+    # 0..0.6 крутит (пальцы сжаты), 0.6..0.72 разжимает, 0.72..1 возвращает кисть назад
+    return keys(u, [(0, -35), (0.6, 35), (0.72, 35), (1, -35)])
 
 @anim("phone", 60)
 def a_phone(t):
-    """Телефон (или геймпад) двумя руками перед животом, взгляд вниз."""
+    """Телефон в правой руке у груди экраном к лицу, большой палец листает; левая на животе."""
     p = stand(t, breath=0.6)
-    tap = S(t * 8)
     for b in ("Arm", "ForeArm", "Hand"):     # углы в PHONE подбирает solve(): телефон экраном к глазам
-        p.both(b, *PHONE[b])
-    p.side("R", "Hand", rx=4 * tap)
-    p.side("L", "Hand", rx=-4 * tap)
-    p.add("Head", rx=26 + 2 * S(t * 2), rz=3 * S(t))
+        p.side("R", b, *PHONE[b])
+    p.side("L", "Arm", rx=-22, ry=12, rz=-12)
+    p.side("L", "ForeArm", rz=-62)
+    p.add("Head", rx=22 + 2 * S(t * 2), rz=-8 + 3 * S(t))
     p.add("Neck", rx=8)
     p.add("Spine2", rx=6)
     laugh = keys(t, [(0, 0), (0.55, 0), (0.62, 1), (0.85, 1), (0.95, 0)])   # хмыкает
@@ -655,8 +690,8 @@ def a_fall_forward(t):
     p.both("Arm", ry=10 * buckle)
     lie_front_pose(p, fall)
     k = smooth((t - 0.55) / 0.4)
-    p.both("Arm", ry=22 * k, rx=-20 * k)
-    p.both("ForeArm", rz=8 * k)
+    p.both("Arm", ry=22 * k, rx=-2 * k)
+    p.both("ForeArm", rz=8 * k, rx=-80 * k)
     p.add("Head", rx=18 * k, rz=25 * k)
     p.both("Foot", rx=60 * k)
     return p
@@ -665,8 +700,8 @@ def a_fall_forward(t):
 def a_lie_forward(t):
     p = stand(0, breath=0.0)
     lie_front_pose(p)
-    p.both("Arm", ry=22, rx=-20)
-    p.both("ForeArm", rz=8)
+    p.both("Arm", ry=22, rx=-2)
+    p.both("ForeArm", rz=8, rx=-80)
     p.add("Head", rx=18, rz=25)
     p.both("Foot", rx=60)
     snore = keys(t, [(0, 0), (0.45, 1), (0.55, 1), (1, 0)])
@@ -708,14 +743,17 @@ def h_work(p, t):
     hand(p, "L", "handle", 0.9)                          # ведро / мастерок
 
 def h_bulb(p, t):
-    hand(p, "R", "bulb", 1 + 0.15 * S(t * 3))
-    hand(p, "L", "flat")
+    grip = keys(bulb_u(t), [(0, 1), (0.6, 1), (0.7, 0.35), (0.92, 0.35), (1, 1)])   # перехват
+    hand(p, "R", "bulb", grip)
+    hand(p, "L", "handle")                    # за стремянку
 
 def h_phone(p, t):
-    hand(p, "B", "phone")
-    tap = S(t * 8)
-    thumb_curl(p, "R", 18 * max(0.0, tap))     # большие пальцы по очереди тыкают в экран
-    thumb_curl(p, "L", 18 * max(0.0, -tap))
+    hand(p, "R", "phone")
+    hand(p, "L", "spread", 0.6)               # ладонь на животе
+    # большой палец листает: два свайпа и пара тычков за клип
+    thumb_curl(p, "R", keys(t, [(0, 0), (0.1, 22), (0.2, 0), (0.35, 22), (0.45, 0),
+                                (0.62, 18), (0.67, 0), (0.78, 18), (0.83, 0), (1, 0)]))
+    p.side("R", "HandThumb1", rz=keys(t, [(0, 0), (0.1, -14), (0.2, 6), (0.35, -14), (0.45, 6), (0.6, 0)]))
 
 def h_kick(p, t):
     hand(p, "B", "fist")
@@ -749,13 +787,21 @@ def h_fall_back(p, t):
 def h_get_up(p, t):
     hand(p, "B", "flat", keys(t, [(0.05, 0), (0.25, 1), (0.6, 1), (0.8, 0)]))     # упирается в пол
 
+def h_lie_front(p, t):
+    hand(p, "B", "flat")                     # ладони плашмя на полу, пальцы не втыкаются в пол
+
+def h_fall_forward(p, t):
+    hand(p, "B", "spread", keys(t, [(0.3, 0), (0.5, 1), (0.7, 1), (0.9, 0)]))
+    hand(p, "B", "flat", keys(t, [(0.7, 0), (0.9, 1)]))
+
 def h_sleep(p, t):
     hand(p, "B", "relax", 0.5, base="flat")              # расслабленно, пальцы чуть сильнее согнуты
 
 HAND_LAYER = {"drink": h_drink, "work": h_work, "bulb": h_bulb, "phone": h_phone, "kick": h_kick,
               "angry": h_angry, "suspicious": h_suspicious, "catch": h_catch, "oath": h_oath,
               "dance": h_dance, "walk_drunk": h_walk_drunk, "fall_back": h_fall_back,
-              "get_up": h_get_up, "sleep": h_sleep, "lie_back": h_sleep, "lie_forward": h_sleep}
+              "get_up": h_get_up, "sleep": h_sleep, "lie_back": h_sleep, "lie_forward": h_lie_front,
+              "fall_forward": h_fall_forward}
 
 # ---------------------------------------------------------------- запись в действия
 rig.animation_data_create()
@@ -786,7 +832,8 @@ def apply_pose(p):
         pbones[n].rotation_quaternion = q
     pbones["Hips"].location = hips_rest.inverted() @ Vector(p.loc)
     b = p.belly * 0.06
-    pbones["Belly"].scale = (1 + b * 0.6, 1 + b, 1 + b * 0.6)
+    sq = p.squash
+    pbones["Belly"].scale = ((1 + b * 0.6) * (1 + 0.4 * sq), (1 + b) * (1 - 0.75 * sq), (1 + b * 0.6) * (1 + 0.4 * sq))
 
 # ---------------------------------------------------------------- решатель: рука к цели
 # Подбирает углы (покоординатный спуск), чтобы предмет в руке оказался где нужно.
@@ -805,7 +852,7 @@ def bone_rest(n):
 # Пределы суставов (поверх стойки), (мин, макс) по rx, ry, rz. Локоть — шарнир: только сгиб (rz)
 # и небольшой проворот предплечья (rx); вбок не гнётся.
 LIMITS = {
-    "Arm":     [(-150, 40), (-140, 60), (-80, 40)],
+    "Arm":     [(-150, 40), (-165, 60), (-80, 40)],
     "ForeArm": [(-85, 85), (0, 0), (-145, 0)],
     "Hand":    [(-60, 60), (-60, 60), (-50, 50)],
 }
@@ -853,19 +900,33 @@ def solve_starts(label, table, make_pose, cost, starts):
         table[b][:] = vals[b]
     print("SOLVE %s best %.2f" % (label, best))
 
-MOUTH = (0.0, -0.145, 1.53)     # губы в позе покоя (по срезам головы)
-EYES = (0.0, -0.10, 1.62)
+# Точки лица в позе покоя — сняты рендером головы с метками высоты (губы ~1.43, глаза ~1.55).
+MOUTH = (0.0, -0.115, 1.433)    # чуть за губами: горлышко входит в рот
+EYES = (0.0, -0.11, 1.55)
+HEAD_C = (0.0, 0.0, 1.56)
 
-def drink_cost():
+def neck_cost(want):
+    """Горлышко (конец бутылки длиной 26 см) — во рту, бутылка смотрит в направлении want."""
     g_head, g_axis = bone_rest("RightHandGrip")
     c = posed_point("RightHandGrip", g_head)
     axis = posed_dir("RightHandGrip", g_axis)                 # к горлышку
-    neck_tip = c + axis * 0.12
+    neck_tip = c + axis * 0.13
     mouth = posed_point("Head", MOUTH)
-    want = Vector((0.15, 0.55, -0.82)).normalized()           # горлышко к лицу и вниз, дно вверх
-    head_c = posed_point("Head", (0, 0.02, 1.58))
-    clear = max(0.0, 0.15 - (c - head_c).length) * 100        # кулак не залезает в голову
-    return ((neck_tip - mouth).length * 100) ** 2 + 300 * (1 - axis.dot(want)) + clear ** 2 * 4
+    clear = max(0.0, 0.16 - (c - posed_point("Head", HEAD_C)).length) * 100   # кулак не в голове
+    return ((neck_tip - mouth).length * 100) ** 2 + 300 * (1 - axis.dot(want.normalized())) + clear ** 2 * 4
+
+def drink_cost():          # запрокинул: дно вверх
+    return neck_cost(Vector((0.15, 0.55, -0.82)))
+
+def approach_cost():       # поднёс к губам: бутылка почти горизонтально
+    return neck_cost(Vector((0.15, 0.9, -0.35)))
+
+def bulb_cost():
+    """Ладонь вверх, лампочка (центр хвата) над головой впереди."""
+    g_head, _ = bone_rest("RightHandGrip")
+    c = posed_point("RightHandGrip", g_head)
+    palm = posed_dir("RightHand", (0, 0, -1))
+    return ((c - Vector((-0.14, -0.16, 1.76))).length * 100) ** 2 + 300 * (1 - palm.z)
 
 def phone_cost():
     ph_head, ph_axis = bone_rest("RightHandPhone")
@@ -873,10 +934,9 @@ def phone_cost():
     up = posed_dir("RightHandPhone", ph_axis)                 # длинная сторона телефона
     normal = posed_dir("RightHandPhone", (0, 0, -1))          # куда смотрит экран
     eyes = posed_point("Head", EYES)
-    target = Vector((0.0, -0.34, 1.24))                       # у груди, над животом
+    target = Vector((-0.10, -0.36, 1.26))                     # правее центра, у груди, над животом
     to_eyes = (eyes - c).normalized()
-    return ((c - target).length * 100) ** 2 + 400 * (1 - normal.dot(to_eyes)) + 150 * max(0.0, 0.7 - up.z) \
-        + 200 * max(0.0, abs(c.x) - 0.01) * 100
+    return ((c - target).length * 100) ** 2 + 400 * (1 - normal.dot(to_eyes)) + 150 * max(0.0, 0.7 - up.z)
 
 def lift_cost():
     """Фаза подъёма (рука поднята, ещё не запрокинул): бутылка стоймя перед грудью."""
@@ -917,9 +977,9 @@ def bottle_cost():
     return ((thumb_tip() - target).length * 100) ** 2 + 20 * pen ** 2
 
 def phone_thumb_cost():
-    return ((thumb_tip() - Vector((0.80, -0.012, 1.156))).length * 100) ** 2   # подушечка на экране
+    return ((thumb_tip() - Vector((0.80, 0.005, 1.156))).length * 100) ** 2   # подушечка на экране
 
-def bulb_cost():
+def pinch_cost():
     return ((thumb_tip() - (finger_pt("HandIndex3", 1.0) + DOWN * 0.012)).length * 100) ** 2
 
 def thumb_pose(name):
@@ -930,11 +990,17 @@ def thumb_pose(name):
     return mk
 
 for nm, cf in (("fist", fist_cost), ("handle", fist_cost), ("bottle", bottle_cost),
-               ("phone", phone_thumb_cost), ("bulb", bulb_cost)):
+               ("phone", phone_thumb_cost), ("bulb", pinch_cost)):
     solve("T-" + nm, {"T": HANDS[nm][1]}, thumb_pose(nm), cf, step=10.0)
 
 solve("drink", DRINK,lambda: (lambda p: (h_drink(p, 0.5), p)[1])(a_drink(0.5)), drink_cost)
-solve("lift", DRINK_LIFT, lambda: (lambda p: (h_drink(p, 0.23), p)[1])(a_drink(0.23)), lift_cost)
+solve("lift", DRINK_LIFT, lambda: (lambda p: (h_drink(p, 0.18), p)[1])(a_drink(0.18)), lift_cost)
+solve("approach", DRINK_APPROACH, lambda: (lambda p: (h_drink(p, 0.27), p)[1])(a_drink(0.27)), approach_cost)
+solve_starts("bulb", BULB, lambda: (lambda p: (h_bulb(p, 0.1), p)[1])(a_bulb(0.1)), bulb_cost, [
+    {b: list(v) for b, v in BULB.items()},
+    {"Arm": [-30, -120, -20], "ForeArm": [40, 0, -60], "Hand": [0, 40, 0]},
+    {"Arm": [-60, -90, -10], "ForeArm": [-40, 0, -90], "Hand": [0, -40, 0]},
+])
 solve_starts("phone", PHONE, lambda: (lambda p: (h_phone(p, 0.0), p)[1])(a_phone(0.0)), phone_cost, [
     {b: list(v) for b, v in PHONE.items()},
     {"Arm": [-40, 20, -30], "ForeArm": [60, 0, -110], "Hand": [0, 0, 0]},
