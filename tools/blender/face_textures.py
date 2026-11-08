@@ -21,8 +21,8 @@ FACES = {
                      cheeks=[(0.075, 1.49), (-0.075, 1.49)], nose=(0.0, 1.49), mouth=(0.0, 1.433),
                      mouth_r=(0.026, 0.012), skin=(0.03, 1.61), lash=(0.25, 0.14, 0.10)),
     "hero":     dict(eyes=[(0.069, 1.453), (-0.069, 1.453)], eye_r=(0.033, 0.016), brow_dz=0.062,
-                     cheeks=[(0.088, 1.415), (-0.088, 1.415)], nose=(0.0, 1.405), mouth=(0.0, 1.352),
-                     mouth_r=(0.03, 0.015), skin=(0.0, 1.488), lash=(0.35, 0.16, 0.08)),
+                     cheeks=[(0.088, 1.415), (-0.088, 1.415)], nose=(0.0, 1.405), mouth=(0.0, 1.343),
+                     mouth_r=(0.042, 0.03), skin=(0.0, 1.488), lash=(0.35, 0.16, 0.08)),
 }
 F = FACES[CHAR]
 
@@ -220,7 +220,7 @@ EXPR = {
     "hero": {
         "normal": [],
         "scared": [lambda i: tint(i, 0.18, (0.75, 0.85, 0.95)), lambda i: hide_brows(i), lambda i: eyes_wide(i),
-                   lambda i: brows(i, 0.012, 0.8), lambda i: mouth_open(i, F["mouth_r"][0] * 0.75, F["mouth_r"][1] * 1.4),
+                   lambda i: brows(i, 0.012, 0.8), lambda i: mouth_open(i, F["mouth_r"][0], F["mouth_r"][1]),
                    lambda i: sweat(i)],
         "happy":  [lambda i: red_face(i, 0.4), lambda i: eyes_closed(i, happy=True)],
         "sneaky": [lambda i: eyelid(i, 0.35)],
