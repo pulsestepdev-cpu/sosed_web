@@ -1,71 +1,13 @@
-# Сосед: модель из Tripo в T-позе -> чистка, скелет, автоматические веса, все анимации -> один GLB.
+# Сосед: модель из Tripo в T-позе -> скелет, веса, все анимации -> один GLB.
 # blender -b -P tools/blender/rig_neighbor.py -- <neighbor_tpose.glb> <выход.glb> [сохранить.blend]
-#
-# Скелет — имена костей как у Mixamo (Hips, Spine, LeftArm...), плюс кость Belly для живота.
-# Анимации задаются функциями позы от времени t (0..1). Углы — в градусах, в осях ПОКОЯ
-# (T-поза, персонаж смотрит в -Y, его левая рука — в +X, вверх — +Z):
-#   ноги/спина/голова (порядок XYZ):  rx+ — корпус/голова вперёд, бедро назад, голень сгибается,
-#                                     стопа носком вниз; ry — наклон вбок; rz — поворот.
-#   руки (порядок YXZ):  ry+ — опустить руку из T-позы, rx- — махнуть вперёд, rx+ — назад,
-#                        rz- — завести внутрь, перед собой. Предплечье/кисть: rz- — согнуть.
-# Правая сторона задаётся теми же числами, что левая (зеркалится автоматически).
-import bpy, sys, math, mathutils
-from mathutils import Vector, Euler, Quaternion
+# Общий механизм (осям углов, кистям, решателю) — в rig_core.py; здесь точки тела и анимации соседа.
+import os, sys
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from rig_core import *
+import rig_core as rc
 
-args = sys.argv[sys.argv.index("--") + 1:]
-SRC, DST = args[0], args[1]
-BLEND = args[2] if len(args) > 2 else None
-HEIGHT = 1.75
-FPS = 30
-
-# ---------------------------------------------------------------- модель
-bpy.ops.wm.read_factory_settings(use_empty=True)
-bpy.context.scene.render.fps = FPS
-bpy.ops.import_scene.gltf(filepath=SRC)
-body = [o for o in bpy.context.scene.objects if o.type == "MESH"][0]
-for o in list(bpy.context.scene.objects):
-    if o != body:
-        bpy.data.objects.remove(o, do_unlink=True)
-body.name = "Body"
-bpy.context.view_layer.objects.active = body
-body.select_set(True)
-bpy.ops.object.parent_clear(type="CLEAR_KEEP_TRANSFORM")
-bpy.ops.object.transform_apply(location=True, rotation=True, scale=True)
-
-# Tripo режет вершины по швам развёртки — сшиваем, потом упрощаем, не трогая швы UV
-bpy.ops.object.mode_set(mode="EDIT")
-bpy.ops.mesh.select_all(action="SELECT")
-bpy.ops.mesh.remove_doubles(threshold=0.0001)
-bpy.ops.object.mode_set(mode="OBJECT")
-tris = sum(len(p.vertices) - 2 for p in body.data.polygons)
-if tris > 40000:
-    m = body.modifiers.new("dec", "DECIMATE")
-    m.ratio = 40000 / tris
-    m.delimit = {"UV", "SEAM"}
-    bpy.ops.object.modifier_apply(modifier="dec")
-
-# рост 1.75 м, стопы на полу, по центру
-vs = [v.co for v in body.data.vertices]
-mn = Vector((min(v.x for v in vs), min(v.y for v in vs), min(v.z for v in vs)))
-mx = Vector((max(v.x for v in vs), max(v.y for v in vs), max(v.z for v in vs)))
-k = HEIGHT / (mx.z - mn.z)
-off = Vector(((mn.x + mx.x) / 2, (mn.y + mx.y) / 2, mn.z))
-for v in body.data.vertices:
-    v.co = (v.co - off) * k
-body.data.update()
-
-# матовый материал вместо «мокрого пластика»
-for mat in body.data.materials:
-    nt = mat.node_tree
-    for n in nt.nodes:
-        if n.type == "BSDF_PRINCIPLED":
-            for inp in ("Roughness", "Metallic"):
-                for l in list(n.inputs[inp].links):
-                    nt.links.remove(l)
-            n.inputs["Roughness"].default_value = 0.85
-            n.inputs["Metallic"].default_value = 0.0
-            if "Specular IOR Level" in n.inputs:
-                n.inputs["Specular IOR Level"].default_value = 0.25
+SRC, DST, BLEND = args()
+load_model(SRC, 1.75)
 
 # ---------------------------------------------------------------- скелет
 # точки сняты по срезам сетки (рост 1.75): плечи на 1.24, локоть x≈0.50, запястье x≈0.72,
@@ -89,8 +31,7 @@ SIDE = [  # для левой стороны (+X); правая — зеркал
     ("Foot",     (0.16, 0.08, 0.10), (0.19, -0.06, 0.03), "Leg"),
     ("ToeBase",  (0.19, -0.06, 0.03), (0.20, -0.14, 0.03), "Foot"),
 ]
-# Пальцы (сняты по срезам кисти: ладонь вниз, большой палец смотрит вперёд, в -Y).
-# Каждый палец — 3 фаланги от костяшки до кончика (доли 0.45 / 0.30 / 0.25).
+# Пальцы (по срезам кисти: ладонь вниз, большой палец смотрит вперёд, в -Y)
 FINGERS = {  # имя: (костяшка, кончик)
     "Index":  ((0.785, -0.010, 1.210), (0.862, -0.013, 1.203)),
     "Middle": ((0.790, 0.023, 1.212), (0.880, 0.023, 1.203)),
@@ -98,223 +39,19 @@ FINGERS = {  # имя: (костяшка, кончик)
     "Pinky":  ((0.780, 0.088, 1.205), (0.856, 0.095, 1.200)),
 }
 THUMB = [(0.725, 0.005, 1.195), (0.750, -0.035, 1.185), (0.765, -0.058, 1.183), (0.780, -0.075, 1.183)]
-for f, (a, b) in FINGERS.items():
-    a, b = Vector(a), Vector(b)
-    pts = [a, a.lerp(b, 0.45), a.lerp(b, 0.75), b]
-    for i in range(3):
-        SIDE.append(("Hand%s%d" % (f, i + 1), tuple(pts[i]), tuple(pts[i + 1]),
-                     "Hand" if i == 0 else "Hand%s%d" % (f, i)))
-for i in range(3):
-    SIDE.append(("HandThumb%d" % (i + 1), THUMB[i], THUMB[i + 1], "Hand" if i == 0 else "HandThumb%d" % i))
-# Точки для предметов (в Godot — BoneAttachment3D, центр предмета = голова кости):
-#  HandGrip  — центр кулака; ось кости = ось бутылки, смотрит в сторону горлышка (к большому пальцу).
-#  HandPhone — центр телефона, лежащего на ладони экраном от неё; ось кости = длинная сторона
-#              телефона (вдоль пальцев); большой палец лежит на экране.
-SIDE.append(("HandGrip", (0.805, 0.035, 1.15), (0.805, -0.045, 1.15), "Hand"))
-SIDE.append(("HandPhone", (0.778, 0.02, 1.1665), (0.858, 0.02, 1.1665), "Hand"))
-FINGER_BONES = ["Hand%s%d" % (f, i) for f in FINGERS for i in (1, 2, 3)] + ["HandThumb%d" % i for i in (1, 2, 3)]
-arm_data = bpy.data.armatures.new("Rig")
-rig = bpy.data.objects.new("Rig", arm_data)
-bpy.context.scene.collection.objects.link(rig)
-bpy.context.view_layer.objects.active = rig
-bpy.ops.object.mode_set(mode="EDIT")
-eb = arm_data.edit_bones
-def add_bone(name, h, t, parent):
-    b = eb.new(name)
-    b.head, b.tail = Vector(h), Vector(t)
-    b.roll = 0
-    if parent:
-        b.parent = eb[parent]
-        b.use_connect = (b.parent.tail - b.head).length < 1e-4 and name != "Belly"
-    b.use_deform = not name.endswith(("Grip", "Phone"))
-for n, h, t, p in CENTER:
-    add_bone(n, h, t, p)
-for side, sx in (("Left", 1), ("Right", -1)):
-    for n, h, t, p in SIDE:
-        hp = (h[0] * sx, h[1], h[2]); tp = (t[0] * sx, t[1], t[2])
-        add_bone(side + n, hp, tp, None if p is None else (p if p.startswith("Spine") or p == "Hips" else side + p))
-bpy.ops.object.mode_set(mode="OBJECT")
-
-# Автоматические веса. Сетка Tripo не замкнутая — тепловая карта на ней не сходится.
-# Поэтому: замкнутая копия через voxel-remesh -> веса на ней -> перенос на настоящую сетку.
-proxy = body.copy()
-proxy.data = body.data.copy()
-proxy.name = "WeightProxy"
-bpy.context.scene.collection.objects.link(proxy)
-proxy.data.materials.clear()
-rm = proxy.modifiers.new("vox", "REMESH")
-rm.mode = "VOXEL"
-rm.voxel_size = 0.009
-bpy.ops.object.select_all(action="DESELECT")
-bpy.context.view_layer.objects.active = proxy
-proxy.select_set(True)
-bpy.ops.object.modifier_apply(modifier="vox")
-dm = proxy.modifiers.new("dec", "DECIMATE")
-dm.ratio = min(1.0, 30000 / max(1, len(proxy.data.polygons)))
-bpy.ops.object.modifier_apply(modifier="dec")
-print("PROXY polys=%d" % len(proxy.data.polygons))
-rig.select_set(True)
-bpy.context.view_layer.objects.active = rig
-bpy.ops.object.parent_set(type="ARMATURE_AUTO")
-
-bpy.ops.object.select_all(action="DESELECT")
-body.select_set(True)
-rig.select_set(True)
-bpy.context.view_layer.objects.active = rig
-bpy.ops.object.parent_set(type="ARMATURE_NAME")   # пустые группы с именами костей + модификатор
-dt = body.modifiers.new("wt", "DATA_TRANSFER")
-dt.object = proxy
-dt.use_vert_data = True
-dt.data_types_verts = {"VGROUP_WEIGHTS"}
-dt.vert_mapping = "POLYINTERP_NEAREST"
-dt.layers_vgroup_select_src = "ALL"
-dt.layers_vgroup_select_dst = "NAME"
-bpy.ops.object.select_all(action="DESELECT")
-bpy.context.view_layer.objects.active = body
-body.select_set(True)
-with bpy.context.temp_override(object=body):
-    bpy.ops.object.datalayout_transfer(modifier="wt")
-# модификатор переноса должен стоять перед арматурой
-while body.modifiers[0].name != "wt":
-    bpy.ops.object.modifier_move_up(modifier="wt")
-bpy.ops.object.modifier_apply(modifier="wt")
-bpy.data.objects.remove(proxy, do_unlink=True)
-
-# Пальцы: на замкнутой копии они слиплись, поэтому долю кисти (Hand + все пальцы) делим заново —
-# по расстоянию до оси каждой кости. Ладонь — «веер» отрезков от запястья к костяшкам.
-def seg_dist(p, a, b):
-    ab = b - a
-    t = max(0.0, min(1.0, (p - a).dot(ab) / ab.length_squared))
-    return (p - (a + ab * t)).length
-for side in ("Left", "Right"):
-    bones = arm_data.bones
-    chain = [side + "Hand"] + [side + n for n in FINGER_BONES]
-    segs = {n: [(bones[n].head_local, bones[n].tail_local)] for n in chain[1:]}
-    wrist = bones[side + "Hand"].head_local
-    segs[chain[0]] = [(wrist, bones[side + "Hand%s1" % f].head_local) for f in FINGERS] + \
-                     [(wrist, bones[side + "HandThumb1"].head_local)]
-    gi = {body.vertex_groups[n].index: n for n in chain}
-    groups = {n: body.vertex_groups[n] for n in chain}
-    for v in body.data.vertices:
-        total = sum(g.weight for g in v.groups if g.group in gi)
-        if total < 1e-4:
-            continue
-        ws = {n: 1.0 / (min(seg_dist(v.co, a, b) for a, b in segs[n]) + 0.002) ** 8 for n in chain}
-        s = sum(ws.values())
-        for n in chain:
-            w = total * ws[n] / s
-            if w > 1e-3:
-                groups[n].add([v.index], w, "REPLACE")
-            else:
-                groups[n].remove([v.index])
-# Живот: вся передняя часть пуза — на кости Belly (тепловая карта отдаёт её в основном позвоночнику),
-# чтобы живот целиком сплющивался о пол и колыхался. Чем дальше вперёд и ближе к центру — тем сильнее.
-_sm = lambda f: (lambda c: c * c * (3 - 2 * c))(max(0.0, min(1.0, f)))
-belly_g = body.vertex_groups["Belly"]
-for v in body.data.vertices:
-    x, y, z = v.co
+build_skeleton(CENTER, SIDE, FINGERS, THUMB,
+               grip=((0.805, 0.035, 1.15), (0.805, -0.045, 1.15)),
+               phone=((0.778, 0.02, 1.1665), (0.858, 0.02, 1.1665)))
+make_weights()
+# Живот: вся передняя часть пуза — на кости Belly (тепловая карта отдаёт её позвоночнику),
+# чтобы живот целиком сплющивался о пол и колыхался.
+def belly_k(co):
+    x, y, z = co
     if y > 0.0 or abs(x) > 0.30 or not 0.62 < z < 1.16:
-        continue
-    k = _sm((-y - 0.02) / 0.12) * _sm(min(z - 0.62, 1.16 - z) / 0.12) * _sm((0.30 - abs(x)) / 0.12)
-    if k < 0.02:
-        continue
-    for g in v.groups:
-        if g.group != belly_g.index:
-            g.weight *= (1 - k)
-    old = next((g.weight for g in v.groups if g.group == belly_g.index), 0.0)
-    belly_g.add([v.index], old * (1 - k) + k, "REPLACE")
-
-unweighted = sum(1 for v in body.data.vertices if not v.groups or max(g.weight for g in v.groups) < 1e-3)
-print("WEIGHTS groups=%d unweighted_verts=%d of %d" % (len(body.vertex_groups), unweighted, len(body.data.vertices)))
-
-# ---------------------------------------------------------------- позы
-BONES = [b.name for b in arm_data.bones]
-REST = {b.name: b.matrix_local.to_quaternion() for b in arm_data.bones}
-ARMS = ("Shoulder", "Arm", "ForeArm", "Hand")
-
-def lerp(a, b, f):
-    return a + (b - a) * f
-
-def smooth(f):
-    f = max(0.0, min(1.0, f))
-    return f * f * (3 - 2 * f)
-
-def keys(t, pts, ease=smooth):
-    """Плавная кривая по точкам [(время, значение), ...]; значения — числа."""
-    if t <= pts[0][0]:
-        return pts[0][1]
-    for (t0, v0), (t1, v1) in zip(pts, pts[1:]):
-        if t <= t1:
-            return lerp(v0, v1, ease((t - t0) / (t1 - t0)))
-    return pts[-1][1]
-
-def bounce(f):
-    """Падение с отскоком (как TRANS_BOUNCE, EASE_OUT)."""
-    f = max(0.0, min(1.0, f))
-    if f < 1 / 2.75: return 7.5625 * f * f
-    if f < 2 / 2.75: f -= 1.5 / 2.75; return 7.5625 * f * f + 0.75
-    if f < 2.5 / 2.75: f -= 2.25 / 2.75; return 7.5625 * f * f + 0.9375
-    f -= 2.625 / 2.75; return 7.5625 * f * f + 0.984375
-
-S = lambda x: math.sin(2 * math.pi * x)
-C = lambda x: math.cos(2 * math.pi * x)
-
-class Pose:
-    def __init__(self):
-        self.r = {n: [0.0, 0.0, 0.0] for n in BONES}
-        self.loc = [0.0, 0.0, 0.0]     # смещение Hips в мировых осях (м)
-        self.belly = 0.0               # «вдох» живота: 0 — как в модели
-        self.squash = 0.0              # живот сплющен о пол (0..1): жир расползается в стороны
-    def add(self, bone, rx=0.0, ry=0.0, rz=0.0):
-        r = self.r[bone]; r[0] += rx; r[1] += ry; r[2] += rz
-        return self
-    def side(self, s, bone, rx=0.0, ry=0.0, rz=0.0):
-        """s = 'L' / 'R'; числа — в «левых» обозначениях, правая сторона зеркалится."""
-        if s == "R":
-            return self.add("Right" + bone, rx, -ry, -rz)
-        return self.add("Left" + bone, rx, ry, rz)
-    def both(self, bone, rx=0.0, ry=0.0, rz=0.0):
-        self.side("L", bone, rx, ry, rz); self.side("R", bone, rx, ry, rz)
-        return self
-    def move(self, x=0.0, y=0.0, z=0.0):
-        self.loc[0] += x; self.loc[1] += y; self.loc[2] += z
-        return self
-
-# ---------------------------------------------------------------- кисти
-# Пальцы: ry+ — сгиб к ладони (у всех трёх фаланг), rz — развести (+ к мизинцу).
-# Большой палец: (к пальцам, к ладони, сгиб фаланг). «К пальцам» — разворот от «вперёд» к кончикам
-# пальцев, «к ладони» — наклон вниз, под ладонь; фаланги гнутся вокруг собственной оси пальца.
-# Позы кисти: (основные, средние, ногтевые фаланги), (большой: к пальцам, к ладони, согнуть), развести
-HANDS = {
-    "relax":  ((12, 18, 10), [5, 5, 10], 2),
-    "flat":   ((0, 0, 0), [0, 0, 0], 0),
-    "spread": ((-4, 0, 0), [-12, -5, 0], 10),
-    "fist":   ((88, 100, 70), [45, 35, 35], -2),
-    "bottle": ((52, 58, 40), [22, 45, 15], -1),     # обхват горлышка/бутылки Ø ~7 см
-    "handle": ((75, 85, 55), [40, 35, 30], -2),    # ручка шпателя, ведра
-    "phone":  ((6, 10, 30), [10, 25, 10], 0),      # пальцы прямые за телефоном, кончики за верхним краем, большой — на экране
-    "bulb":   ((38, 42, 28), [30, 30, 15], 6),      # щепоть: держит лампочку
-}
-
-def hand(p, s, name, k=1.0, base="relax"):
-    """Добавить позу кисти name поверх base с силой k (0..1). s = 'L' / 'R' / 'B' (обе)."""
-    if s == "B":
-        hand(p, "L", name, k, base); hand(p, "R", name, k, base)
-        return p
-    (c, th, sp), (c0, th0, sp0) = HANDS[name], HANDS[base]
-    for i, f in enumerate(("Index", "Middle", "Ring", "Pinky")):
-        m = 1 + 0.08 * i            # к мизинцу пальцы сгибаются чуть сильнее
-        p.side(s, "Hand%s1" % f, ry=(c[0] - c0[0]) * m * k, rz=(sp - sp0) * (i - 1.2) * k)
-        p.side(s, "Hand%s2" % f, ry=(c[1] - c0[1]) * m * k)
-        p.side(s, "Hand%s3" % f, ry=(c[2] - c0[2]) * m * k)
-    p.side(s, "HandThumb1", rz=(th[0] - th0[0]) * k, ry=(th[1] - th0[1]) * k)   # порядок ZYX, см. to_local
-    thumb_curl(p, s, (th[2] - th0[2]) * k)
-    return p
-
-def thumb_curl(p, s, c):
-    """Согнуть фаланги большого пальца на c градусов: ось сгиба ⟂ пальцу в плоскости ладони."""
-    for n, m in (("HandThumb2", 0.7), ("HandThumb3", 1.0)):
-        p.side(s, n, rx=0.83 * c * m, ry=0.55 * c * m)
+        return 0.0
+    return smooth((-y - 0.02) / 0.12) * smooth(min(z - 0.62, 1.16 - z) / 0.12) * smooth((0.30 - abs(x)) / 0.12)
+boost_group("Belly", belly_k)
+report_weights()
 
 def stand(t=0.0, breath=1.0):
     """Базовая стойка: руки опущены (живот мешает прижать), лёгкое дыхание."""
@@ -347,13 +84,7 @@ def lie_front_pose(p, k=1.0):
     p.squash += max(0.0, k)
     return p
 
-# ---------------------------------------------------------------- анимации
-ANIMS = {}
-def anim(name, frames, loop=True):
-    def deco(fn):
-        ANIMS[name] = (fn, frames, loop)
-        return fn
-    return deco
+
 
 @anim("idle", 90)
 def a_idle(t):
@@ -803,103 +534,7 @@ HAND_LAYER = {"drink": h_drink, "work": h_work, "bulb": h_bulb, "phone": h_phone
               "get_up": h_get_up, "sleep": h_sleep, "lie_back": h_sleep, "lie_forward": h_lie_front,
               "fall_forward": h_fall_forward}
 
-# ---------------------------------------------------------------- запись в действия
-rig.animation_data_create()
-pbones = rig.pose.bones
-for pb in pbones:
-    pb.rotation_mode = "QUATERNION"
-
-def to_local(name, rdeg):
-    if any(name.endswith(a) for a in ARMS) and ("Left" in name or "Right" in name):
-        order = "YXZ"
-    elif name.endswith("HandThumb1"):
-        order = "ZYX"      # сначала развернуть к пальцам, потом наклонить под ладонь
-    else:
-        order = "XYZ"
-    q = Euler([math.radians(a) for a in rdeg], order).to_quaternion()
-    B = REST[name]
-    return B.inverted() @ q @ B
-
-hips_rest = REST["Hips"]
-_prev_q = {}
-
-def apply_pose(p):
-    for n in BONES:
-        q = to_local(n, p.r[n])
-        if n in _prev_q and _prev_q[n].dot(q) < 0:
-            q.negate()
-        _prev_q[n] = q
-        pbones[n].rotation_quaternion = q
-    pbones["Hips"].location = hips_rest.inverted() @ Vector(p.loc)
-    b = p.belly * 0.06
-    sq = p.squash
-    pbones["Belly"].scale = ((1 + b * 0.6) * (1 + 0.4 * sq), (1 + b) * (1 - 0.75 * sq), (1 + b * 0.6) * (1 + 0.4 * sq))
-
-# ---------------------------------------------------------------- решатель: рука к цели
-# Подбирает углы (покоординатный спуск), чтобы предмет в руке оказался где нужно.
-# Сетку на это время отключаем — считается только скелет.
-def posed_point(n, rest_pt):
-    return pbones[n].matrix @ arm_data.bones[n].matrix_local.inverted() @ Vector(rest_pt)
-
-def posed_dir(n, rest_vec):
-    d = pbones[n].matrix.to_3x3() @ arm_data.bones[n].matrix_local.to_3x3().inverted()
-    return (d @ Vector(rest_vec)).normalized()
-
-def bone_rest(n):
-    b = arm_data.bones[n]
-    return b.head_local.copy(), (b.tail_local - b.head_local).normalized()
-
-# Пределы суставов (поверх стойки), (мин, макс) по rx, ry, rz. Локоть — шарнир: только сгиб (rz)
-# и небольшой проворот предплечья (rx); вбок не гнётся.
-LIMITS = {
-    "Arm":     [(-150, 40), (-165, 60), (-80, 40)],
-    "ForeArm": [(-85, 85), (0, 0), (-145, 0)],
-    "Hand":    [(-60, 60), (-60, 60), (-50, 50)],
-}
-
-def solve(label, table, make_pose, cost, step=8.0):
-    for m in body.modifiers:
-        m.show_viewport = False
-    def ev():
-        apply_pose(make_pose())
-        bpy.context.view_layer.update()
-        return cost()
-    best = ev()
-    c0 = best
-    keys_ = [(b, i) for b in table for i in range(3) if LIMITS[b][i][0] < LIMITS[b][i][1]]
-    while step > 0.4:
-        improved = False
-        for b, i in keys_:
-            for d in (step, -step):
-                lo, hi = LIMITS[b][i]
-                if not lo <= table[b][i] + d <= hi:
-                    continue
-                table[b][i] += d
-                c = ev()
-                if c < best - 1e-6:
-                    best = c; improved = True
-                    break
-                table[b][i] -= d
-        if not improved:
-            step /= 2
-    for m in body.modifiers:
-        m.show_viewport = True
-    print("SOLVE %-6s cost %.2f -> %.2f  %s" % (label, c0, best,
-          {b: [round(v, 1) for v in table[b]] for b in table}))
-    return best
-
-def solve_starts(label, table, make_pose, cost, starts):
-    """Несколько стартовых положений — берём лучший результат (спуск легко застревает)."""
-    results = []
-    for st in starts:
-        for b in table:
-            table[b][:] = st[b]
-        results.append((solve(label, table, make_pose, cost), {b: list(table[b]) for b in table}))
-    best, vals = min(results, key=lambda r: r[0])
-    for b in table:
-        table[b][:] = vals[b]
-    print("SOLVE %s best %.2f" % (label, best))
-
+# ---------------------------------------------------------------- решатель: предметы в руке
 # Точки лица в позе покоя — сняты рендером головы с метками высоты (губы ~1.43, глаза ~1.55).
 MOUTH = (0.0, -0.115, 1.433)    # чуть за губами: горлышко входит в рот
 EYES = (0.0, -0.11, 1.55)
@@ -946,111 +581,20 @@ def lift_cost():
     target = Vector((-0.12, -0.36, 1.22))
     return ((c - target).length * 100) ** 2 + 300 * (1 - axis.dot(Vector((0.1, -0.15, 1)).normalized()))
 
-# --- большой палец: для каждой позы кисти — куда должен лечь кончик (левая кисть в T-позе)
-LIMITS["T"] = [(-40, 100), (-40, 100), (0, 95)]
-
-def finger_pt(n, f=0.5):
-    b = arm_data.bones["Left" + n]
-    return posed_point("Left" + n, b.head_local.lerp(b.tail_local, f))
-
-def thumb_tip():
-    return finger_pt("HandThumb3", 1.0)
-
-def thumb_pts():
-    return [finger_pt("HandThumb2", 0.0), finger_pt("HandThumb3", 0.0), thumb_tip()]
-
-DOWN = Vector((0, 0, -1))     # тыльная сторона согнутых пальцев (под ладонью)
-BOTTLE_C, BOTTLE_R = Vector((0.805, 0.035, 1.15)), 0.035
-
-def fist_cost():
-    # кончик — поверх средней фаланги среднего пальца, сустав — поверх указательного
-    a = finger_pt("HandMiddle2") + DOWN * 0.017
-    b = finger_pt("HandIndex2") + DOWN * 0.017
-    return ((thumb_tip() - a).length * 100) ** 2 + ((finger_pt("HandThumb3", 0.0) - b).length * 100) ** 2
-
-def bottle_cost():
-    target = Vector((0.778, -0.005, 1.114))                 # с другой стороны бутылки, у указательного
-    pen = 0.0
-    for q in thumb_pts():
-        dxz = math.hypot(q.x - BOTTLE_C.x, q.z - BOTTLE_C.z)
-        pen += max(0.0, BOTTLE_R + 0.009 - dxz) * 100
-    return ((thumb_tip() - target).length * 100) ** 2 + 20 * pen ** 2
-
-def phone_thumb_cost():
-    return ((thumb_tip() - Vector((0.80, 0.005, 1.156))).length * 100) ** 2   # подушечка на экране
-
-def pinch_cost():
-    return ((thumb_tip() - (finger_pt("HandIndex3", 1.0) + DOWN * 0.012)).length * 100) ** 2
-
-def thumb_pose(name):
-    def mk():
-        p = Pose()
-        hand(p, "L", name, base="flat")
-        return p
-    return mk
-
-for nm, cf in (("fist", fist_cost), ("handle", fist_cost), ("bottle", bottle_cost),
-               ("phone", phone_thumb_cost), ("bulb", pinch_cost)):
-    solve("T-" + nm, {"T": HANDS[nm][1]}, thumb_pose(nm), cf, step=10.0)
-
-solve("drink", DRINK,lambda: (lambda p: (h_drink(p, 0.5), p)[1])(a_drink(0.5)), drink_cost)
-solve("lift", DRINK_LIFT, lambda: (lambda p: (h_drink(p, 0.18), p)[1])(a_drink(0.18)), lift_cost)
-solve("approach", DRINK_APPROACH, lambda: (lambda p: (h_drink(p, 0.27), p)[1])(a_drink(0.27)), approach_cost)
-solve_starts("bulb", BULB, lambda: (lambda p: (h_bulb(p, 0.1), p)[1])(a_bulb(0.1)), bulb_cost, [
-    {b: list(v) for b, v in BULB.items()},
+solve_thumbs()
+solve("drink", DRINK, at(a_drink, h_drink, 0.5), drink_cost)
+solve("lift", DRINK_LIFT, at(a_drink, h_drink, 0.18), lift_cost)
+solve("approach", DRINK_APPROACH, at(a_drink, h_drink, 0.27), approach_cost)
+solve_starts("bulb", BULB, at(a_bulb, h_bulb, 0.1), bulb_cost, [
     {"Arm": [-30, -120, -20], "ForeArm": [40, 0, -60], "Hand": [0, 40, 0]},
     {"Arm": [-60, -90, -10], "ForeArm": [-40, 0, -90], "Hand": [0, -40, 0]},
 ])
-solve_starts("phone", PHONE, lambda: (lambda p: (h_phone(p, 0.0), p)[1])(a_phone(0.0)), phone_cost, [
-    {b: list(v) for b, v in PHONE.items()},
+solve_starts("phone", PHONE, at(a_phone, h_phone, 0.0), phone_cost, [
     {"Arm": [-40, 20, -30], "ForeArm": [60, 0, -110], "Hand": [0, 0, 0]},
     {"Arm": [-40, 20, -30], "ForeArm": [-60, 0, -110], "Hand": [0, 0, 0]},
     {"Arm": [-55, 15, -20], "ForeArm": [80, 0, -90], "Hand": [0, 30, 20]},
     {"Arm": [-55, 15, -20], "ForeArm": [-80, 0, -90], "Hand": [0, -30, 20]},
 ])
 
-clips = {}
-for name, (fn, frames, loop) in ANIMS.items():
-    act = bpy.data.actions.new(name)
-    act.use_fake_user = True
-    rig.animation_data.action = act
-    _prev_q.clear()
-    last = frames if loop else frames - 1
-    for f in range(0, last + 1):
-        t = (f / frames) if loop else (f / (frames - 1))
-        if loop and f == frames:
-            t = 0.0                       # последний кадр = первому, чтобы цикл был бесшовным
-        p = fn(t)
-        if name in HAND_LAYER:
-            HAND_LAYER[name](p, t)
-        apply_pose(p)
-        for n in BONES:
-            pbones[n].keyframe_insert("rotation_quaternion", frame=f + 1)
-        pbones["Hips"].keyframe_insert("location", frame=f + 1)
-        pbones["Belly"].keyframe_insert("scale", frame=f + 1)
-    clips[name] = act
-    print("ANIM %-13s %3d кадров %s" % (name, frames, "цикл" if loop else "разово"))
-
-# каждое действие — своя NLA-дорожка: glTF экспортирует их как отдельные анимации
-rig.animation_data.action = None
-for pb in pbones:
-    pb.rotation_quaternion = Quaternion(); pb.location = Vector(); pb.scale = Vector((1, 1, 1))
-for name, act in clips.items():
-    tr = rig.animation_data.nla_tracks.new()
-    tr.name = name
-    tr.strips.new(name, 1, act)
-    tr.mute = True
-
-# понятные имена текстур (Godot вынимает их в файлы рядом с моделью)
-for mat in body.data.materials:
-    for n in mat.node_tree.nodes:
-        if n.type == "TEX_IMAGE" and n.image and n.outputs[0].links:
-            to = n.outputs[0].links[0].to_node
-            kind = "normal" if to.type == "NORMAL_MAP" else "albedo" if to.type == "BSDF_PRINCIPLED" else to.type.lower()
-            n.image.name = "texture_" + kind
-
-if BLEND:
-    bpy.ops.wm.save_as_mainfile(filepath=BLEND)
-bpy.ops.export_scene.gltf(filepath=DST, export_format="GLB", export_animations=True,
-    export_animation_mode="NLA_TRACKS", export_force_sampling=True, export_frame_range=False)
-print("RIG_OK clips=%d %s" % (len(clips), sorted(clips)))
+record(HAND_LAYER)
+export(DST, BLEND)
