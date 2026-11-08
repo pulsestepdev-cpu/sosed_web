@@ -31,8 +31,7 @@ bpy.ops.wm.obj_export(filepath=os.path.join(tmp, name + ".obj"), export_material
 mtl = os.path.join(tmp, name + ".mtl")
 lines = []
 for l in open(mtl, encoding="utf-8"):
-    lines.append("map_Kd texture.png
-" if l.startswith("map_Kd") else l)
+    lines.append("map_Kd texture.png\n" if l.startswith("map_Kd") else l)
 open(mtl, "w", encoding="utf-8").writelines(lines)
 zpath = os.path.join(out, name + "_mixamo.zip")
 with zipfile.ZipFile(zpath, "w", zipfile.ZIP_DEFLATED) as z:
