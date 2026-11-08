@@ -8,3 +8,4 @@ screenshots/
 
 # Фото реальных людей-прототипов — только локально
 assets/raw/ref/
+__pycache__/
