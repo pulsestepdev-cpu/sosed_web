@@ -1,9 +1,12 @@
 extends Node3D
 ## Проверка 3D-персонажа: тёплая комната-коробка, свет, анимация.
-## --model=res://...glb  --anim=walk  --t=0.5 (секунда анимации на момент снимка)
+## По умолчанию — сосед; Tab переключает персонажа (см. MODELS).
+## --model=res://...glb  --anim=walk
 ##  --strip  — 6 копий персонажа в ряд, каждая в своей фазе анимации (раскадровка)
 
-var model_path := "res://assets/models/characters/hero.glb"
+## Персонажи, между которыми переключает Tab. Первый открывается по умолчанию (F6 в редакторе).
+const MODELS := ["res://assets/models/characters/neighbor.glb", "res://assets/models/characters/hero.glb"]
+var model_path: String = MODELS[0]
 var anim := "idle"
 var strip := false
 
@@ -50,7 +53,7 @@ func _ready() -> void:
 	fill.light_color = Color("ffe6c8")
 	fill.rotation_degrees = Vector3(-15, 0, 0)
 	add_child(fill)
-	var count := 6 if strip else 1
+	var count := 6 if strip else 0     # без --strip модель грузит _load_model()
 	var scene: PackedScene = load(model_path)
 	for i in count:
 		var m := scene.instantiate() as Node3D
@@ -71,11 +74,6 @@ func _ready() -> void:
 	cam.look_at_from_position(Vector3(0, 1.0, 4.6 if not strip else 9.0), Vector3(0, 0.9, 0))
 	_cam = cam
 	if not strip:
-		_model = get_child(get_child_count() - 2) as Node3D
-		_player = _model.find_children("*", "AnimationPlayer", true, false)[0] as AnimationPlayer
-		_names = Array(_player.get_animation_list())
-		_names.erase("RESET")
-		_index = maxi(0, _names.find(anim))
 		_label = Label.new()
 		_label.add_theme_font_size_override("font_size", 26)
 		_label.add_theme_color_override("font_outline_color", Color.BLACK)
@@ -84,8 +82,27 @@ func _ready() -> void:
 		var ui := CanvasLayer.new()
 		add_child(ui)
 		ui.add_child(_label)
-		_add_props()
-		_play_current()
+		_load_model(model_path)
+
+## Загрузить персонажа (или заменить текущего — по Tab).
+func _load_model(path: String) -> void:
+	var keep_rot := 90.0
+	if _model:
+		keep_rot = _model.rotation_degrees.y
+		_model.queue_free()
+	_bottle = null
+	_phone = null
+	model_path = path
+	_model = (load(path) as PackedScene).instantiate() as Node3D
+	add_child(_model)
+	_model.rotation_degrees.y = keep_rot     # 90 — смотрит вправо, как в игре
+	_player = _model.find_children("*", "AnimationPlayer", true, false)[0] as AnimationPlayer
+	var prev: String = _names[_index] if _index < _names.size() else anim
+	_names = Array(_player.get_animation_list())
+	_names.erase("RESET")
+	_index = maxi(0, _names.find(prev))
+	_add_props()
+	_play_current()
 
 ## Временные предметы в руке (бутылка, телефон) на костях-точках RightHandGrip / RightHandPhone.
 var _bottle: Node3D
@@ -142,8 +159,8 @@ func _process(_delta: float) -> void:
 		return
 	var n: String = _names[_index]
 	var a := _player.get_animation(n)
-	_label.text = "%d/%d  %s   %.2f / %.2f с   скорость x%.2f%s\n←/→ клип   пробел пауза   ,/. кадр   ↑/↓ скорость   A/D повернуть   колесо — зум   R — сброс" % [
-		_index + 1, _names.size(), n, _player.current_animation_position, a.length,
+	_label.text = "[%s]  %d/%d  %s   %.2f / %.2f с   скорость x%.2f%s\nTab — персонаж   ←/→ клип   пробел пауза   ,/. кадр   ↑/↓ скорость   A/D повернуть   колесо — зум   R — сброс" % [
+		model_path.get_file().get_basename(), _index + 1, _names.size(), n, _player.current_animation_position, a.length,
 		absf(_player.speed_scale) if _player.speed_scale != 0.0 else _paused_speed,
 		"  (пауза)" if _player.speed_scale == 0.0 else ""]
 	if Input.is_key_pressed(KEY_A):
@@ -163,6 +180,8 @@ func _unhandled_input(e: InputEvent) -> void:
 	if not (e is InputEventKey and e.pressed):
 		return
 	match e.keycode:
+		KEY_TAB:
+			_load_model(MODELS[(MODELS.find(model_path) + 1) % MODELS.size()])
 		KEY_RIGHT:
 			_index = (_index + 1) % _names.size(); _play_current()
 		KEY_LEFT:
