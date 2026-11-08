@@ -3,7 +3,7 @@ extends Node2D
 
 ## Комната задаётся аргументом --room=living (по умолчанию kitchen)
 var ROOM := "res://assets/rooms/room_kitchen.png"
-const CHAR_SCALE := 0.72
+const CHAR_SCALE := 0.88
 
 func _ready() -> void:
 	for a in OS.get_cmdline_user_args():
