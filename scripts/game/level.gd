@@ -14,6 +14,7 @@ extends Node2D
 ##   --start=H       начать с часа H (например 11.2)
 ##   --hero-go=X,Y   герой сразу идёт в мировую точку (проверка ходьбы и лестницы)
 ##   --hero-at=X,Y   поставить героя в мировую точку
+##   --hero-go2=X,Y,T  второй клик через T секунд (проверка клика посреди лестницы)
 ##   --sneak         герой сразу крадётся
 ##   --zoom          начать в приближенном виде
 
@@ -27,8 +28,12 @@ const ROOM_H := 1024.0
 const STAIR_SCALE := 1.12
 const STAIR_OFFSET_Y := 164.0
 const STAIR_W := 887.0 * STAIR_SCALE
-const STAIR_BOTTOM_X := 50.0    # где начинается подъём (от внешнего края лестницы)
-const STAIR_TOP_X := 735.0      # где кончаются ступени на площадке
+## Линия ступеней на картинке идёт от (36, 1650) до (692, 700) — по ней и ходят ноги.
+const STAIR_BOTTOM_X := 40.0    # где начинается подъём (от внешнего края лестницы)
+const STAIR_TOP_X := 775.0      # где ступени выходят на площадку
+const STAIR_CROP_TOP := 125.0   # срезаем собственный потолок и светильник картинки, рисуем общий
+const CEILING_H := 40.0
+const CEILING_COLOR := Color("a8673b")
 const SLAB := 40.0             # толщина перекрытия между этажами
 const WALL := 36.0             # толщина перегородки между комнатами
 const FLOOR_LINE := 948.0      # где стоят ноги, от верха комнаты
@@ -83,6 +88,10 @@ func _ready() -> void:
 		hero.go_to_point(Vector2(float(p[0]), float(p[1])))
 	if args.has("sneak"):
 		hero.toggle_sneak()
+	if args.has("hero-go2"):
+		var g: PackedStringArray = args["hero-go2"].split(",")
+		get_tree().create_timer(float(g[2])).timeout.connect(
+			func(): hero.go_to_point(Vector2(float(g[0]), float(g[1]))))
 
 # --- Геометрия ---------------------------------------------------------------
 
@@ -135,10 +144,18 @@ func snap_to_floor(p: Vector2) -> Vector2:
 	var f := floor_of(p.y)
 	return Vector2(clampf(p.x, walk_min_x(f), walk_max_x(f)), floor_y(f))
 
+## Стоит ли точка на ступенях (между этажами).
+func on_stairs(p: Vector2) -> bool:
+	return absf(p.y - floor_y(0)) > 1.0 and absf(p.y - floor_y(1)) > 1.0
+
 ## Маршрут: если цель на другом этаже — через ближайшую (по общей длине пути) лестницу.
+## Если персонаж прямо сейчас на ступенях — сначала доходит по ним до нужного конца.
 func plan_path(from: Vector2, to: Vector2) -> Array[Vector2]:
-	var ff := floor_of(from.y)
 	var tf := floor_of(to.y)
+	if on_stairs(from):
+		var s := 0 if from.x < world_size().x * 0.5 else 1
+		return [stair_point(s, tf), to]
+	var ff := floor_of(from.y)
 	if ff == tf:
 		return [to]
 	var best: Array[Vector2] = []
@@ -202,21 +219,43 @@ func _build_stairs() -> void:
 	var path := "res://assets/rooms/room_stairs.png"
 	if ResourceLoader.exists(path):
 		var tex: Texture2D = load(path)
-		# низ картинки ниже пола 1-го этажа обрезаем, сверху — полоса потолка
-		var visible_h := (world_size().y - STAIR_OFFSET_Y) / STAIR_SCALE
+		# Картинка лестницы ниже комнат: её собственный потолок срезаем, сверху доклеиваем
+		# полосу обоев из той же картинки и общий потолок как у комнат. Низ ниже пола обрезаем.
+		var main_y := STAIR_OFFSET_Y + STAIR_CROP_TOP * STAIR_SCALE
+		var visible_h := (world_size().y - main_y) / STAIR_SCALE
+		# полоса чистых обоев (между светильником и рамками) повторяется, пока не закроет верх
+		var band_src_y := 135.0
+		var band_src_h := 170.0
 		for side in 2:
 			var x0 := 0.0 if side == 0 else right_stairs_x()
-			_add_rect(Vector2(x0, 0), Vector2(STAIR_W, STAIR_OFFSET_Y + 10), Color("b06e35"), -51)
+			var y := 0.0
+			while y < main_y:
+				var band := Sprite2D.new()
+				band.texture = tex
+				band.centered = false
+				band.region_enabled = true
+				band.region_rect = Rect2(0, band_src_y, tex.get_width(), band_src_h)
+				band.scale = Vector2.ONE * STAIR_SCALE
+				band.flip_h = side == 1
+				band.position = Vector2(x0, y)
+				band.z_index = -51
+				add_child(band)
+				y += band_src_h * STAIR_SCALE
 			var s := Sprite2D.new()
 			s.texture = tex
 			s.centered = false
 			s.region_enabled = true
-			s.region_rect = Rect2(0, 0, tex.get_width(), visible_h)
+			s.region_rect = Rect2(0, STAIR_CROP_TOP, tex.get_width(), visible_h)
 			s.scale = Vector2.ONE * STAIR_SCALE
 			s.flip_h = side == 1
-			s.position = Vector2(x0, STAIR_OFFSET_Y)
+			s.position = Vector2(x0, main_y)
 			s.z_index = -50
 			add_child(s)
+			_add_rect(Vector2(x0, 0), Vector2(STAIR_W, CEILING_H), CEILING_COLOR, -49)
+			# перекрытие под площадкой — продолжение перекрытия комнат
+			var lx := STAIR_TOP_X - 60.0 if side == 0 else right_stairs_x()
+			var lw := STAIR_W - STAIR_TOP_X + 60.0
+			_add_rect(Vector2(lx, ROOM_H), Vector2(lw, SLAB), Color("4a3020"), -30)
 		return
 	_add_rect(Vector2.ZERO, Vector2(STAIR_W, world_size().y), Color("b88a55"), -50)
 	var bottom := stair_point(0, 1)
@@ -303,6 +342,11 @@ func _process(delta: float) -> void:
 
 func _update_camera(instant: bool) -> void:
 	var z: float
+	camera.limit_enabled = zoomed
+	camera.limit_left = 0
+	camera.limit_right = int(world_size().x)
+	camera.limit_top = 0
+	camera.limit_bottom = int(world_size().y)
 	if zoomed:
 		z = 1080.0 / ROOM_H
 		camera.position = Vector2(hero.position.x, floor_top(floor_of(hero.position.y)) + ROOM_H * 0.5)
