@@ -1,3 +1,7 @@
 .godot/
 export/
 screenshots/
+
+# Локальные настройки Claude Code и MCP (пути к Godot на этом ПК)
+.mcp.json
+.claude/
