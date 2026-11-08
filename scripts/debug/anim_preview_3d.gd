@@ -102,6 +102,7 @@ func _load_model(path: String) -> void:
 	_names.erase("RESET")
 	_index = maxi(0, _names.find(prev))
 	_add_props()
+	_setup_face()
 	_play_current()
 
 ## Временные предметы в руке (бутылка, телефон) на костях-точках RightHandGrip / RightHandPhone.
@@ -153,16 +154,19 @@ func _play_current() -> void:
 	if _bottle:
 		_bottle.visible = n in ["drink", "take", "swap", "success"]
 		_phone.visible = n == "phone"
+	_face_override = ""
+	_set_face(_face_for(n))
 
 func _process(_delta: float) -> void:
 	if _player == null:
 		return
 	var n: String = _names[_index]
 	var a := _player.get_animation(n)
-	_label.text = "[%s]  %d/%d  %s   %.2f / %.2f с   скорость x%.2f%s\nTab — персонаж   ←/→ клип   пробел пауза   ,/. кадр   ↑/↓ скорость   A/D повернуть   колесо — зум   R — сброс" % [
-		model_path.get_file().get_basename(), _index + 1, _names.size(), n, _player.current_animation_position, a.length,
+	_label.text = "[%s]  %d/%d  %s   лицо: %s   %.2f / %.2f с   скорость x%.2f%s\nTab — персонаж   G — лицо   ←/→ клип  пробел пауза   ,/. кадр   ↑/↓ скорость   A/D повернуть   колесо — зум   R — сброс" % [
+		model_path.get_file().get_basename(), _index + 1, _names.size(), n, _face, _player.current_animation_position, a.length,
 		absf(_player.speed_scale) if _player.speed_scale != 0.0 else _paused_speed,
 		"  (пауза)" if _player.speed_scale == 0.0 else ""]
+	_animate_snore(_delta)
 	if Input.is_key_pressed(KEY_A):
 		_model.rotation_degrees.y -= 120.0 * _delta
 	if Input.is_key_pressed(KEY_D):
@@ -180,6 +184,8 @@ func _unhandled_input(e: InputEvent) -> void:
 	if not (e is InputEventKey and e.pressed):
 		return
 	match e.keycode:
+		KEY_G:
+			_cycle_face()
 		KEY_TAB:
 			_load_model(MODELS[(MODELS.find(model_path) + 1) % MODELS.size()])
 		KEY_RIGHT:
@@ -212,3 +218,97 @@ func _box(size: Vector3, pos: Vector3, mat: Material) -> void:
 	mi.material_override = mat
 	mi.position = pos
 	add_child(mi)
+
+# --- лица: выражение = подмена текстуры (<персонаж>_face_<выражение>.jpg) ----------------
+## Какое лицо у какого клипа (остальные — normal).
+const FACE_FOR_CLIP := {
+	"neighbor": {"drink": "tipsy", "walk_drunk": "drunk", "dance": "drunk", "fall_back": "drunk",
+		"lie_back": "drunk", "get_up": "drunk", "kick": "angry", "angry": "angry", "catch": "angry",
+		"sleep": "sleep", "fall_forward": "sleep", "lie_forward": "sleep", "oath": "happy"},
+	"hero": {"caught": "scared", "success": "happy", "laugh": "happy", "sneak": "sneaky",
+		"hide_table": "sneaky", "hide_wardrobe": "sneaky", "hide_curtain": "sneaky", "hide_bed": "sneaky",
+		"hide_sofa": "sneaky", "hide_skis": "sneaky", "swap": "sneaky"},
+}
+const FACE_DIR := "res://assets/models/characters/"
+
+var _face := "normal"
+var _face_override := ""
+var _faces: Array = []
+var _face_mat: StandardMaterial3D
+var _body: MeshInstance3D
+var _snore: Label3D
+var _snore_t := 0.0
+
+func _char() -> String:
+	return model_path.get_file().get_basename()
+
+func _face_for(clip: String) -> String:
+	return FACE_FOR_CLIP.get(_char(), {}).get(clip, "normal")
+
+func _setup_face() -> void:
+	_faces.clear()
+	for f in DirAccess.get_files_at(FACE_DIR):
+		if f.begins_with(_char() + "_face_") and f.ends_with(".jpg"):
+			_faces.append(f.trim_prefix(_char() + "_face_").trim_suffix(".jpg"))
+	_body = null
+	for mi in _model.find_children("*", "MeshInstance3D", true, false):
+		if (mi as MeshInstance3D).get_surface_override_material_count() > 0 and mi.get_parent() is Skeleton3D:
+			_body = mi
+			break
+	if _body:
+		var base := _body.mesh.surface_get_material(0)
+		if base is StandardMaterial3D:
+			_face_mat = (base as StandardMaterial3D).duplicate()
+			_body.set_surface_override_material(0, _face_mat)
+	# облачко храпа над головой — на кости Head
+	_snore = null
+	var sk := _model.find_children("*", "Skeleton3D", true, false)
+	if not sk.is_empty() and (sk[0] as Skeleton3D).find_bone("Head") >= 0:
+		var att := BoneAttachment3D.new()
+		att.bone_name = "Head"
+		sk[0].add_child(att)
+		_snore = Label3D.new()
+		_snore.text = "Хр-р-р…  z Z z"
+		_snore.font_size = 64
+		_snore.pixel_size = 0.0022
+		_snore.top_level = true          # всегда «вверх» по миру, даже когда голова лежит
+		_snore.outline_size = 18
+		_snore.modulate = Color("2b4a8a")
+		_snore.outline_modulate = Color(1, 1, 1, 0.95)
+		_snore.billboard = BaseMaterial3D.BILLBOARD_ENABLED
+		_snore.no_depth_test = true
+		_snore.position = Vector3(0, 0.55, 0)
+		_snore.visible = false
+		att.add_child(_snore)
+
+func _set_face(face: String) -> void:
+	if _face_override != "":
+		face = _face_override
+	if not face in _faces:
+		face = "normal"
+	_face = face
+	if _face_mat:
+		var tex := load(FACE_DIR + "%s_face_%s.jpg" % [_char(), face]) as Texture2D
+		if tex:
+			_face_mat.albedo_texture = tex
+	if _snore:
+		_snore.visible = face == "sleep"
+
+func _cycle_face() -> void:
+	if _faces.is_empty():
+		return
+	var i := (_faces.find(_face) + 1) % _faces.size()
+	_face_override = _faces[i]
+	_set_face(_face_override)
+
+func _animate_snore(delta: float) -> void:
+	if _snore == null or not _snore.visible:
+		return
+	_snore_t += delta
+	var k := fmod(_snore_t, 2.4) / 2.4                  # вдох-выдох: облачко всплывает и тает
+	var head := (_snore.get_parent() as Node3D).global_position
+	_snore.global_position = head + Vector3(0.05 * sin(_snore_t * 2.0), 0.35 + 0.25 * k, 0)
+	_snore.modulate.a = clampf(1.0 - k * 1.1, 0.0, 1.0)
+	_snore.outline_modulate.a = _snore.modulate.a
+	var s := 0.8 + 0.4 * k
+	_snore.scale = Vector3(s, s, s)
