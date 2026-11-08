@@ -151,7 +151,7 @@ func _play_current() -> void:
 	_player.play(n)
 	_player.speed_scale = 1.0
 	if _bottle:
-		_bottle.visible = n == "drink"
+		_bottle.visible = n in ["drink", "take", "swap", "success"]
 		_phone.visible = n == "phone"
 
 func _process(_delta: float) -> void:
