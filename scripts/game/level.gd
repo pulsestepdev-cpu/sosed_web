@@ -3,8 +3,9 @@ extends Node2D
 ## Уровень 1: двухэтажная квартира в разрезе, видна целиком. Лестница слева соединяет этажи.
 ## Мир в пикселях исходных картинок комнат (1536×1024 каждая).
 ##
-##   [ лестница ] [ Ванная  ] [ Спальня ] [ Балкон ]   ← 2-й этаж (floor 0)
-##   [ лестница ] [ Коридор ] [ Кухня   ] [ Зал    ]   ← 1-й этаж (floor 1)
+##   [ лестница ] [ Ванная  ] [ Спальня ] [ Балкон ] [ лестница ]   ← 2-й этаж (floor 0)
+##   [ лестница ] [ Коридор ] [ Кухня   ] [ Зал    ] [ лестница ]   ← 1-й этаж (floor 1)
+## Лестниц две (правая — зеркальная), персонаж идёт к ближайшей.
 ##
 ## Колесо мыши — приблизить к герою / вернуться к виду всей квартиры.
 ##
@@ -12,6 +13,7 @@ extends Node2D
 ##   --timescale=N   ускорить время в N раз
 ##   --start=H       начать с часа H (например 11.2)
 ##   --hero-go=X,Y   герой сразу идёт в мировую точку (проверка ходьбы и лестницы)
+##   --hero-at=X,Y   поставить героя в мировую точку
 ##   --sneak         герой сразу крадётся
 ##   --zoom          начать в приближенном виде
 
@@ -20,7 +22,13 @@ const ROOM_NAMES := {"bathroom": "Ванная", "bedroom": "Спальня", "b
 	"hallway": "Коридор", "kitchen": "Кухня", "living": "Зал", "stairs": "Лестница"}
 const ROOM_W := 1536.0
 const ROOM_H := 1024.0
-const STAIR_W := 620.0
+## Картинка лестницы 887×1774: пол 1-го этажа на y≈1650, площадка 2-го на y≈700.
+## Масштаб подобран так, чтобы эти точки совпали с полом этажей.
+const STAIR_SCALE := 1.12
+const STAIR_OFFSET_Y := 164.0
+const STAIR_W := 887.0 * STAIR_SCALE
+const STAIR_BOTTOM_X := 50.0    # где начинается подъём (от внешнего края лестницы)
+const STAIR_TOP_X := 735.0      # где кончаются ступени на площадке
 const SLAB := 40.0             # толщина перекрытия между этажами
 const WALL := 36.0             # толщина перегородки между комнатами
 const FLOOR_LINE := 948.0      # где стоят ноги, от верха комнаты
@@ -67,6 +75,9 @@ func _ready() -> void:
 	_update_camera(true)
 
 	_build_hud()
+	if args.has("hero-at"):
+		var q: PackedStringArray = args["hero-at"].split(",")
+		hero.position = snap_to_floor(Vector2(float(q[0]), float(q[1])))
 	if args.has("hero-go"):
 		var p: PackedStringArray = args["hero-go"].split(",")
 		hero.go_to_point(Vector2(float(p[0]), float(p[1])))
@@ -76,7 +87,10 @@ func _ready() -> void:
 # --- Геометрия ---------------------------------------------------------------
 
 func world_size() -> Vector2:
-	return Vector2(STAIR_W + 3 * ROOM_W + 2 * WALL, 2 * ROOM_H + SLAB)
+	return Vector2(2 * STAIR_W + 3 * ROOM_W + 2 * WALL, 2 * ROOM_H + SLAB)
+
+func right_stairs_x() -> float:
+	return STAIR_W + 3 * ROOM_W + 2 * WALL
 
 func floor_top(f: int) -> float:
 	return f * (ROOM_H + SLAB)
@@ -87,12 +101,19 @@ func floor_y(f: int) -> float:
 func floor_of(y: float) -> int:
 	return 0 if y < ROOM_H + SLAB * 0.5 else 1
 
-## Точки входа на лестницу: внизу у левой стены, наверху у правого края лестницы.
-func stair_point(f: int) -> Vector2:
-	return Vector2(STAIR_W - 60.0, floor_y(0)) if f == 0 else Vector2(110.0, floor_y(1))
+## Точки входа на лестницу s (0 — левая, 1 — правая) на этаже f.
+## Внизу — у внешней стены дома, наверху — там, где ступени выходят на площадку.
+func stair_point(s: int, f: int) -> Vector2:
+	var x := STAIR_TOP_X if f == 0 else STAIR_BOTTOM_X
+	if s == 1:
+		x = world_size().x - x
+	return Vector2(x, floor_y(f))
 
 func walk_min_x(f: int) -> float:
-	return STAIR_W - 60.0 if f == 0 else 110.0
+	return STAIR_TOP_X if f == 0 else STAIR_BOTTOM_X
+
+func walk_max_x(f: int) -> float:
+	return world_size().x - walk_min_x(f)
 
 func room_rect(room: String) -> Rect2:
 	return _rect[room]
@@ -112,15 +133,24 @@ func room_at(p: Vector2) -> String:
 ## Привязать клик к полу ближайшего этажа.
 func snap_to_floor(p: Vector2) -> Vector2:
 	var f := floor_of(p.y)
-	return Vector2(clampf(p.x, walk_min_x(f), world_size().x - 70.0), floor_y(f))
+	return Vector2(clampf(p.x, walk_min_x(f), walk_max_x(f)), floor_y(f))
 
-## Маршрут: если цель на другом этаже — через лестницу.
+## Маршрут: если цель на другом этаже — через ближайшую (по общей длине пути) лестницу.
 func plan_path(from: Vector2, to: Vector2) -> Array[Vector2]:
 	var ff := floor_of(from.y)
 	var tf := floor_of(to.y)
 	if ff == tf:
 		return [to]
-	return [stair_point(ff), stair_point(tf), to]
+	var best: Array[Vector2] = []
+	var best_len := INF
+	for s in 2:
+		var a := stair_point(s, ff)
+		var b := stair_point(s, tf)
+		var length := absf(from.x - a.x) + a.distance_to(b) + absf(b.x - to.x)
+		if length < best_len:
+			best_len = length
+			best = [a, b, to]
+	return best
 
 # --- Постройка ---------------------------------------------------------------
 
@@ -149,8 +179,8 @@ func _build_house() -> void:
 				_add_rect(Vector2(x, r.position.y), Vector2(WALL, ROOM_H * 0.2), Color("5a3d28"), -40)
 				_add_rect(Vector2(x, r.position.y + ROOM_H * 0.2), Vector2(WALL, ROOM_H * 0.8), Color("1e140d"), -40)
 				x += WALL
-	# перекрытие между этажами (в проёме лестницы — дыра)
-	_add_rect(Vector2(STAIR_W - 80.0, ROOM_H), Vector2(ws.x - STAIR_W + 80.0, SLAB), Color("4a3020"), -30)
+	# перекрытие между этажами (над лестницами — проём)
+	_add_rect(Vector2(STAIR_W, ROOM_H), Vector2(right_stairs_x() - STAIR_W, SLAB), Color("4a3020"), -30)
 	_build_stairs()
 
 func _placeholder_room(r: Rect2, title: String) -> void:
@@ -171,16 +201,26 @@ func _placeholder_room(r: Rect2, title: String) -> void:
 func _build_stairs() -> void:
 	var path := "res://assets/rooms/room_stairs.png"
 	if ResourceLoader.exists(path):
-		var s := Sprite2D.new()
-		s.texture = load(path)
-		s.centered = false
-		s.scale = Vector2(STAIR_W, world_size().y) / s.texture.get_size()
-		s.z_index = -50
-		add_child(s)
+		var tex: Texture2D = load(path)
+		# низ картинки ниже пола 1-го этажа обрезаем, сверху — полоса потолка
+		var visible_h := (world_size().y - STAIR_OFFSET_Y) / STAIR_SCALE
+		for side in 2:
+			var x0 := 0.0 if side == 0 else right_stairs_x()
+			_add_rect(Vector2(x0, 0), Vector2(STAIR_W, STAIR_OFFSET_Y + 10), Color("b06e35"), -51)
+			var s := Sprite2D.new()
+			s.texture = tex
+			s.centered = false
+			s.region_enabled = true
+			s.region_rect = Rect2(0, 0, tex.get_width(), visible_h)
+			s.scale = Vector2.ONE * STAIR_SCALE
+			s.flip_h = side == 1
+			s.position = Vector2(x0, STAIR_OFFSET_Y)
+			s.z_index = -50
+			add_child(s)
 		return
 	_add_rect(Vector2.ZERO, Vector2(STAIR_W, world_size().y), Color("b88a55"), -50)
-	var bottom := stair_point(1)
-	var top := stair_point(0)
+	var bottom := stair_point(0, 1)
+	var top := stair_point(0, 0)
 	var steps := 16
 	var poly := PackedVector2Array()
 	poly.append(Vector2(bottom.x - 60, bottom.y + 30))
