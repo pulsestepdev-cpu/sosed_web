@@ -9,11 +9,17 @@ bpy.ops.import_scene.gltf(filepath=src)
 tmp = os.path.join(out, name + "_obj")
 os.makedirs(tmp, exist_ok=True)
 # текстура цвета — отдельным файлом рядом с OBJ
-for img in bpy.data.images:
-    if "basecolor" in img.name.lower() or "base" in img.name.lower():
-        img.filepath_raw = os.path.join(tmp, "texture.png")
-        img.file_format = "PNG"
-        img.save()
+# текстура цвета — та, что подключена к Base Color (имена у Tripo бывают любые)
+for mat in bpy.data.materials:
+    if not mat.node_tree:
+        continue
+    bsdf = next((n for n in mat.node_tree.nodes if n.type == "BSDF_PRINCIPLED"), None)
+    if bsdf and bsdf.inputs["Base Color"].links:
+        node = bsdf.inputs["Base Color"].links[0].from_node
+        if node.type == "TEX_IMAGE" and node.image:
+            node.image.filepath_raw = os.path.join(tmp, "texture.png")
+            node.image.file_format = "PNG"
+            node.image.save()
 for mat in bpy.data.materials:
     if mat.node_tree:
         for n in list(mat.node_tree.nodes):
@@ -21,6 +27,13 @@ for mat in bpy.data.materials:
                 mat.node_tree.nodes.remove(n)
 bpy.ops.wm.obj_export(filepath=os.path.join(tmp, name + ".obj"), export_materials=True,
     path_mode="RELATIVE", forward_axis="NEGATIVE_Z", up_axis="Y")
+# путь к текстуре в MTL — просто имя файла рядом
+mtl = os.path.join(tmp, name + ".mtl")
+lines = []
+for l in open(mtl, encoding="utf-8"):
+    lines.append("map_Kd texture.png
+" if l.startswith("map_Kd") else l)
+open(mtl, "w", encoding="utf-8").writelines(lines)
 zpath = os.path.join(out, name + "_mixamo.zip")
 with zipfile.ZipFile(zpath, "w", zipfile.ZIP_DEFLATED) as z:
     for f in os.listdir(tmp):
