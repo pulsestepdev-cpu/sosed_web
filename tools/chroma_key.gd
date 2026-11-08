@@ -119,7 +119,21 @@ func _split(img: Image) -> Array:
 	for id in boxes.size():
 		if areas[id] >= big_area * 0.2:
 			main_ids.append(id)
-	main_ids.sort_custom(func(a, b): return boxes[a].get_center().x < boxes[b].get_center().x)
+	# порядок чтения: по рядам сверху вниз, в ряду слева направо
+	main_ids.sort_custom(func(a, b): return boxes[a].get_center().y < boxes[b].get_center().y)
+	var rows: Array = []
+	var row_bottom := -1
+	for id in main_ids:
+		if rows.is_empty() or boxes[id].position.y > row_bottom:
+			rows.append([])
+			row_bottom = boxes[id].end.y
+		else:
+			row_bottom = maxi(row_bottom, boxes[id].end.y)
+		rows[-1].append(id)
+	main_ids.clear()
+	for row in rows:
+		row.sort_custom(func(a, b): return boxes[a].get_center().x < boxes[b].get_center().x)
+		main_ids.append_array(row)
 
 	# к какой крупной фигуре принадлежит каждая область
 	var owner := PackedInt32Array()
