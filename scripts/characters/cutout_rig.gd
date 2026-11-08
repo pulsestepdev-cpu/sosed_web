@@ -115,11 +115,54 @@ func _foot_offset() -> float:
 	var bottom_local := sp.offset + Vector2(0, sp.texture.get_size().y)
 	return (_root.get_global_transform().affine_inverse() * shin.get_global_transform() * bottom_local).y - 4.0
 
+## Пьяное покачивание всего тела: 0 — трезвый, 1 — еле стоит.
+var sway := 0.0
+
 func _process(delta: float) -> void:
 	_t += delta
 	match anim:
 		"walk": _pose_walk(_t * TAU * 0.9 * walk_speed)
+		"drink": _pose_drink(_t)
+		"work": _pose_work(_t)
+		"kick": _pose_kick(_t)
+		"phone": _pose_phone(_t)
 		_: _pose_idle(_t)
+	_root.rotation = sin(_t * 1.7) * 0.09 * sway + sin(_t * 0.63) * 0.05 * sway
+
+func _pose_drink(t: float) -> void:
+	_pose_idle(t)
+	bones["arm_upper_front"].rotation = -1.9 + sin(t * 3.0) * 0.05
+	bones["arm_lower_front"].rotation = -1.2
+	bones["head"].rotation = -0.35
+	bones["torso"].rotation = -0.06
+
+func _pose_work(t: float) -> void:
+	_pose_idle(t)
+	var s := sin(t * 5.0)
+	bones["arm_upper_front"].rotation = -1.5 + s * 0.35
+	bones["arm_lower_front"].rotation = -0.6 + s * 0.25
+	bones["arm_upper_back"].rotation = -1.1 - s * 0.2
+	bones["arm_lower_back"].rotation = -0.5
+
+func _pose_phone(t: float) -> void:
+	_pose_idle(t)
+	bones["arm_upper_front"].rotation = -0.5
+	bones["arm_lower_front"].rotation = -1.9 + sin(t * 2.0) * 0.05
+	bones["head"].rotation = 0.18
+
+## Лоу-кик по воздуху раз в ~1.2 с, между ударами — стойка с поднятыми руками.
+func _pose_kick(t: float) -> void:
+	_pose_idle(t)
+	var ph := fmod(t, 1.2) / 1.2
+	var k := sin(clampf((ph - 0.1) / 0.35, 0.0, 1.0) * PI)
+	bones["leg_upper_front"].rotation = -1.25 * k
+	bones["leg_lower_front"].rotation = 0.3 * (1.0 - k)
+	bones["leg_upper_back"].rotation = 0.15 * k
+	bones["torso"].rotation = 0.25 * k
+	bones["arm_upper_front"].rotation = -1.3
+	bones["arm_lower_front"].rotation = -2.0
+	bones["arm_upper_back"].rotation = -1.0
+	bones["arm_lower_back"].rotation = -2.1
 
 func _pose_idle(t: float) -> void:
 	var breath := sin(t * 2.2)
@@ -132,6 +175,7 @@ func _pose_idle(t: float) -> void:
 		bones["leg_upper_" + side].rotation = 0.0
 		bones["leg_lower_" + side].rotation = 0.0
 	_root.position.x = 0.0
+	_root.position.y = -_base_y()
 
 func _pose_walk(p: float) -> void:
 	var swing := sin(p)
