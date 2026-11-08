@@ -3,13 +3,43 @@ extends Node2D
 ## Персонаж из отдельных частей (cut-out). Собирает иерархию суставов по описанию и анимирует её кодом.
 ## Смотрит вправо. Начало координат — точка между ступнями на полу.
 
-@export var parts_dir := "res://assets/characters/neighbor/parts"
+@export_enum("neighbor", "hero") var character := "neighbor"
 @export var anim := "idle"  # idle | walk
 @export var walk_speed := 1.0
 
+var parts_dir: String
+var spec: Dictionary
+
 ## Описание частей. pivot — точка сустава внутри картинки (доли ширины/высоты).
-## joints — точки крепления детей внутри картинки (доли). scale — масштаб детали. z — порядок отрисовки.
-var spec := {
+## joints — точки крепления детей внутри картинки (доли). scale — масштаб детали относительно родителя.
+## z — порядок отрисовки. rot — поворот самой картинки вокруг сустава (если деталь нарисована под углом).
+## Общий масштаб персонажа, чтобы герой и сосед были в одном росте.
+const RIG_SCALE := {"neighbor": 1.0, "hero": 0.85}
+
+const SPECS := {
+	"neighbor": NEIGHBOR,
+	"hero": HERO,
+}
+
+const HERO := {
+	"torso":           {"pivot": Vector2(0.43, 0.90), "scale": 1.0, "z": 0,
+						"joints": {"neck": Vector2(0.47, 0.06), "shoulder": Vector2(0.30, 0.27), "hip": Vector2(0.43, 0.90)}},
+	"head":            {"parent": "torso", "at": "neck", "pivot": Vector2(0.44, 0.86), "scale": 1.05, "z": 2},
+	"arm_upper_back":  {"parent": "torso", "at": "shoulder", "pivot": Vector2(0.49, 0.17), "scale": 0.83, "z": -2,
+						"joints": {"elbow": Vector2(0.43, 0.81)}},
+	"arm_lower_back":  {"parent": "arm_upper_back", "at": "elbow", "pivot": Vector2(0.26, 0.18), "scale": 1.0, "z": -1, "rot": -0.35},
+	"arm_upper_front": {"parent": "torso", "at": "shoulder", "pivot": Vector2(0.49, 0.17), "scale": 0.83, "z": 3,
+						"joints": {"elbow": Vector2(0.43, 0.81)}},
+	"arm_lower_front": {"parent": "arm_upper_front", "at": "elbow", "pivot": Vector2(0.26, 0.18), "scale": 1.0, "z": 4, "rot": -0.35},
+	"leg_upper_back":  {"parent": "torso", "at": "hip", "pivot": Vector2(0.47, 0.17), "scale": 0.9, "z": -4,
+						"joints": {"knee": Vector2(0.47, 0.80)}},
+	"leg_lower_back":  {"parent": "leg_upper_back", "at": "knee", "pivot": Vector2(0.35, 0.15), "scale": 0.76, "z": -3},
+	"leg_upper_front": {"parent": "torso", "at": "hip", "pivot": Vector2(0.47, 0.17), "scale": 0.9, "z": -1,
+						"joints": {"knee": Vector2(0.47, 0.80)}},
+	"leg_lower_front": {"parent": "leg_upper_front", "at": "knee", "pivot": Vector2(0.35, 0.15), "scale": 0.76, "z": 0},
+}
+
+const NEIGHBOR := {
 	"torso":           {"pivot": Vector2(0.42, 0.88), "scale": 1.0,  "z": 0,
 						"joints": {"neck": Vector2(0.43, 0.08), "shoulder": Vector2(0.32, 0.30), "hip": Vector2(0.42, 0.88)}},
 	"head":            {"parent": "torso", "at": "neck", "pivot": Vector2(0.50, 0.90), "scale": 0.92, "z": 2},
@@ -35,6 +65,9 @@ func _init() -> void:
 var _root: Node2D
 
 func _ready() -> void:
+	spec = SPECS[character]
+	scale *= float(RIG_SCALE[character])
+	parts_dir = "res://assets/characters/%s/parts" % character
 	_root = Node2D.new()
 	add_child(_root)
 	for name in spec:
@@ -55,6 +88,7 @@ func _build(name: String) -> Node2D:
 	sprite.offset = -Vector2(tex.get_size()) * (s["pivot"] as Vector2)
 	sprite.z_index = z_index + int(s["z"])
 	sprite.z_as_relative = false
+	sprite.rotation = float(s.get("rot", 0.0))
 	bone.add_child(sprite)
 	bone.scale = Vector2.ONE * float(s["scale"])
 	if s.has("parent"):

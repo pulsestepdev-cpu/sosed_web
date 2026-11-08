@@ -1,7 +1,8 @@
 extends Node2D
-## Проверка сборки персонажа из частей: эталонный вид сбоку, поза покоя и ходьба.
+## Проверка сборки персонажей из частей: эталон сбоку, поза покоя и ходьба для каждого.
 
 const FLOOR_Y := 940.0
+const SCALE := 0.62
 
 func _ready() -> void:
 	var bg := ColorRect.new()
@@ -14,14 +15,21 @@ func _ready() -> void:
 	fl.size = Vector2(1920, 140)
 	add_child(fl)
 
-	var ref := Sprite2D.new()
-	ref.texture = load("res://assets/characters/neighbor/neighbor_side.png")
-	ref.centered = false
-	ref.position = Vector2(140, FLOOR_Y - ref.texture.get_size().y + 8)
-	add_child(ref)
-
-	for i in 2:
-		var rig := CutoutRig.new()
-		rig.anim = ["idle", "walk"][i]
-		rig.position = Vector2(860 + i * 620, FLOOR_Y)
-		add_child(rig)
+	var x := 60.0
+	for who in ["hero", "neighbor"]:
+		var ref := Sprite2D.new()
+		ref.texture = load("res://assets/characters/%s/%s_side.png" % [who, who])
+		ref.centered = false
+		ref.scale = Vector2.ONE * SCALE
+		ref.position = Vector2(x, FLOOR_Y - ref.texture.get_size().y * SCALE + 6)
+		add_child(ref)
+		x += 260.0
+		for a in ["idle", "walk"]:
+			var rig := CutoutRig.new()
+			rig.character = who
+			rig.anim = a
+			rig.scale = Vector2.ONE * SCALE
+			rig.position = Vector2(x + 90, FLOOR_Y)
+			add_child(rig)
+			x += 280.0
+		x += 40.0
