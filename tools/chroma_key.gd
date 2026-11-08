@@ -1,5 +1,5 @@
 extends SceneTree
-## Убирает зелёный фон (хромакей) и режет лист персонажа на отдельные виды.
+## Убирает зелёный или пурпурный фон (хромакей) и режет лист персонажа на отдельные виды.
 ## Запуск:
 ##   Godot.exe --headless --path . --script res://tools/chroma_key.gd -- <вход.png> <папка_выхода> <префикс> [имена,через,запятую]
 ## Пример:
@@ -43,19 +43,31 @@ func _init() -> void:
 func _abs(p: String) -> String:
 	return p if p.is_absolute_path() else ProjectSettings.globalize_path("res://" + p)
 
+## Цвет фона определяется по левому верхнему углу: зелёный (#00FF00) или пурпурный (#FF00FF).
 func _key_out(img: Image) -> void:
+	var corner := img.get_pixel(2, 2)
+	var magenta := corner.r > 0.5 and corner.b > 0.5 and corner.g < 0.4
+	print("Фон: ", "пурпурный" if magenta else "зелёный")
 	for y in img.get_height():
 		for x in img.get_width():
 			var c := img.get_pixel(x, y)
-			var other := maxf(c.r, c.b)
-			var key := c.g - other
+			var key: float
+			var fixed: Color
+			if magenta:
+				var rb := minf(c.r, c.b)
+				key = rb - c.g
+				fixed = Color(minf(c.r, c.g + (c.r - rb)), c.g, minf(c.b, c.g + (c.b - rb)), c.a)
+			else:
+				var other := maxf(c.r, c.b)
+				key = c.g - other
+				fixed = Color(c.r, other, c.b, c.a)
 			if key >= KEY_HARD:
 				img.set_pixel(x, y, Color(0, 0, 0, 0))
 			elif key > KEY_SOFT:
-				var a := 1.0 - (key - KEY_SOFT) / (KEY_HARD - KEY_SOFT)
-				img.set_pixel(x, y, Color(c.r, other, c.b, a))  # убираем зелёный отсвет
+				fixed.a = 1.0 - (key - KEY_SOFT) / (KEY_HARD - KEY_SOFT)
+				img.set_pixel(x, y, fixed)  # убираем цветной отсвет фона
 			elif key > 0.0:
-				img.set_pixel(x, y, Color(c.r, other, c.b, c.a))
+				img.set_pixel(x, y, fixed)
 
 ## Ищет отдельные фигуры (связные области непрозрачных пикселей).
 ## Мелкие оторванные кусочки приклеивает к ближайшей крупной фигуре.
