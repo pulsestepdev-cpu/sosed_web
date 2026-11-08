@@ -69,6 +69,121 @@ func _ready() -> void:
 	cam.fov = 30
 	add_child(cam)
 	cam.look_at_from_position(Vector3(0, 1.0, 4.6 if not strip else 9.0), Vector3(0, 0.9, 0))
+	_cam = cam
+	if not strip:
+		_model = get_child(get_child_count() - 2) as Node3D
+		_player = _model.find_children("*", "AnimationPlayer", true, false)[0] as AnimationPlayer
+		_names = Array(_player.get_animation_list())
+		_names.erase("RESET")
+		_index = maxi(0, _names.find(anim))
+		_label = Label.new()
+		_label.add_theme_font_size_override("font_size", 26)
+		_label.add_theme_color_override("font_outline_color", Color.BLACK)
+		_label.add_theme_constant_override("outline_size", 8)
+		_label.position = Vector2(20, 14)
+		var ui := CanvasLayer.new()
+		add_child(ui)
+		ui.add_child(_label)
+		_add_props()
+		_play_current()
+
+## Временные предметы в руке (бутылка, телефон) на костях-точках RightHandGrip / RightHandPhone.
+var _bottle: Node3D
+var _phone: Node3D
+
+func _add_props() -> void:
+	var sk := _model.find_children("*", "Skeleton3D", true, false)
+	if sk.is_empty() or (sk[0] as Skeleton3D).find_bone("RightHandGrip") < 0:
+		return
+	_bottle = _prop(sk[0], "RightHandGrip", Color("2f7a3c"), true)
+	_phone = _prop(sk[0], "RightHandPhone", Color("1c1c24"), false)
+
+func _prop(sk: Skeleton3D, bone: String, col: Color, bottle: bool) -> Node3D:
+	var att := BoneAttachment3D.new()
+	att.bone_name = bone
+	sk.add_child(att)
+	var mi := MeshInstance3D.new()
+	if bottle:              # бутылка Ø 7 см, 26 см; ось кости — к горлышку
+		var cy := CylinderMesh.new()
+		cy.top_radius = 0.035; cy.bottom_radius = 0.035; cy.height = 0.26
+		mi.mesh = cy
+	else:                   # телефон 7.5 x 15 x 0.9 см; ось кости — длинная сторона
+		var bx := BoxMesh.new()
+		bx.size = Vector3(0.075, 0.15, 0.009)
+		mi.mesh = bx
+	var m := StandardMaterial3D.new()
+	m.albedo_color = col
+	m.roughness = 0.4
+	mi.material_override = m
+	att.add_child(mi)
+	return att
+
+# --- просмотр: переключение клипов с клавиатуры ---------------------------------------
+var _cam: Camera3D
+var _model: Node3D
+var _player: AnimationPlayer
+var _names: Array = []
+var _index := 0
+var _label: Label
+var _zoom := 4.6
+
+func _play_current() -> void:
+	var n: String = _names[_index]
+	var a := _player.get_animation(n)
+	a.loop_mode = Animation.LOOP_LINEAR
+	_player.play(n)
+	_player.speed_scale = 1.0
+	if _bottle:
+		_bottle.visible = n == "drink"
+		_phone.visible = n == "phone"
+
+func _process(_delta: float) -> void:
+	if _player == null:
+		return
+	var n: String = _names[_index]
+	var a := _player.get_animation(n)
+	_label.text = "%d/%d  %s   %.2f / %.2f с   скорость x%.2f%s\n←/→ клип   пробел пауза   ,/. кадр   ↑/↓ скорость   A/D повернуть   колесо — зум   R — сброс" % [
+		_index + 1, _names.size(), n, _player.current_animation_position, a.length,
+		absf(_player.speed_scale) if _player.speed_scale != 0.0 else _paused_speed,
+		"  (пауза)" if _player.speed_scale == 0.0 else ""]
+	if Input.is_key_pressed(KEY_A):
+		_model.rotation_degrees.y -= 120.0 * _delta
+	if Input.is_key_pressed(KEY_D):
+		_model.rotation_degrees.y += 120.0 * _delta
+
+var _paused_speed := 1.0
+
+func _unhandled_input(e: InputEvent) -> void:
+	if _player == null:
+		return
+	if e is InputEventMouseButton and e.pressed:
+		if e.button_index == MOUSE_BUTTON_WHEEL_UP: _zoom = maxf(1.2, _zoom - 0.3)
+		elif e.button_index == MOUSE_BUTTON_WHEEL_DOWN: _zoom = minf(9.0, _zoom + 0.3)
+		_cam.look_at_from_position(Vector3(0, 1.0, _zoom), Vector3(0, 0.9 if _zoom > 2.5 else 1.15, 0))
+	if not (e is InputEventKey and e.pressed):
+		return
+	match e.keycode:
+		KEY_RIGHT:
+			_index = (_index + 1) % _names.size(); _play_current()
+		KEY_LEFT:
+			_index = (_index - 1 + _names.size()) % _names.size(); _play_current()
+		KEY_SPACE:
+			if _player.speed_scale == 0.0:
+				_player.speed_scale = _paused_speed
+			else:
+				_paused_speed = _player.speed_scale; _player.speed_scale = 0.0
+		KEY_UP:
+			_player.speed_scale = minf(2.0, (_player.speed_scale if _player.speed_scale != 0.0 else _paused_speed) * 1.5)
+		KEY_DOWN:
+			_player.speed_scale = maxf(0.1, (_player.speed_scale if _player.speed_scale != 0.0 else _paused_speed) / 1.5)
+		KEY_PERIOD, KEY_COMMA:
+			if _player.speed_scale != 0.0:
+				_paused_speed = _player.speed_scale; _player.speed_scale = 0.0
+			_player.seek(clampf(_player.current_animation_position + (1.0 if e.keycode == KEY_PERIOD else -1.0) / 30.0,
+				0.0, _player.get_animation(_names[_index]).length), true)
+		KEY_R:
+			_model.rotation_degrees.y = 90; _zoom = 4.6
+			_cam.look_at_from_position(Vector3(0, 1.0, _zoom), Vector3(0, 0.9, 0))
 
 func _box(size: Vector3, pos: Vector3, mat: Material) -> void:
 	var mi := MeshInstance3D.new()
