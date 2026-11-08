@@ -1,155 +1,287 @@
 class_name Level
 extends Node2D
-## Уровень 1: квартира из комнат в ряд, камера за героем, игровые часы, сосед по расписанию.
-## Мир в пикселях исходных картинок (высота комнаты 1024), камера приближает до 1080.
+## Уровень 1: двухэтажная квартира в разрезе, видна целиком. Лестница слева соединяет этажи.
+## Мир в пикселях исходных картинок комнат (1536×1024 каждая).
+##
+##   [ лестница ] [ Ванная  ] [ Спальня ] [ Балкон ]   ← 2-й этаж (floor 0)
+##   [ лестница ] [ Коридор ] [ Кухня   ] [ Зал    ]   ← 1-й этаж (floor 1)
+##
+## Колесо мыши — приблизить к герою / вернуться к виду всей квартиры.
 ##
 ## Отладочные аргументы:
 ##   --timescale=N   ускорить время в N раз
 ##   --start=H       начать с часа H (например 11.2)
-##   --hero-x=X      поставить героя в мировую точку X
-##   --cam=hero|neighbor  за кем следит камера
-##   --hero-go=X     герой сразу идёт в точку X (проверка ходьбы)
+##   --hero-go=X,Y   герой сразу идёт в мировую точку (проверка ходьбы и лестницы)
 ##   --sneak         герой сразу крадётся
+##   --zoom          начать в приближенном виде
 
-const ROOMS := ["bathroom", "hallway", "kitchen", "living", "balcony"]
-const ROOM_NAMES := {"bathroom": "Ванная", "hallway": "Коридор", "kitchen": "Кухня", "living": "Зал", "balcony": "Балкон"}
+const FLOORS := [["bathroom", "bedroom", "balcony"], ["hallway", "kitchen", "living"]]
+const ROOM_NAMES := {"bathroom": "Ванная", "bedroom": "Спальня", "balcony": "Балкон",
+	"hallway": "Коридор", "kitchen": "Кухня", "living": "Зал", "stairs": "Лестница"}
 const ROOM_W := 1536.0
 const ROOM_H := 1024.0
-const WALL := 48.0
-const FLOOR_Y := 948.0
+const STAIR_W := 620.0
+const SLAB := 40.0             # толщина перекрытия между этажами
+const WALL := 36.0             # толщина перегородки между комнатами
+const FLOOR_LINE := 948.0      # где стоят ноги, от верха комнаты
 const START_HOUR := 7.5
 const END_HOUR := 20.0
 const SEC_PER_HOUR := 50.0
+const HUD_TOP := 150.0         # место под панель сверху
 
 var hour := START_HOUR
 var time_scale := 1.0
 var hero: Hero
 var neighbor: Neighbor
 var camera: Camera2D
-var cam_target: Node2D
+var zoomed := false
+var _full_zoom := 1.0
 var _clock_label: Label
 var _status_label: Label
-var _left := {}
+var _rect := {}                # комната -> Rect2 в мире
 
 func _ready() -> void:
 	var args := _args()
 	time_scale = float(args.get("timescale", "1"))
 	hour = float(args.get("start", str(START_HOUR)))
+	zoomed = args.has("zoom")
 
-	_build_rooms()
+	_build_house()
 
 	neighbor = Neighbor.new()
 	neighbor.level = self
-	neighbor.position = Vector2(room_left("living") + 380, FLOOR_Y)
+	neighbor.position = spot("bedroom", 760)
 	add_child(neighbor)
 
 	hero = Hero.new()
-	hero.position = Vector2(float(args.get("hero-x", str(room_left("hallway") + 220))), FLOOR_Y)
-	hero.min_x = 60.0
-	hero.max_x = total_width() - 60.0
+	hero.level = self
+	hero.position = spot("hallway", 260)
 	add_child(hero)
 
 	camera = Camera2D.new()
-	camera.zoom = Vector2.ONE * (1080.0 / ROOM_H)
-	camera.limit_left = 0
-	camera.limit_right = int(total_width())
-	camera.limit_top = 0
-	camera.limit_bottom = int(ROOM_H)
 	camera.position_smoothing_enabled = true
-	camera.position_smoothing_speed = 6.0
+	camera.position_smoothing_speed = 7.0
 	add_child(camera)
-	cam_target = neighbor if args.get("cam", "hero") == "neighbor" else hero
-	camera.position = Vector2(cam_target.position.x, ROOM_H / 2.0)
-	camera.reset_smoothing()
+	var view_h := 1080.0 - HUD_TOP - 20.0
+	_full_zoom = minf(1900.0 / world_size().x, view_h / world_size().y)
+	_update_camera(true)
 
 	_build_hud()
 	if args.has("hero-go"):
-		hero.go_to(float(args["hero-go"]))
+		var p: PackedStringArray = args["hero-go"].split(",")
+		hero.go_to_point(Vector2(float(p[0]), float(p[1])))
 	if args.has("sneak"):
 		hero.toggle_sneak()
 
-func _build_rooms() -> void:
-	var bg := ColorRect.new()
-	bg.color = Color("3b2a1e")
-	bg.position = Vector2(-2000, -200)
-	bg.size = Vector2(total_width() + 4000, ROOM_H + 400)
-	bg.z_index = -100
-	add_child(bg)
-	var x := 0.0
-	for r in ROOMS:
-		_left[r] = x
+# --- Геометрия ---------------------------------------------------------------
+
+func world_size() -> Vector2:
+	return Vector2(STAIR_W + 3 * ROOM_W + 2 * WALL, 2 * ROOM_H + SLAB)
+
+func floor_top(f: int) -> float:
+	return f * (ROOM_H + SLAB)
+
+func floor_y(f: int) -> float:
+	return floor_top(f) + FLOOR_LINE
+
+func floor_of(y: float) -> int:
+	return 0 if y < ROOM_H + SLAB * 0.5 else 1
+
+## Точки входа на лестницу: внизу у левой стены, наверху у правого края лестницы.
+func stair_point(f: int) -> Vector2:
+	return Vector2(STAIR_W - 60.0, floor_y(0)) if f == 0 else Vector2(110.0, floor_y(1))
+
+func walk_min_x(f: int) -> float:
+	return STAIR_W - 60.0 if f == 0 else 110.0
+
+func room_rect(room: String) -> Rect2:
+	return _rect[room]
+
+## Точка на полу комнаты: x отсчитывается от левого края комнаты.
+func spot(room: String, x: float) -> Vector2:
+	var r: Rect2 = _rect[room]
+	return Vector2(r.position.x + x, r.position.y + FLOOR_LINE)
+
+func room_at(p: Vector2) -> String:
+	for room in _rect:
+		var r: Rect2 = _rect[room]
+		if p.x >= r.position.x and p.x < r.end.x + WALL and floor_of(p.y) == floor_of(r.position.y + 1):
+			return room
+	return "stairs"
+
+## Привязать клик к полу ближайшего этажа.
+func snap_to_floor(p: Vector2) -> Vector2:
+	var f := floor_of(p.y)
+	return Vector2(clampf(p.x, walk_min_x(f), world_size().x - 70.0), floor_y(f))
+
+## Маршрут: если цель на другом этаже — через лестницу.
+func plan_path(from: Vector2, to: Vector2) -> Array[Vector2]:
+	var ff := floor_of(from.y)
+	var tf := floor_of(to.y)
+	if ff == tf:
+		return [to]
+	return [stair_point(ff), stair_point(tf), to]
+
+# --- Постройка ---------------------------------------------------------------
+
+func _build_house() -> void:
+	var ws := world_size()
+	_add_rect(Vector2(-4000, -4000), Vector2(ws.x + 8000, ws.y + 8000), Color("2a1d14"), -100)
+
+	for f in 2:
+		var x := STAIR_W
+		for c in 3:
+			var room: String = FLOORS[f][c]
+			var r := Rect2(x, floor_top(f), ROOM_W, ROOM_H)
+			_rect[room] = r
+			var path := "res://assets/rooms/room_%s.png" % room
+			if ResourceLoader.exists(path):
+				var s := Sprite2D.new()
+				s.texture = load(path)
+				s.centered = false
+				s.position = r.position
+				s.z_index = -50
+				add_child(s)
+			else:
+				_placeholder_room(r, ROOM_NAMES[room])
+			x += ROOM_W
+			if c < 2:
+				_add_rect(Vector2(x, r.position.y), Vector2(WALL, ROOM_H * 0.2), Color("5a3d28"), -40)
+				_add_rect(Vector2(x, r.position.y + ROOM_H * 0.2), Vector2(WALL, ROOM_H * 0.8), Color("1e140d"), -40)
+				x += WALL
+	# перекрытие между этажами (в проёме лестницы — дыра)
+	_add_rect(Vector2(STAIR_W - 80.0, ROOM_H), Vector2(ws.x - STAIR_W + 80.0, SLAB), Color("4a3020"), -30)
+	_build_stairs()
+
+func _placeholder_room(r: Rect2, title: String) -> void:
+	_add_rect(r.position, r.size, Color("c9a46a"), -50)
+	_add_rect(Vector2(r.position.x, r.position.y + FLOOR_LINE - 30), Vector2(r.size.x, r.size.y - FLOOR_LINE + 30), Color("a0784f"), -49)
+	var l := Label.new()
+	l.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	l.text = title + "\n(картинка скоро)"
+	l.add_theme_font_size_override("font_size", 90)
+	l.add_theme_color_override("font_color", Color("6b4a2c"))
+	l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	l.size = Vector2(r.size.x, 300)
+	l.position = r.position + Vector2(0, 300)
+	l.z_index = -48
+	add_child(l)
+
+## Заглушка лестницы, пока нет картинки: стена, ступени по диагонали, площадка наверху.
+func _build_stairs() -> void:
+	var path := "res://assets/rooms/room_stairs.png"
+	if ResourceLoader.exists(path):
 		var s := Sprite2D.new()
-		s.texture = load("res://assets/rooms/room_%s.png" % r)
+		s.texture = load(path)
 		s.centered = false
-		s.position = Vector2(x, 0)
+		s.scale = Vector2(STAIR_W, world_size().y) / s.texture.get_size()
 		s.z_index = -50
 		add_child(s)
-		x += ROOM_W
-		if r != ROOMS[-1]:
-			# перегородка с проёмом: тёмная стена сверху, проход у пола
-			var wall := ColorRect.new()
-			wall.color = Color("5a3d28")
-			wall.position = Vector2(x, 0)
-			wall.size = Vector2(WALL, ROOM_H * 0.22)
-			wall.z_index = -40
-			add_child(wall)
-			var jamb := ColorRect.new()
-			jamb.color = Color("2e1f15")
-			jamb.position = Vector2(x, ROOM_H * 0.22)
-			jamb.size = Vector2(WALL, ROOM_H * 0.78)
-			jamb.z_index = -40
-			add_child(jamb)
-			x += WALL
+		return
+	_add_rect(Vector2.ZERO, Vector2(STAIR_W, world_size().y), Color("b88a55"), -50)
+	var bottom := stair_point(1)
+	var top := stair_point(0)
+	var steps := 16
+	var poly := PackedVector2Array()
+	poly.append(Vector2(bottom.x - 60, bottom.y + 30))
+	for i in steps:
+		var t0 := float(i) / steps
+		var t1 := float(i + 1) / steps
+		var a := bottom.lerp(top, t0)
+		var b := bottom.lerp(top, t1)
+		poly.append(Vector2(a.x - 60 + (b.x - a.x) * 0.0, b.y + 30))
+		poly.append(Vector2(b.x - 60, b.y + 30))
+	poly.append(Vector2(top.x + 60, top.y + 30))
+	poly.append(Vector2(top.x + 60, top.y + 90))
+	poly.append(Vector2(bottom.x + 40, bottom.y + 90))
+	var p2 := Polygon2D.new()
+	p2.polygon = poly
+	p2.color = Color("7a4e2d")
+	p2.z_index = -45
+	add_child(p2)
+	# площадка 2-го этажа
+	_add_rect(Vector2(top.x - 120, ROOM_H - 46), Vector2(STAIR_W - top.x + 120, SLAB + 46), Color("4a3020"), -44)
+
+func _add_rect(pos: Vector2, size: Vector2, color: Color, z: int) -> ColorRect:
+	var cr := ColorRect.new()
+	cr.mouse_filter = Control.MOUSE_FILTER_IGNORE   # иначе прямоугольник съедает клики
+	cr.position = pos
+	cr.size = size
+	cr.color = color
+	cr.z_index = z
+	add_child(cr)
+	return cr
 
 func _build_hud() -> void:
 	var hud := CanvasLayer.new()
 	add_child(hud)
 	var panel := PanelContainer.new()
-	panel.position = Vector2(24, 20)
+	panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	panel.position = Vector2(24, 16)
 	var sb := StyleBoxFlat.new()
-	sb.bg_color = Color(0.17, 0.11, 0.07, 0.85)
+	sb.bg_color = Color(0.17, 0.11, 0.07, 0.9)
 	sb.set_corner_radius_all(14)
 	sb.content_margin_left = 22
 	sb.content_margin_right = 22
-	sb.content_margin_top = 10
-	sb.content_margin_bottom = 12
+	sb.content_margin_top = 8
+	sb.content_margin_bottom = 10
 	panel.add_theme_stylebox_override("panel", sb)
 	hud.add_child(panel)
-	var vb := VBoxContainer.new()
-	panel.add_child(vb)
+	var hb := HBoxContainer.new()
+	hb.add_theme_constant_override("separation", 30)
+	panel.add_child(hb)
 	_clock_label = Label.new()
-	_clock_label.add_theme_font_size_override("font_size", 44)
+	_clock_label.add_theme_font_size_override("font_size", 64)
 	_clock_label.add_theme_color_override("font_color", Color("ffe9b8"))
-	vb.add_child(_clock_label)
+	hb.add_child(_clock_label)
 	_status_label = Label.new()
-	_status_label.add_theme_font_size_override("font_size", 26)
+	_status_label.add_theme_font_size_override("font_size", 28)
 	_status_label.add_theme_color_override("font_color", Color("e8cfa0"))
-	vb.add_child(_status_label)
+	hb.add_child(_status_label)
+
+	var hint := Label.new()
+	hint.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	hint.text = "ЛКМ — идти   ·   ПКМ / Shift — крадучись   ·   колесо — приблизить"
+	hint.add_theme_font_size_override("font_size", 24)
+	hint.add_theme_color_override("font_color", Color("c9a878"))
+	hint.position = Vector2(24, 1040)
+	hud.add_child(hint)
+
+# --- Цикл --------------------------------------------------------------------
 
 func _process(delta: float) -> void:
 	hour = minf(hour + delta * time_scale / SEC_PER_HOUR, END_HOUR)
 	neighbor.update_schedule(hour)
-	camera.position = Vector2(cam_target.position.x, ROOM_H / 2.0)
+	_update_camera(false)
 
 	var h := int(hour)
 	var m := int((hour - h) * 60.0)
 	_clock_label.text = "%02d:%02d" % [h, m]
-	_status_label.text = "Сосед: %s (%s)\nГерой: %s%s" % [
-		neighbor.activity, ROOM_NAMES[room_at(neighbor.position.x)],
-		ROOM_NAMES[room_at(hero.position.x)], "  · крадётся" if hero.sneaking else ""]
+	_status_label.text = "Сосед: %s  ·  %s\nГерой: %s%s" % [
+		neighbor.activity, ROOM_NAMES[room_at(neighbor.position)],
+		ROOM_NAMES[room_at(hero.position)], "  ·  крадётся" if hero.sneaking else ""]
 
-func room_left(room: String) -> float:
-	return _left[room]
+func _update_camera(instant: bool) -> void:
+	var z: float
+	if zoomed:
+		z = 1080.0 / ROOM_H
+		camera.position = Vector2(hero.position.x, floor_top(floor_of(hero.position.y)) + ROOM_H * 0.5)
+	else:
+		z = _full_zoom
+		camera.position = world_size() * 0.5 - Vector2(0, HUD_TOP * 0.5 / z)
+	camera.zoom = Vector2.ONE * z
+	for c in [hero, neighbor]:
+		if c:
+			c.ui_scale = 0.6 / z if not zoomed else 1.0
+	if instant:
+		camera.reset_smoothing()
 
-func room_at(x: float) -> String:
-	var found: String = ROOMS[0]
-	for r in ROOMS:
-		if x >= _left[r]:
-			found = r
-	return found
-
-func total_width() -> float:
-	return ROOM_W * ROOMS.size() + WALL * (ROOMS.size() - 1)
+func _unhandled_input(event: InputEvent) -> void:
+	if event is InputEventMouseButton and event.pressed:
+		if event.button_index == MOUSE_BUTTON_WHEEL_UP and not zoomed:
+			zoomed = true
+		elif event.button_index == MOUSE_BUTTON_WHEEL_DOWN and zoomed:
+			zoomed = false
 
 func _args() -> Dictionary:
 	var out := {}

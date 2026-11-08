@@ -4,8 +4,8 @@ extends Character
 
 ## Расписание: [час (дробный), комната, x внутри комнаты, действие, лицо, реплика]
 const SCHEDULE := [
-	[7.5,  "living",   380,  "спит",                    "sleeping", ""],
-	[8.0,  "living",   380,  "просыпается",             "proud",    "Всё, сегодня больше не пью!"],
+	[7.5,  "bedroom",  760,  "спит",                    "sleeping", ""],
+	[8.0,  "bedroom",  760,  "просыпается",             "proud",    "Всё, сегодня больше не пью!"],
 	[8.17, "bathroom", 670,  "чистит зубы",             "normal",   ""],
 	[8.5,  "kitchen",  1270, "пьёт кофе",               "normal",   "Не, вообще к пиву не тянет."],
 	[9.0,  "living",   1300, "шпаклюет стену",          "normal",   ""],
@@ -23,7 +23,7 @@ const SCHEDULE := [
 
 signal activity_started(entry: Array)
 
-var level: Node            # Level: даёт координаты комнат
+var level: Level           # даёт координаты комнат и маршруты
 var current := -1
 var activity := ""
 var _pending := false
@@ -48,12 +48,12 @@ func update_schedule(hour: float) -> void:
 	var e: Array = SCHEDULE[idx]
 	activity = "идёт: " + e[3]
 	set_face("normal" if e[4] == "sleeping" else e[4])
-	var x: float = level.room_left(e[1]) + float(e[2])
-	if absf(x - position.x) < 2.0:
+	var target := level.spot(e[1], float(e[2]))
+	if position.distance_to(target) < 2.0:
 		_on_arrived()
 	else:
 		_pending = true
-		walk_to(x)
+		walk_path(level.plan_path(position, target))
 
 func _on_arrived() -> void:
 	if current < 0:
