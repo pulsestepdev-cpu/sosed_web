@@ -1,5 +1,6 @@
 # Лист-превью предметов: каждый объект — в своей клетке, камера подогнана под его размер, подпись снизу.
-# blender -b <props.blend> -P tools/blender/props_sheet.py -- <выход.png> [колонок=6] [размер_клетки=320]
+# blender -b <props.blend> -P tools/blender/props_sheet.py -- <выход.png> [колонок=6] [размер_клетки=320] [кадр=1] [только_подвижные=0]
+# кадр 30 — подвижные части в открытом положении (клип open); только_подвижные=1 — лишь предметы с частями.
 import bpy, sys, os, math
 import numpy as np
 from mathutils import Vector
@@ -8,9 +9,13 @@ a = sys.argv[sys.argv.index("--") + 1:]
 out = a[0]
 COLS = int(a[1]) if len(a) > 1 else 6
 CELL = int(a[2]) if len(a) > 2 else 320
+FRAME = int(a[3]) if len(a) > 3 else 1
+ONLY_MOVING = len(a) > 4 and a[4] == "1"
 
 sc = bpy.context.scene
-objs = sorted([o for o in sc.objects if o.type == "MESH"], key=lambda o: o.name)
+objs = sorted([o for o in sc.objects if o.type == "MESH" and o.parent is None and (o.children or not ONLY_MOVING)],
+              key=lambda o: o.name)
+sc.frame_set(FRAME)
 sc.render.engine = "BLENDER_EEVEE"
 sc.render.resolution_x = sc.render.resolution_y = CELL
 sc.view_settings.view_transform = "Standard"     # без «выцветания» AgX
@@ -29,9 +34,11 @@ sheet = np.ones((rows * CELL, COLS * CELL, 4), dtype=np.float32) * np.array([0.8
 tmp = os.path.join(os.path.dirname(out), "_cell.png")
 view = Vector((0.55, -1.0, 0.45)).normalized()          # три четверти спереди-сверху
 for i, o in enumerate(objs):
-    for p in objs:
-        p.hide_render = p != o
-    pts = [o.matrix_world @ Vector(c) for c in o.bound_box]
+    group = [o] + list(o.children_recursive)
+    for p in sc.objects:
+        if p.type == "MESH":
+            p.hide_render = p not in group
+    pts = [p.matrix_world @ Vector(c) for p in group for c in p.bound_box]
     mn = Vector(map(min, *pts)); mx = Vector(map(max, *pts))
     c = (mn + mx) / 2
     size = max((mx - mn).length, 0.05)

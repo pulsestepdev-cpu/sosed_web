@@ -1,7 +1,8 @@
 extends Node3D
 ## Просмотр 3D-предметов: все .glb из assets/models/props рядами, с подписями.
 ## Мышь: правая кнопка — вращать камеру, колесо — зум. WASD/стрелки — двигаться, Q/E — вниз/вверх.
-## F — следующий предмет крупно, R — общий вид.
+## F — следующий предмет крупно, R — общий вид. O — открыть/закрыть все подвижные части (клип open),
+## P — рубильник щитка (switch). --open в аргументах — сразу открыть (для снимка).
 
 const DIR := "res://assets/models/props/"
 const GAP := 0.6          # промежуток между предметами
@@ -85,11 +86,15 @@ func _ready() -> void:
 	_label.add_theme_font_size_override("font_size", 22)
 	_label.add_theme_color_override("font_color", Color("3a2412"))
 	_label.position = Vector2(16, 12)
-	_label.text = "%d предметов   ПКМ — вращать   колесо — зум   WASD/стрелки — двигаться   Q/E — вниз/вверх   F — следующий крупно   R — общий вид" % _items.size()
+	_label.text = "%d предметов   O — открыть/закрыть   P — рубильник   ПКМ — вращать   колесо — зум   WASD — двигаться   Q/E — вниз/вверх   F — следующий крупно   R — общий вид" % _items.size()
 	var ui := CanvasLayer.new()
 	add_child(ui)
 	ui.add_child(_label)
 	_update_cam()
+	for ap in find_children("*", "AnimationPlayer", true, false):
+		_players.append(ap)
+	if "--open" in OS.get_cmdline_user_args():
+		_toggle("open")
 
 func _bounds(n: Node) -> AABB:
 	var out := AABB()
@@ -138,6 +143,10 @@ func _unhandled_input(ev: InputEvent) -> void:
 			_dist = maxf(0.5, (it[1] as Vector3).length() * 1.8)
 			_label.text = "%d/%d  %s   (F — следующий, R — общий вид)" % [_focus + 1, _items.size(), it[2]]
 			_update_cam()
+		elif ev.keycode == KEY_O:
+			_toggle("open")
+		elif ev.keycode == KEY_P:
+			_toggle("switch")
 		elif ev.keycode == KEY_R:
 			_ready_view()
 
@@ -145,5 +154,21 @@ func _ready_view() -> void:
 	_focus = -1
 	_yaw = 0.0; _pitch = -0.75; _dist = 15.0
 	_target = _home
-	_label.text = "%d предметов   ПКМ — вращать   колесо — зум   WASD/стрелки — двигаться   Q/E — вниз/вверх   F — следующий крупно   R — общий вид" % _items.size()
+	_label.text = "%d предметов   O — открыть/закрыть   P — рубильник   ПКМ — вращать   колесо — зум   WASD — двигаться   Q/E — вниз/вверх   F — следующий крупно   R — общий вид" % _items.size()
 	_update_cam()
+
+var _players: Array = []
+var _state := {}
+
+## Проиграть клип у всех предметов, где он есть: туда, а при повторном нажатии — обратно.
+func _toggle(clip: String) -> void:
+	var opened: bool = not _state.get(clip, false)
+	_state[clip] = opened
+	for ap in _players:
+		var p := ap as AnimationPlayer
+		if not p.has_animation(clip):
+			continue
+		if opened:
+			p.play(clip)
+		else:
+			p.play_backwards(clip)

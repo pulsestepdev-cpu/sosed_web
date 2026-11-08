@@ -155,6 +155,7 @@ def finish(name):
     bpy.context.view_layer.objects.active = PARTS[0]
     bpy.ops.object.convert(target="MESH")          # применить скругления
     bpy.ops.object.join()
+    bpy.ops.object.transform_apply(location=True, rotation=True, scale=True)   # начало — в нуле предмета
     o = bpy.context.active_object
     o.name = name
     o.data.name = name
@@ -166,20 +167,6 @@ def finish(name):
     return o
 
 # ================================================================ мебель (типы со скринов)
-@prop("door")
-def p_door():
-    W, H, T = 0.9, 2.05, 0.045
-    box(W, T, H, z=H / 2, m=CREAM, bev=0.006)
-    for x in (-0.2, 0.2):                      # филёнки: две высокие сверху, две пониже снизу
-        box(0.30, 0.014, 0.70, x=x, y=-T / 2 - 0.005, z=1.47, m=CREAM_D, bev=0.012)
-        box(0.30, 0.014, 0.62, x=x, y=-T / 2 - 0.005, z=0.52, m=CREAM_D, bev=0.012)
-    for sx in (-1, 1):                         # наличник
-        box(0.08, 0.06, H + 0.08, x=sx * (W / 2 + 0.04), z=(H + 0.08) / 2, m=CREAM, bev=0.01)
-    box(W + 0.24, 0.06, 0.09, z=H + 0.08, m=CREAM, bev=0.01)
-    cyl(0.03, 0.02, x=0.36, y=-T / 2 - 0.01, z=1.0, m=BRASS, rot=(rad(90), 0, 0))
-    sph(0.035, x=0.36, y=-T / 2 - 0.05, z=1.0, m=BRASS)
-    cyl(0.008, 0.04, x=0.36, y=-T / 2 - 0.03, z=1.0, m=BRASS, rot=(rad(90), 0, 0))
-
 @prop("window")
 def p_window():
     W, H = 1.1, 1.3
@@ -211,29 +198,6 @@ def p_armchair():
         for sy in (-1, 1):
             cyl(0.03, 0.12, x=sx * 0.36, y=sy * 0.33, z=0.06, m=WOOD_D, r2=0.022)
 
-@prop("wardrobe")
-def p_wardrobe():
-    box(1.05, 0.58, 1.86, z=1.03, m=WOOD, bev=0.01)
-    box(1.10, 0.62, 0.10, z=0.05, m=WOOD_D, bev=0.015)
-    box(1.16, 0.66, 0.10, z=2.0, m=WOOD_D, bev=0.02)
-    box(0.9, 0.5, 0.12, z=2.1, m=WOOD_D, bev=0.04)
-    for sx in (-1, 1):
-        x = sx * 0.262
-        box(0.50, 0.025, 1.74, x=x, y=-0.3, z=1.03, m=WOOD_L, bev=0.008)
-        box(0.36, 0.012, 0.78, x=x, y=-0.315, z=1.43, m=WOOD, bev=0.01)
-        box(0.36, 0.012, 0.66, x=x, y=-0.315, z=0.56, m=WOOD, bev=0.01)
-        sph(0.025, x=sx * 0.04, y=-0.33, z=1.05, m=BRASS)
-
-@prop("toilet")
-def p_toilet():
-    cyl(0.14, 0.32, y=0.0, z=0.16, m=CERAMIC, r2=0.11, sc=(1, 1.25, 1), bev=0.02)
-    cyl(0.20, 0.15, y=-0.06, z=0.36, m=CERAMIC, r2=0.22, sc=(1, 1.28, 1), bev=0.03)
-    tor(0.17, 0.035, y=-0.06, z=0.445, m=CERAMIC, sc=(1, 1.28, 0.8))         # сиденье
-    cyl(0.205, 0.025, y=-0.06, z=0.475, m=CERAMIC, sc=(1, 1.28, 1), bev=0.01)  # крышка
-    box(0.42, 0.20, 0.38, y=0.22, z=0.64, m=CERAMIC, bev=0.035)              # бачок
-    box(0.45, 0.23, 0.045, y=0.22, z=0.85, m=CERAMIC, bev=0.02)
-    cyl(0.03, 0.02, y=0.22, z=0.88, m=CHROME)
-
 @prop("bathtub")
 def p_bathtub():
     outer = box(1.70, 0.76, 0.56, z=0.28, m=CERAMIC, bev=0.06)
@@ -244,16 +208,6 @@ def p_bathtub():
     cyl(0.02, 0.16, x=0.70, y=0.30, z=0.75, m=CHROME, rot=(0, rad(90), 0))
     for dx in (0.08, -0.08):
         sph(0.03, x=0.76 + dx * 0.0, y=0.30 + dx, z=0.62, m=CHROME)
-
-@prop("shower_curtain")
-def p_shower_curtain():
-    L = 1.7
-    cyl(0.015, L, z=2.0, m=CHROME, rot=(0, rad(90), 0))
-    n = 18
-    for i in range(n):
-        x = -L / 2 + 0.05 + i * (L - 0.1) / (n - 1)
-        cyl(0.045, 1.5, x=x, y=0.018 * (i % 2), z=1.22, m=TEAL if i % 2 else TEAL_L, v=12, bev=0)
-        tor(0.02, 0.005, x=x, z=1.99, m=CHROME, rot=(0, rad(90), 0))
 
 @prop("sink")
 def p_sink():
@@ -271,18 +225,6 @@ def p_mirror():
     box(0.44, 0.01, 0.54, y=-0.135, z=0.31, m=MIRROR, bev=0)
     box(0.56, 0.16, 0.04, y=-0.08, z=0.64, m=CREAM_D, bev=0.01)
     cyl(0.03, 0.06, y=-0.11, z=0.70, m=LAMP)                                  # лампочка сверху
-
-@prop("dresser")
-def p_dresser():
-    box(0.84, 0.45, 0.80, z=0.46, m=WOOD, bev=0.012)
-    box(0.90, 0.49, 0.04, z=0.88, m=WOOD_D, bev=0.012)
-    for i, z in enumerate((0.22, 0.47, 0.72)):
-        box(0.76, 0.025, 0.21, y=-0.235, z=z, m=WOOD_L, bev=0.01)
-        for sx in (-1, 1):
-            sph(0.02, x=sx * 0.2, y=-0.258, z=z, m=BRASS)
-    for sx in (-1, 1):
-        for sy in (-1, 1):
-            cyl(0.03, 0.06, x=sx * 0.38, y=sy * 0.18, z=0.03, m=WOOD_D, r2=0.022)
 
 @prop("console_table")
 def p_console():
@@ -403,17 +345,6 @@ def p_robot():
     sph(0.008, y=-0.06, z=0.088, m=LED_G)
     tor(0.17, 0.012, z=0.035, m=DARK)                                          # бампер
 
-@prop("fridge")
-def p_fridge():
-    box(0.68, 0.64, 1.78, z=0.89, m=STEEL, bev=0.03)
-    box(0.66, 0.03, 0.56, y=-0.33, z=1.48, m=STEEL, bev=0.015)
-    box(0.66, 0.03, 1.12, y=-0.33, z=0.62, m=STEEL, bev=0.015)
-    for z, h in ((1.38, 0.3), (0.95, 0.5)):
-        cyl(0.012, h, x=-0.27, y=-0.37, z=z, m=CHROME)
-    for (x, z, w, hh, m) in ((0.08, 1.55, 0.12, 0.12, OCHRE), (0.15, 1.36, 0.1, 0.14, TEAL_L),
-                             (-0.05, 0.95, 0.14, 0.12, BRICK), (0.12, 0.8, 0.1, 0.1, PURPLE)):
-        box(w, 0.006, hh, x=x, y=-0.348, z=z, m=m, bev=0.002, rot=(0, rad(rnd.uniform(-6, 6)), 0))
-
 @prop("spice_rack")
 def p_spices():
     for sx in (-1, 1):
@@ -452,20 +383,6 @@ def p_rug():
         for i in range(14):                                                    # бахрома
             box(0.008, 0.05, 0.004, x=sx * 0.82, y=-0.45 + i * 0.07, z=0.004, m=CREAM, bev=0,
                 rot=(0, 0, rad(90)))
-
-@prop("toolbox")
-def p_toolbox():
-    b = box(0.46, 0.22, 0.18, z=0.09, m=BRICK, bev=0.012)
-    inner = box(0.43, 0.19, 0.18, z=0.15, m=BRICK, bev=0.005)
-    cut(b, inner)
-    box(0.462, 0.222, 0.035, z=0.06, m=MUSTARD, bev=0.004)                    # полоса
-    box(0.2, 0.02, 0.06, x=-0.22, y=-0.06, z=0.21, m=BRICK, bev=0.006, rot=(rad(-30), 0, 0))  # открытая крышка
-    cyl(0.014, 0.28, x=-0.08, y=0.02, z=0.24, m=WOOD_L, rot=(rad(-20), rad(40), 0))         # молоток
-    box(0.1, 0.035, 0.035, x=0.0, y=0.06, z=0.32, m=STEEL, bev=0.006, rot=(rad(-20), rad(40), 0))
-    box(0.025, 0.012, 0.24, x=0.1, y=-0.03, z=0.22, m=STEEL, bev=0.004, rot=(0, rad(-25), 0))  # ключ
-    tor(0.026, 0.008, x=0.155, y=-0.03, z=0.33, m=STEEL, rot=(rad(90), 0, 0), arc=-0.01)
-    cyl(0.016, 0.1, x=0.16, y=0.05, z=0.2, m=RED, rot=(0, rad(-15), 0))       # отвёртка
-    cyl(0.004, 0.14, x=0.18, y=0.05, z=0.31, m=STEEL, rot=(0, rad(-15), 0))
 
 @prop("washing_machine")
 def p_washer():
@@ -589,20 +506,620 @@ def p_skis():
         tor(0.035, 0.006, x=sx * 0.2, y=-0.02, z=0.1, m=DARK)
         cyl(0.016, 0.14, x=sx * 0.2, y=0.07, z=1.2, m=DARK)
 
+# ================================================================ подвижные части и их анимации
+# sub(имя, шарнир) — всё, что построено с прошлого sub/начала предмета, становится отдельной частью
+# с началом координат в точке шарнира. move(часть, клип, ключи) — анимация части; клипы с одним именем
+# у разных частей сливаются в одну анимацию GLB (например, "open" у обеих створок шкафа).
+# Ключи: (кадр, "rot"|"loc"|"scale", ось 0..2, значение) — поворот в градусах, сдвиг в метрах,
+# масштаб — множитель; всё относительно закрытого положения. 30 кадров = 1 секунда.
+# Предмет с частями: сначала строится основа и собирается finish(имя_предмета), затем части через sub(),
+# в конце основа возвращается в PARTS — запуск поймёт, что корень уже готов.
+SUBS, MOVES = [], []
+PROP_NAME = [""]
+ORANGE = M("orange", (0.92, 0.45, 0.12), 0.5)
+
+def sub(name, pivot):
+    o = finish("%s_%s" % (PROP_NAME[0], name))
+    bpy.context.scene.cursor.location = pivot
+    bpy.ops.object.origin_set(type="ORIGIN_CURSOR")
+    SUBS.append(o)
+    return o
+
+def move(o, clip, keys):
+    MOVES.append((o, clip, keys))
+
+def swing(o, axis, deg, frames=24, clip="open"):
+    """Поворот части на deg градусов вокруг оси за frames кадров (с замедлением в конце)."""
+    move(o, clip, [(1, "rot", axis, 0), (int(frames * 0.6), "rot", axis, deg * 0.85), (frames, "rot", axis, deg)])
+
+def slide(o, axis, dist, frames=18, clip="open"):
+    move(o, clip, [(1, "loc", axis, 0), (int(frames * 0.6), "loc", axis, dist * 0.85), (frames, "loc", axis, dist)])
+
+def _apply_moves():
+    by_obj = {}
+    for o, clip, keys in MOVES:
+        by_obj.setdefault(o.name, (o, {}))[1].setdefault(clip, []).extend(keys)
+    for o, clips in by_obj.values():
+        rest = (o.location.copy(), o.rotation_euler.copy(), o.scale.copy())
+        o.animation_data_create()
+        for clip, keys in clips.items():
+            act = bpy.data.actions.new("%s_%s" % (o.name, clip))
+            o.animation_data.action = act
+            for frame, kind, ax, val in sorted(keys, key=lambda k: k[0]):
+                if kind == "rot":
+                    o.rotation_euler[ax] = rest[1][ax] + rad(val)
+                    o.keyframe_insert("rotation_euler", index=ax, frame=frame)
+                elif kind == "loc":
+                    o.location[ax] = rest[0][ax] + val
+                    o.keyframe_insert("location", index=ax, frame=frame)
+                else:
+                    o.scale[ax] = rest[2][ax] * val
+                    o.keyframe_insert("scale", index=ax, frame=frame)
+            o.animation_data.action = None
+            tr = o.animation_data.nla_tracks.new()
+            tr.name = clip
+            tr.strips.new(act.name, 1, act)
+            o.location, o.rotation_euler, o.scale = rest
+    MOVES.clear()
+
+def label(r, h, z, m, x=0, y=0):
+    cyl(r * 1.02, h, x=x, y=y, z=z, m=m, bev=0)
+
+# ---------------------------------------------------------------- дверь, шкаф, мебель с ящиками
+@prop("door")
+def p_door():
+    """Дверь: полотно открывается (open) на петлях слева. Наличник неподвижный."""
+    W, H, T = 0.9, 2.05, 0.045
+    for sx in (-1, 1):
+        box(0.08, 0.06, H + 0.08, x=sx * (W / 2 + 0.04), z=(H + 0.08) / 2, m=CREAM, bev=0.01)
+    box(W + 0.24, 0.06, 0.09, z=H + 0.08, m=CREAM, bev=0.01)
+    base = finish("door")
+    box(W, T, H, z=H / 2, m=CREAM, bev=0.006)
+    for x in (-0.2, 0.2):
+        box(0.30, 0.014, 0.70, x=x, y=-T / 2 - 0.005, z=1.47, m=CREAM_D, bev=0.012)
+        box(0.30, 0.014, 0.62, x=x, y=-T / 2 - 0.005, z=0.52, m=CREAM_D, bev=0.012)
+    for sy in (-1, 1):
+        cyl(0.03, 0.02, x=0.36, y=sy * (T / 2 + 0.01), z=1.0, m=BRASS, rot=(rad(90), 0, 0))
+        sph(0.035, x=0.36, y=sy * (T / 2 + 0.05), z=1.0, m=BRASS)
+        cyl(0.008, 0.04, x=0.36, y=sy * (T / 2 + 0.03), z=1.0, m=BRASS, rot=(rad(90), 0, 0))
+    slab = sub("slab", (-W / 2, 0, 0))
+    swing(slab, 2, 95, 30)
+    PARTS.append(base)
+
+@prop("wardrobe")
+def p_wardrobe():
+    """Шкаф с полостью: створки открываются (open), внутри штанга с одеждой — герой залезает."""
+    W, D, H = 1.05, 0.58, 1.86
+    box(W, 0.03, H, y=D / 2 - 0.015, z=0.1 + H / 2, m=WOOD_D, bev=0.005)
+    for sx in (-1, 1):
+        box(0.03, D, H, x=sx * (W / 2 - 0.015), z=0.1 + H / 2, m=WOOD, bev=0.006)
+    box(W, D, 0.03, z=0.115, m=WOOD, bev=0.004)
+    box(W, D, 0.03, z=0.1 + H - 0.015, m=WOOD, bev=0.004)
+    box(1.10, 0.62, 0.10, z=0.05, m=WOOD_D, bev=0.015)
+    box(1.16, 0.66, 0.10, z=2.0, m=WOOD_D, bev=0.02)
+    box(0.9, 0.5, 0.12, z=2.1, m=WOOD_D, bev=0.04)
+    cyl(0.012, W - 0.06, z=1.72, m=CHROME, rot=(0, rad(90), 0))
+    for i, (x, m) in enumerate(((-0.3, BRICK), (-0.1, TEAL), (0.25, MUSTARD))):
+        tor(0.08, 0.006, x=x, z=1.66, m=GRAPHITE, rot=(rad(90), 0, 0), sc=(1.6, 1, 0.6))
+        box(0.36, 0.06, 0.62 + 0.08 * (i % 2), x=x, z=1.32 - 0.04 * (i % 2), m=m, bev=0.02)
+    base = finish("wardrobe")
+    for sx in (-1, 1):
+        x = sx * 0.262
+        box(0.50, 0.025, 1.74, x=x, y=-D / 2 - 0.01, z=1.03, m=WOOD_L, bev=0.008)
+        box(0.36, 0.012, 0.78, x=x, y=-D / 2 - 0.025, z=1.43, m=WOOD, bev=0.01)
+        box(0.36, 0.012, 0.66, x=x, y=-D / 2 - 0.025, z=0.56, m=WOOD, bev=0.01)
+        sph(0.025, x=sx * 0.04, y=-D / 2 - 0.04, z=1.05, m=BRASS)
+        d = sub("door_" + ("L" if sx < 0 else "R"), (sx * 0.512, -D / 2 - 0.01, 0))
+        swing(d, 2, sx * 105, 26)
+    PARTS.append(base)
+
+def drawer(name, w, d, h, x, y, z, front_m=WOOD_L, inside=None):
+    """Выдвижной ящик: лоток + фасад с ручкой; inside(x, y, z_дна) строит содержимое."""
+    box(w, 0.02, h, x=x, y=y - d / 2, z=z, m=front_m, bev=0.008)
+    box(w - 0.04, d, 0.012, x=x, y=y, z=z - h / 2 + 0.02, m=WOOD_D, bev=0)
+    for sx in (-1, 1):
+        box(0.012, d, h * 0.6, x=x + sx * (w / 2 - 0.03), y=y, z=z - h * 0.15, m=WOOD_D, bev=0)
+    box(w - 0.04, 0.012, h * 0.6, x=x, y=y + d / 2, z=z - h * 0.15, m=WOOD_D, bev=0)
+    cyl(0.008, 0.12, x=x, y=y - d / 2 - 0.025, z=z, m=BRASS, rot=(0, rad(90), 0))
+    for sx in (-1, 1):
+        cyl(0.006, 0.02, x=x + sx * 0.055, y=y - d / 2 - 0.015, z=z, m=BRASS, rot=(rad(90), 0, 0))
+    if inside:
+        inside(x, y, z - h / 2 + 0.026)
+    return sub(name, (x, y, z))
+
+@prop("dresser")
+def p_dresser():
+    """Комод: верхний ящик выдвигается (open), внутри носки."""
+    box(0.84, 0.45, 0.80, z=0.46, m=WOOD, bev=0.012)
+    box(0.90, 0.49, 0.04, z=0.88, m=WOOD_D, bev=0.012)
+    for sx in (-1, 1):
+        for sy in (-1, 1):
+            cyl(0.03, 0.06, x=sx * 0.38, y=sy * 0.18, z=0.03, m=WOOD_D, r2=0.022)
+    for z in (0.22, 0.47):
+        box(0.76, 0.025, 0.21, y=-0.235, z=z, m=WOOD_L, bev=0.01)
+        for sx in (-1, 1):
+            sph(0.02, x=sx * 0.2, y=-0.258, z=z, m=BRASS)
+    base = finish("dresser")
+    def socks(x, y, z):
+        for i, m in enumerate((BRICK, TEAL, MUSTARD)):
+            sph(0.05, x=x - 0.2 + i * 0.18, y=y, z=z + 0.025, m=m, sc=(1.4, 1, 0.5))
+    dr = drawer("drawer", 0.76, 0.40, 0.21, 0, 0.0, 0.72, inside=socks)
+    slide(dr, 1, -0.30)
+    PARTS.append(base)
+
+@prop("nightstand")
+def p_nightstand():
+    """Тумбочка: верхний ящик выдвигается (open), внутри фанфурик и таблетки; на тумбочке ночник."""
+    box(0.46, 0.40, 0.52, z=0.30, m=WOOD, bev=0.012)
+    box(0.50, 0.43, 0.035, z=0.575, m=WOOD_D, bev=0.012)
+    box(0.40, 0.02, 0.28, y=-0.205, z=0.2, m=WOOD_L, bev=0.01)
+    sph(0.018, x=0.14, y=-0.225, z=0.2, m=BRASS)
+    for sx in (-1, 1):
+        for sy in (-1, 1):
+            cyl(0.025, 0.05, x=sx * 0.2, y=sy * 0.16, z=0.025, m=WOOD_D, r2=0.018)
+    cyl(0.05, 0.02, x=-0.1, z=0.6, m=BRASS)
+    cyl(0.012, 0.18, x=-0.1, z=0.7, m=BRASS)
+    cyl(0.07, 0.12, x=-0.1, z=0.83, m=LAMP, r2=0.045, v=16)
+    base = finish("nightstand")
+    def stuff(x, y, z):
+        tincture_parts(x - 0.08, y - 0.02, z)
+        box(0.08, 0.05, 0.02, x=x + 0.08, y=y + 0.04, z=z + 0.01, m=CREAM, bev=0.004)
+        box(0.06, 0.03, 0.022, x=x + 0.07, y=y - 0.06, z=z + 0.011, m=RED, bev=0.004)
+    dr = drawer("drawer", 0.40, 0.34, 0.13, 0, 0.0, 0.46, inside=stuff)
+    slide(dr, 1, -0.25)
+    PARTS.append(base)
+
+# ---------------------------------------------------------------- бутылки, банки, еда
+def chekushka_parts(x=0, y=0, z=0):
+    liq = M("vodka_liquid", (0.92, 0.96, 0.98), 0.05, 0, 0.5)
+    cyl(0.028, 0.12, x=x, y=y, z=z + 0.06, m=GLASS, bev=0.008)
+    cyl(0.026, 0.1, x=x, y=y, z=z + 0.052, m=liq, bev=0)
+    cyl(0.028, 0.035, x=x, y=y, z=z + 0.137, m=GLASS, r2=0.011, bev=0.003)
+    cyl(0.012, 0.03, x=x, y=y, z=z + 0.168, m=MUSTARD, bev=0.003)
+    label(0.028, 0.05, z + 0.06, CREAM, x, y)
+
+def vodka_parts(x=0, y=0, z=0):
+    liq = M("vodka_liquid", (0.92, 0.96, 0.98), 0.05, 0, 0.5)
+    cyl(0.038, 0.2, x=x, y=y, z=z + 0.1, m=GLASS, bev=0.01)
+    cyl(0.035, 0.16, x=x, y=y, z=z + 0.085, m=liq, bev=0)
+    cyl(0.038, 0.06, x=x, y=y, z=z + 0.23, m=GLASS, r2=0.014, bev=0.004)
+    cyl(0.014, 0.05, x=x, y=y, z=z + 0.285, m=GLASS, bev=0.003)
+    cyl(0.016, 0.03, x=x, y=y, z=z + 0.32, m=RED, bev=0.004)
+    label(0.038, 0.08, z + 0.1, CREAM, x, y)
+    label(0.038, 0.012, z + 0.13, RED, x, y)
+
+def tincture_parts(x=0, y=0, z=0):
+    bg = M("brown_glass", (0.45, 0.22, 0.08), 0.1, 0, 0.85)
+    cyl(0.02, 0.07, x=x, y=y, z=z + 0.035, m=bg, bev=0.005)
+    cyl(0.02, 0.015, x=x, y=y, z=z + 0.077, m=bg, r2=0.008, bev=0)
+    cyl(0.009, 0.018, x=x, y=y, z=z + 0.093, m=CREAM, bev=0.002)
+    label(0.02, 0.035, z + 0.035, CREAM, x, y)
+    label(0.02, 0.008, z + 0.045, LEAF, x, y)
+
+def beer_parts(x=0, y=0, z=0):
+    cyl(0.033, 0.115, x=x, y=y, z=z + 0.06, m=MUSTARD, bev=0.006)
+    cyl(0.03, 0.01, x=x, y=y, z=z + 0.122, m=CHROME, r2=0.027, bev=0.002)
+    cyl(0.027, 0.01, x=x, y=y, z=z + 0.003, m=CHROME, bev=0.002)
+    label(0.033, 0.035, z + 0.065, OLIVE, x, y)
+    box(0.016, 0.008, 0.002, x=x + 0.008, y=y, z=z + 0.128, m=CHROME, bev=0)
+
+def mineral_parts(x=0, y=0, z=0):
+    mw = M("mineral", (0.55, 0.75, 0.95), 0.1, 0, 0.6)
+    cyl(0.045, 0.24, x=x, y=y, z=z + 0.12, m=mw, bev=0.014)
+    for k in range(4):
+        tor(0.045, 0.004, x=x, y=y, z=z + 0.04 + k * 0.05, m=mw)
+    cyl(0.045, 0.06, x=x, y=y, z=z + 0.27, m=mw, r2=0.016, bev=0.003)
+    cyl(0.017, 0.022, x=x, y=y, z=z + 0.31, m=BLUE, bev=0.003)
+    label(0.045, 0.06, z + 0.15, BLUE, x, y)
+
+def mouthwash_parts(x=0, y=0, z=0):
+    mw = M("mouthwash", (0.15, 0.7, 0.65), 0.1, 0, 0.8)
+    box(0.07, 0.04, 0.16, x=x, y=y, z=z + 0.08, m=mw, bev=0.015)
+    cyl(0.018, 0.02, x=x, y=y, z=z + 0.17, m=mw, bev=0.003)
+    cyl(0.024, 0.03, x=x, y=y, z=z + 0.19, m=CERAMIC, bev=0.005)
+    box(0.072, 0.042, 0.06, x=x, y=y, z=z + 0.08, m=CREAM, bev=0.006)
+
+def bulb_parts(x=0, y=0, z=0, burnt=False):
+    g = M("bulb_burnt", (0.45, 0.42, 0.38), 0.2, 0, 0.8) if burnt else M("bulb", (1.0, 0.97, 0.85), 0.05, 0, 0.6)
+    cyl(0.013, 0.025, x=x, y=y, z=z + 0.0125, m=STEEL, bev=0.002)
+    for k in range(3):
+        tor(0.013, 0.002, x=x, y=y, z=z + 0.005 + k * 0.007, m=STEEL)
+    cyl(0.013, 0.02, x=x, y=y, z=z + 0.033, m=g, r2=0.02, bev=0)
+    sph(0.03, x=x, y=y, z=z + 0.065, m=g)
+    if burnt:
+        sph(0.012, x=x, y=y, z=z + 0.07, m=SOIL, sc=(1.4, 1, 0.8))
+
+def salad_parts(x=0, y=0, z=0):
+    b = sph(0.11, x=x, y=y, z=z + 0.07, m=CERAMIC, sc=(1, 1, 0.65))
+    sph(0.1, x=x, y=y, z=z + 0.085, m=CERAMIC, sc=(1, 1, 0.6))
+    cut(b, PARTS[-1])
+    sph(0.095, x=x, y=y, z=z + 0.07, m=CREAM, sc=(1, 1, 0.42))
+    for i in range(18):
+        a = rnd.uniform(0, 6.28); r = rnd.uniform(0, 0.075)
+        sph(0.009, x=x + math.cos(a) * r, y=y + math.sin(a) * r, z=z + 0.1 + rnd.uniform(-0.005, 0.01),
+            m=(LEAF_L, OCHRE, BRICK)[i % 3])
+
+def soap_parts(x=0, y=0, z=0):
+    cyl(0.06, 0.015, x=x, y=y, z=z + 0.0075, m=CERAMIC, sc=(1.3, 1, 1), bev=0.005)
+    box(0.08, 0.05, 0.025, x=x, y=y, z=z + 0.027, m=M("soap", (0.95, 0.6, 0.7), 0.4), bev=0.01)
+
+def console_parts(x=0, y=0, z=0):
+    box(0.34, 0.26, 0.07, x=x, y=y, z=z + 0.035, m=GRAPHITE, bev=0.02)
+    box(0.344, 0.2, 0.02, x=x, y=y + 0.01, z=z + 0.072, m=CREAM, bev=0.008)
+    box(0.2, 0.006, 0.008, x=x - 0.04, y=y - 0.131, z=z + 0.035, m=LED_T, bev=0)
+    sph(0.007, x=x + 0.13, y=y - 0.132, z=z + 0.035, m=LED_G)
+
+@prop("vodka")
+def p_vodka():
+    vodka_parts()
+
+@prop("chekushka")
+def p_chek():
+    chekushka_parts()
+
+@prop("tincture")
+def p_tincture():
+    tincture_parts()
+
+@prop("beer_can")
+def p_beer():
+    beer_parts()
+
+@prop("mineral_water")
+def p_mineral():
+    mineral_parts()
+
+@prop("mouthwash")
+def p_mouthwash():
+    mouthwash_parts()
+
+@prop("soda_bottle")
+def p_soda():
+    sm = M("soda", (0.95, 0.5, 0.1), 0.15, 0, 0.8)
+    cyl(0.04, 0.2, z=0.1, m=sm, bev=0.012)
+    cyl(0.04, 0.05, z=0.225, m=sm, r2=0.015, bev=0.003)
+    cyl(0.016, 0.025, z=0.26, m=RED, bev=0.003)
+    label(0.04, 0.07, 0.11, TEAL)
+
+@prop("antifreeze")
+def p_antifreeze():
+    box(0.20, 0.10, 0.26, z=0.13, m=BLUE, bev=0.02)
+    box(0.06, 0.05, 0.08, x=0.05, z=0.29, m=BLUE, bev=0.015)
+    cyl(0.022, 0.03, x=-0.05, z=0.275, m=RED, bev=0.004)
+    box(0.15, 0.102, 0.1, z=0.12, m=CREAM, bev=0.008)
+    box(0.04, 0.104, 0.04, z=0.12, m=TEAL_L, bev=0.004, rot=(0, rad(45), 0))
+
+@prop("light_bulb")
+def p_bulb():
+    bulb_parts()
+
+@prop("light_bulb_burnt")
+def p_bulb_burnt():
+    bulb_parts(burnt=True)
+
+@prop("coffee_mug")
+def p_mug():
+    m = cyl(0.042, 0.095, z=0.0475, m=MUSTARD, bev=0.008)
+    cyl(0.036, 0.095, z=0.06, m=MUSTARD, bev=0)
+    cut(m, PARTS[-1])
+    cyl(0.037, 0.005, z=0.08, m=COFFEE, bev=0)
+    tor(0.028, 0.008, x=0.05, z=0.05, m=MUSTARD, rot=(rad(90), 0, 0), sc=(0.8, 1, 1))
+
+@prop("salad")
+def p_salad():
+    salad_parts()
+
+@prop("fruit_bowl")
+def p_fruits():
+    """Ваза с фруктами: здесь лежит банановая кожура (тайник на кухне)."""
+    b = sph(0.13, z=0.065, m=TEAL, sc=(1, 1, 0.5))
+    sph(0.12, z=0.08, m=TEAL, sc=(1, 1, 0.48))
+    cut(b, PARTS[-1])
+    cyl(0.05, 0.02, z=0.01, m=TEAL)
+    for (x, y, m) in ((-0.05, 0.02, RED), (0.04, 0.04, ORANGE), (0.0, -0.05, RED), (0.06, -0.03, ORANGE)):
+        sph(0.038, x=x, y=y, z=0.1, m=m)
+    for i in range(3):
+        tor(0.09, 0.016, x=-0.02 + i * 0.012, z=0.13 + i * 0.012, m=MUSTARD, rot=(rad(90), rad(20 + i * 8), 0), arc=0.02)
+
+@prop("banana_peel")
+def p_peel():
+    for i in range(4):
+        ang = rad(i * 90 + 20)
+        sph(0.03, x=math.cos(ang) * 0.04, y=math.sin(ang) * 0.04, z=0.008, m=MUSTARD, sc=(1.8, 0.7, 0.25),
+            rot=(0, 0, ang))
+        sph(0.008, x=math.cos(ang) * 0.085, y=math.sin(ang) * 0.085, z=0.008, m=SOIL, sc=(1.4, 1, 0.6))
+    cyl(0.018, 0.04, z=0.02, m=MUSTARD, r2=0.008, bev=0.003)
+    cyl(0.006, 0.02, z=0.05, m=SOIL, bev=0)
+
+@prop("smartphone")
+def p_phone():
+    box(0.075, 0.15, 0.009, z=0.0045, m=GRAPHITE, bev=0.006)
+    box(0.068, 0.138, 0.002, z=0.0095, m=M("phone_screen", (0.3, 0.6, 0.9), 0.1, 0, 1, 0.6), bev=0.003)
+    cyl(0.006, 0.002, x=0.02, y=0.055, z=-0.0005, m=DARK)
+
+@prop("game_console")
+def p_console():
+    console_parts()
+
+@prop("soap_dish")
+def p_soap():
+    soap_parts()
+
+# ---------------------------------------------------------------- кухня, ванная: с открыванием
+@prop("fridge")
+def p_fridge():
+    """Холодильник с полостью: дверцы открываются (open); внутри минералка (её подменяют водкой) и салат."""
+    W, D, H = 0.68, 0.64, 1.78
+    box(W, 0.03, H, y=D / 2 - 0.015, z=H / 2, m=STEEL, bev=0.01)
+    for sx in (-1, 1):
+        box(0.03, D, H, x=sx * (W / 2 - 0.015), z=H / 2, m=STEEL, bev=0.01)
+    box(W, D, 0.04, z=0.02, m=STEEL, bev=0.01)
+    box(W, D, 0.04, z=H - 0.02, m=STEEL, bev=0.01)
+    box(W - 0.06, D - 0.04, 0.03, z=1.2, m=CERAMIC, bev=0.005)
+    for z in (0.45, 0.85):
+        box(W - 0.06, D - 0.08, 0.012, z=z, m=GLASS, bev=0)
+    box(W - 0.06, D - 0.04, 0.4, z=0.24, m=CERAMIC, bev=0.02)
+    mineral_parts(-0.15, 0.05, 0.86)
+    salad_parts(0.1, 0.02, 0.46)
+    for i in range(3):
+        cyl(0.04, 0.09, x=0.12, y=0.12 - i * 0.09, z=0.905, m=GLASS, v=16, bev=0.004)
+        cyl(0.036, 0.06, x=0.12, y=0.12 - i * 0.09, z=0.89, m=(OLIVE, BRICK, MUSTARD)[i], v=16, bev=0)
+    base = finish("fridge")
+    for name, z, h in (("door_top", 1.49, 0.56), ("door_main", 0.61, 1.15)):
+        box(W - 0.02, 0.04, h, y=-D / 2 - 0.02, z=z, m=STEEL, bev=0.015)
+        box(W - 0.08, 0.02, h - 0.08, y=-D / 2 + 0.005, z=z, m=CERAMIC, bev=0.008)
+        cyl(0.012, min(0.5, h * 0.4), x=-0.27, y=-D / 2 - 0.06, z=(z - h * 0.2) if name == "door_top" else (z + 0.2), m=CHROME)
+        if name == "door_main":
+            for (x, zz, w, hh, m) in ((-0.05, z + 0.3, 0.14, 0.12, BRICK), (0.12, z + 0.15, 0.1, 0.1, PURPLE),
+                                      (0.1, z + 0.45, 0.12, 0.1, TEAL_L)):
+                box(w, 0.006, hh, x=x, y=-D / 2 - 0.042, z=zz, m=m, bev=0.002)
+            for zz in (z - 0.2, z + 0.15):
+                box(W - 0.12, 0.08, 0.012, y=-D / 2 + 0.05, z=zz, m=GLASS, bev=0)
+        else:
+            box(0.12, 0.006, 0.12, x=0.1, y=-D / 2 - 0.042, z=z, m=OCHRE, bev=0.002)
+        d = sub(name, (W / 2 - 0.01, -D / 2 - 0.02, 0))
+        swing(d, 2, 110, 24)
+    PARTS.append(base)
+
+@prop("toilet")
+def p_toilet():
+    """Унитаз: крышка бачка поднимается и откидывается назад (open), в бачке — банка пива (тайник)."""
+    cyl(0.14, 0.32, y=0.0, z=0.16, m=CERAMIC, r2=0.11, sc=(1, 1.25, 1), bev=0.02)
+    cyl(0.20, 0.15, y=-0.06, z=0.36, m=CERAMIC, r2=0.22, sc=(1, 1.28, 1), bev=0.03)
+    tor(0.17, 0.035, y=-0.06, z=0.445, m=CERAMIC, sc=(1, 1.28, 0.8))
+    cyl(0.205, 0.025, y=-0.06, z=0.475, m=CERAMIC, sc=(1, 1.28, 1), bev=0.01)
+    tank = box(0.42, 0.20, 0.38, y=0.22, z=0.64, m=CERAMIC, bev=0.035)
+    inner = box(0.37, 0.15, 0.38, y=0.22, z=0.70, m=CERAMIC, bev=0.01)
+    cut(tank, inner)
+    cyl(0.135, 0.012, y=0.22, z=0.74, m=WATER, sc=(1.3, 0.5, 1), bev=0)
+    beer_parts(0.08, 0.22, 0.6)
+    base = finish("toilet")
+    box(0.45, 0.23, 0.045, y=0.22, z=0.85, m=CERAMIC, bev=0.02)
+    cyl(0.03, 0.02, y=0.22, z=0.88, m=CHROME)
+    lid = sub("tank_lid", (0, 0.335, 0.85))
+    move(lid, "open", [(1, "loc", 2, 0), (8, "loc", 2, 0.05), (20, "loc", 2, 0.05),
+                       (1, "rot", 0, 0), (8, "rot", 0, 0), (20, "rot", 0, -75)])
+    PARTS.append(base)
+
+@prop("sink_vanity")
+def p_vanity():
+    """Раковина на тумбе: дверцы открываются (open), внутри фанфурик (тайник), порошок и сифон."""
+    W, D, H = 0.62, 0.46, 0.8
+    box(W, 0.02, H, y=D / 2 - 0.01, z=H / 2, m=CREAM, bev=0.005)
+    for sx in (-1, 1):
+        box(0.02, D, H, x=sx * (W / 2 - 0.01), z=H / 2, m=CREAM, bev=0.005)
+    box(W, D, 0.05, z=0.025, m=CREAM_D, bev=0.01)
+    basin = box(W + 0.04, D + 0.02, 0.12, z=H + 0.06, m=CERAMIC, bev=0.04)
+    inner = box(0.48, 0.32, 0.12, y=-0.02, z=H + 0.11, m=CERAMIC, bev=0.06)
+    cut(basin, inner)
+    cyl(0.02, 0.14, y=0.17, z=H + 0.19, m=CHROME)
+    cyl(0.015, 0.1, y=0.12, z=H + 0.25, m=CHROME, rot=(rad(90), 0, 0))
+    cyl(0.02, 0.3, y=0.05, z=H - 0.15, m=STEEL)
+    tincture_parts(-0.15, -0.05, 0.05)
+    box(0.12, 0.08, 0.1, x=0.15, y=0.0, z=0.1, m=TEAL_L, bev=0.01)
+    base = finish("sink_vanity")
+    for sx in (-1, 1):
+        x = sx * 0.152
+        box(0.295, 0.02, H - 0.08, x=x, y=-D / 2 - 0.01, z=H / 2 + 0.02, m=CREAM, bev=0.008)
+        box(0.2, 0.01, H - 0.3, x=x, y=-D / 2 - 0.022, z=H / 2 + 0.02, m=CREAM_D, bev=0.008)
+        sph(0.015, x=sx * 0.03, y=-D / 2 - 0.03, z=H - 0.12, m=CHROME)
+        d = sub("door_" + ("L" if sx < 0 else "R"), (sx * (W / 2 - 0.005), -D / 2 - 0.01, 0))
+        swing(d, 2, sx * 100, 22)
+    PARTS.append(base)
+
+@prop("shower_curtain")
+def p_shower_curtain():
+    """Шторка: клип open — собирается к левому краю (обратно — задёргивается)."""
+    L = 1.7
+    cyl(0.015, L, z=2.0, m=CHROME, rot=(0, rad(90), 0))
+    base = finish("shower_curtain")
+    n = 18
+    for i in range(n):
+        x = -L / 2 + 0.05 + i * (L - 0.1) / (n - 1)
+        cyl(0.045, 1.5, x=x, y=0.018 * (i % 2), z=1.22, m=TEAL if i % 2 else TEAL_L, v=12, bev=0)
+        tor(0.02, 0.005, x=x, z=1.99, m=CHROME, rot=(0, rad(90), 0))
+    c = sub("cloth", (-L / 2 + 0.03, 0, 0))
+    move(c, "open", [(1, "scale", 0, 1), (14, "scale", 0, 0.32), (20, "scale", 0, 0.22)])
+    PARTS.append(base)
+
+@prop("bath_shelf")
+def p_bath_shelf():
+    """Полочка у зеркала: ополаскиватель (подмена), стакан с щётками, мыльница с мылом. Начало — у стены."""
+    box(0.6, 0.14, 0.02, y=-0.07, z=0.0, m=GLASS, bev=0.004)
+    for sx in (-1, 1):
+        box(0.02, 0.12, 0.05, x=sx * 0.26, y=-0.06, z=-0.025, m=CHROME, bev=0.004)
+    mouthwash_parts(-0.18, -0.07, 0.01)
+    cyl(0.03, 0.09, x=0.0, y=-0.07, z=0.055, m=TEAL_L, bev=0.008)
+    for k, m in enumerate((RED, BLUE)):
+        cyl(0.005, 0.16, x=-0.008 + k * 0.016, y=-0.07, z=0.12, m=m, rot=(0, rad(-8 + 16 * k), 0), bev=0)
+    soap_parts(0.17, -0.07, 0.01)
+
+# ---------------------------------------------------------------- прихожая
+@prop("coat_rack")
+def p_coat_rack():
+    """Вешалка с курткой (в кармане — чекушка) и кепкой. Начало — у стены, низ планки."""
+    box(0.7, 0.03, 0.08, y=-0.015, z=0.0, m=WOOD, bev=0.01)
+    for i in range(4):
+        cyl(0.01, 0.07, x=-0.27 + i * 0.18, y=-0.06, z=0.0, m=BRASS, rot=(rad(70), 0, 0))
+    box(0.42, 0.14, 0.62, x=-0.12, y=-0.1, z=-0.32, m=OLIVE_D, bev=0.05)
+    for sx in (-1, 1):
+        box(0.1, 0.12, 0.55, x=-0.12 + sx * 0.24, y=-0.1, z=-0.33, m=OLIVE_D, bev=0.04, rot=(0, rad(sx * 6), 0))
+    box(0.14, 0.02, 0.1, x=-0.2, y=-0.175, z=-0.45, m=OLIVE, bev=0.01)
+    box(0.16, 0.13, 0.08, x=-0.12, y=-0.09, z=0.02, m=OLIVE, bev=0.04)
+    for k in range(4):
+        sph(0.01, x=-0.12, y=-0.175, z=-0.12 - k * 0.12, m=BRASS)
+    sph(0.1, x=0.24, y=-0.08, z=-0.06, m=BRICK, sc=(1, 1, 0.6))
+    box(0.12, 0.1, 0.012, x=0.24, y=-0.17, z=-0.09, m=BRICK, bev=0.01)
+
+@prop("shoe_shelf")
+def p_shoe_shelf():
+    """Обувная полка: сапог наклоняется (open) — за ним/в нём чекушка (тайник)."""
+    for sx in (-1, 1):
+        box(0.02, 0.32, 0.4, x=sx * 0.39, z=0.2, m=WOOD, bev=0.005)
+    for z in (0.02, 0.2, 0.39):
+        box(0.8, 0.32, 0.02, z=z, m=WOOD, bev=0.004)
+    for i, (x, m) in enumerate(((-0.25, BRICK), (-0.05, DARK))):
+        for k in (-1, 1):
+            sph(0.05, x=x + k * 0.05, y=-0.02, z=0.06, m=m, sc=(0.8, 2.0, 0.7))
+    for k in (-1, 1):
+        box(0.08, 0.22, 0.03, x=-0.15 + k * 0.05, y=-0.02, z=0.415, m=PURPLE, bev=0.012)
+    chekushka_parts(0.25, 0.04, 0.03)
+    base = finish("shoe_shelf")
+    cyl(0.055, 0.3, x=0.25, y=0.0, z=0.18, m=WOOD_D, bev=0.01)
+    sph(0.06, x=0.25, y=-0.06, z=0.06, m=WOOD_D, sc=(0.9, 1.8, 0.7))
+    tor(0.055, 0.008, x=0.25, z=0.33, m=WOOD_D)
+    boot = sub("boot", (0.25, -0.12, 0.03))
+    swing(boot, 0, 28, 14)
+    PARTS.append(base)
+
+@prop("key_bowl")
+def p_key_bowl():
+    """Миска с ключами (спрятать ключи — пакость «За хлебом»)."""
+    b = sph(0.09, z=0.045, m=BRICK, sc=(1, 1, 0.5))
+    sph(0.082, z=0.055, m=BRICK, sc=(1, 1, 0.48))
+    cut(b, PARTS[-1])
+    tor(0.016, 0.0025, z=0.03, m=STEEL)
+    for i, ang in enumerate((rad(-20), rad(30))):
+        dx, dy = math.cos(ang), math.sin(ang)
+        cyl(0.012, 0.003, x=0.02 * dx, y=0.02 * dy, z=0.03, m=BRASS if i else STEEL, bev=0.001)
+        box(0.045, 0.008, 0.003, x=0.05 * dx, y=0.05 * dy, z=0.032, m=BRASS if i else STEEL, bev=0.0008,
+            rot=(0, 0, ang))
+
+@prop("electric_panel")
+def p_panel():
+    """Электрощиток: дверца (open), рубильник (switch — выключить свет). Начало — у стены, низ."""
+    shell = box(0.36, 0.12, 0.46, y=-0.06, z=0.23, m=CREAM_D, bev=0.01)
+    inner = box(0.32, 0.12, 0.42, y=-0.09, z=0.23, m=CREAM_D, bev=0.004)
+    cut(shell, inner)
+    for i in range(6):
+        box(0.035, 0.05, 0.07, x=-0.12 + i * 0.045, y=-0.05, z=0.3, m=CERAMIC, bev=0.004)
+        box(0.012, 0.02, 0.025, x=-0.12 + i * 0.045, y=-0.08, z=0.3, m=DARK, bev=0.002)
+    box(0.25, 0.05, 0.1, y=-0.05, z=0.14, m=GRAPHITE, bev=0.006)
+    box(0.12, 0.052, 0.035, y=-0.075, z=0.15, m=LED_G, bev=0.002)
+    base = finish("electric_panel")
+    box(0.06, 0.03, 0.09, x=0.13, y=-0.07, z=0.14, m=RED, bev=0.008)
+    cyl(0.01, 0.07, x=0.13, y=-0.1, z=0.15, m=RED, rot=(rad(90), 0, 0))
+    sw = sub("switch", (0.13, -0.07, 0.14))
+    move(sw, "switch", [(1, "rot", 0, 0), (6, "rot", 0, -70)])
+    box(0.36, 0.02, 0.46, y=-0.13, z=0.23, m=CREAM, bev=0.008)
+    box(0.12, 0.004, 0.08, y=-0.141, z=0.33, m=MUSTARD, bev=0.002)
+    cyl(0.012, 0.02, x=0.15, y=-0.145, z=0.23, m=STEEL, rot=(rad(90), 0, 0))
+    d = sub("door", (-0.18, -0.13, 0))
+    swing(d, 2, -110, 20)
+    PARTS.append(base)
+
+# ---------------------------------------------------------------- зал и ремонт
+@prop("tv_stand")
+def p_tv_stand():
+    """Тумба под телевизор с приставкой (у приставки стоит газировка — подмена на пиво)."""
+    box(1.2, 0.42, 0.45, z=0.25, m=WOOD_D, bev=0.012)
+    box(1.24, 0.45, 0.03, z=0.485, m=WOOD, bev=0.01)
+    box(0.5, 0.02, 0.3, x=-0.3, y=-0.212, z=0.25, m=WOOD, bev=0.008)
+    box(0.5, 0.02, 0.3, x=0.3, y=-0.212, z=0.25, m=WOOD, bev=0.008)
+    console_parts(0.25, 0.0, 0.5)
+
+@prop("putty_bucket")
+def p_putty():
+    """Ведро шпаклёвки со шпателем (сосед шпаклюет; «Тренер года» пинает ведро)."""
+    b = cyl(0.14, 0.28, z=0.14, m=CERAMIC, r2=0.155, bev=0.01)
+    cyl(0.13, 0.28, z=0.16, m=CERAMIC, r2=0.145, bev=0)
+    cut(b, PARTS[-1])
+    cyl(0.142, 0.02, z=0.24, m=CREAM, bev=0)
+    sph(0.06, x=0.04, y=0.02, z=0.25, m=CREAM, sc=(1.4, 1, 0.4))
+    label(0.15, 0.1, 0.14, MUSTARD)
+    tor(0.155, 0.005, z=0.28, m=GRAPHITE, rot=(rad(90), 0, 0), arc=0.0)
+    box(0.12, 0.003, 0.08, x=-0.05, z=0.3, m=STEEL, bev=0.001, rot=(rad(20), 0, rad(30)))
+    cyl(0.012, 0.1, x=-0.02, y=-0.03, z=0.38, m=WOOD_L, rot=(rad(20), 0, rad(30)))
+
+@prop("balcony_shelf")
+def p_balcony_shelf():
+    """Стеллаж на балконе: банки с соленьями отодвигаются (open), за ними водка; снизу канистра."""
+    for sx in (-1, 1):
+        for sy in (-1, 1):
+            box(0.03, 0.03, 1.1, x=sx * 0.38, y=sy * 0.13, z=0.55, m=WOOD, bev=0.004)
+    for z in (0.02, 0.4, 0.75, 1.1):
+        box(0.8, 0.3, 0.02, z=z, m=WOOD_L, bev=0.004)
+    for i in range(3):
+        box(0.22, 0.24, 0.16, x=-0.25 + i * 0.25, z=0.84, m=CREAM_D if i % 2 else OCHRE, bev=0.01)
+    vodka_parts(0.05, 0.06, 0.41)
+    box(0.20, 0.10, 0.26, x=0.2, z=0.16, m=BLUE, bev=0.02)                       # канистра незамерзайки
+    box(0.06, 0.05, 0.08, x=0.25, z=0.32, m=BLUE, bev=0.015)
+    box(0.15, 0.102, 0.1, x=0.2, z=0.15, m=CREAM, bev=0.008)
+    base = finish("balcony_shelf")
+    for i in range(4):
+        x = -0.2 + i * 0.12
+        cyl(0.05, 0.16, x=x, y=-0.06, z=0.49, m=GLASS, bev=0.01)
+        cyl(0.046, 0.12, x=x, y=-0.06, z=0.47, m=(OLIVE, BRICK, OLIVE, OCHRE)[i], bev=0)
+        cyl(0.052, 0.025, x=x, y=-0.06, z=0.575, m=MUSTARD, bev=0.004)
+    jars = sub("jars", (0, -0.06, 0.41))
+    slide(jars, 0, -0.3, 16)
+    PARTS.append(base)
+
+@prop("toolbox")
+def p_toolbox():
+    """Ящик с инструментами: крышка откидывается (open), внутри перегоревшая лампочка и инструменты."""
+    b = box(0.46, 0.22, 0.18, z=0.09, m=BRICK, bev=0.012)
+    inner = box(0.43, 0.19, 0.18, z=0.15, m=BRICK, bev=0.005)
+    cut(b, inner)
+    box(0.462, 0.222, 0.035, z=0.06, m=MUSTARD, bev=0.004)
+    box(0.25, 0.04, 0.02, x=0.05, z=0.04, m=STEEL, bev=0.004, rot=(0, 0, rad(10)))
+    cyl(0.014, 0.25, x=0.05, y=0.04, z=0.05, m=WOOD_L, rot=(0, rad(90), rad(-15)))
+    bulb_parts(-0.12, -0.03, 0.02, burnt=True)
+    base = finish("toolbox")
+    box(0.47, 0.23, 0.04, z=0.2, m=BRICK, bev=0.012)
+    box(0.16, 0.03, 0.04, z=0.24, m=GRAPHITE, bev=0.01)
+    lid = sub("lid", (0, 0.115, 0.18))
+    swing(lid, 0, -105, 18)
+    PARTS.append(base)
+
 # ---------------------------------------------------------------- запуск
 done = []
 for name, fn in PROPS.items():
     if ONLY and name not in ONLY:
         continue
+    PROP_NAME[0] = name
+    SUBS.clear()
     fn()
-    o = finish(name)
+    roots = [o for o in PARTS if o.name == name]          # основа уже собрана (предмет с частями)
+    if roots:
+        PARTS.remove(roots[0])
+        body = roots[0]
+    else:
+        body = finish(name)
+    for s in SUBS:
+        s.parent = body
+    _apply_moves()
     bpy.ops.object.select_all(action="DESELECT")
-    o.select_set(True)
-    bpy.context.view_layer.objects.active = o
-    bpy.ops.export_scene.gltf(filepath=os.path.join(OUT, name + ".glb"), export_format="GLB", use_selection=True)
-    o.hide_render = False
+    body.select_set(True)
+    for s in SUBS:
+        s.select_set(True)
+    bpy.context.view_layer.objects.active = body
+    bpy.ops.export_scene.gltf(filepath=os.path.join(OUT, name + ".glb"), export_format="GLB", use_selection=True,
+                              export_animations=True, export_animation_mode="NLA_TRACKS",
+                              export_force_sampling=True)
     done.append(name)
-    print("PROP %-16s tris=%d" % (name, sum(len(p.vertices) - 2 for p in o.data.polygons)))
+    tris = sum(sum(len(p.vertices) - 2 for p in o.data.polygons) for o in [body] + SUBS)
+    print("PROP %-16s tris=%-6d parts=%s" % (name, tris, [s.name[len(name) + 1:] for s in SUBS] or "-"))
 if BLEND:
     bpy.ops.wm.save_as_mainfile(filepath=BLEND)
 print("PROPS_OK %d" % len(done))
