@@ -74,6 +74,8 @@ func _ready() -> void:
 		_build(name)
 	# ставим так, чтобы ступни стояли на y = 0
 	_root.position.y = -_foot_offset()
+	if face != "":
+		set_face(face)
 
 func _build(name: String) -> Node2D:
 	if bones.has(name):
@@ -156,3 +158,27 @@ func _base_y() -> float:
 	if _base == INF:
 		_base = -_root.position.y
 	return _base
+
+# --- Эмоции -----------------------------------------------------------------
+## Лица лежат в assets/characters/<персонаж>/faces/face_<имя>.png и нарисованы
+## одной сеткой, поэтому выравниваются по левому верхнему углу.
+## Масштаб и точка шеи берутся с лица "normal", чтобы капли/слюна не сдвигали голову.
+var face := ""
+
+func set_face(face_name: String) -> void:
+	face = face_name
+	if not bones.has("head"):
+		return
+	var sp := bones["head"].get_child(0) as Sprite2D
+	var s: Dictionary = spec["head"]
+	if face_name == "":
+		sp.texture = load(parts_dir.path_join("part_head.png"))
+		sp.scale = Vector2.ONE
+		sp.offset = -Vector2(sp.texture.get_size()) * (s["pivot"] as Vector2)
+		return
+	var faces_dir := "res://assets/characters/%s/faces" % character
+	var normal: Texture2D = load(faces_dir.path_join("face_normal.png"))
+	var head: Texture2D = load(parts_dir.path_join("part_head.png"))
+	sp.texture = load(faces_dir.path_join("face_%s.png" % face_name))
+	sp.scale = Vector2.ONE * (head.get_size().y / normal.get_size().y)
+	sp.offset = -Vector2(normal.get_size()) * (s["pivot"] as Vector2)
