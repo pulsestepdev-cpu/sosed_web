@@ -12,7 +12,13 @@
 ## Godot
 - Движок: `C:\Users\belya\Desktop\projects\Godot\Godot.exe` (4.7.2). Godot MCP подключён через `.mcp.json`.
 - Скриншоты для проверки: `Godot.exe --path . -- --shot=screenshots/x.png --shot-delay=1.5 [--shot-scene=res://...]`, потом открыть PNG. F12 в игре — `screenshots/last.png`.
-- Главная сцена: `scenes/level1.tscn` (`scripts/game/level.gd`). Отладочные аргументы описаны в шапке `level.gd`.
+- Стартовая сцена: `scenes/main_menu.tscn` (обложка `assets/ui/menu_bg.jpg`, `scripts/ui/`). Игра: `scenes/game.tscn` →
+  `scripts/game3d/game.gd` (3D-квартира `scenes/level1_3d.tscn`, правила `rules3d.gd`, сосед `neighbor3d.gd`, герой `hero3d.gd`).
+  Отладочные аргументы — в шапке `game.gd` (`--autostart --start=11.2 --log --use=... --click=x:y:сек --finale --hide=sofa`).
+  Автопрогон без окна: `Godot.exe --headless --path . res://scenes/game.tscn -- --autostart --log --speed=6 --use=...`
+- Старый 2D-прототип: `scenes/level1.tscn` (`scripts/game/`), больше не основной.
+- Звук и озвучка: `python tools/gen_audio.py [sfx|voice|music]` → `assets/audio/`. Голос — Windows SAPI (Irina, ru-RU)
+  с понижением тона; реплика озвучивается, если её текст есть в `assets/audio/voice/index.json`. Громкость — автозагрузка `Settings`.
 - Вырезка картинок с однотонным фоном (зелёный #00FF00 или пурпурный #FF00FF):
   `Godot.exe --headless --path . --script res://tools/chroma_key.gd -- <вход.png> <папка> <префикс> [имена,через,запятую]`
 

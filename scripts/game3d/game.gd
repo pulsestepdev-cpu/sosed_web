@@ -191,6 +191,16 @@ func _apply_debug(args: Dictionary) -> void:
 		get_tree().create_timer(0.5).timeout.connect(func(): rules.add_drunk(100.0))
 	if args.has("catch"):   # сосед ловит героя
 		get_tree().create_timer(0.8).timeout.connect(func(): _catch("А ну пошёл отсюда!"))
+	if args.has("click"):   # эмуляция кликов мышью: --click=x:y:сек;x:y:сек
+		for c in args["click"].split(";"):
+			var q: PackedStringArray = c.split(":")
+			get_tree().create_timer(float(q[2])).timeout.connect(func():
+				var e := InputEventMouseButton.new()
+				e.button_index = MOUSE_BUTTON_LEFT
+				e.pressed = true
+				e.position = Vector2(float(q[0]), float(q[1]))
+				Input.warp_mouse(e.position)
+				Input.parse_input_event(e))
 	if args.has("speed"):
 		Engine.time_scale = float(args["speed"])
 	if args.has("autostart"):
