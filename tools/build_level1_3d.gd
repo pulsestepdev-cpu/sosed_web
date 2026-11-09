@@ -306,7 +306,7 @@ func build_furniture() -> void:
 	put("coffee_mug", 8.45, F1 + 0.775, -1.85)
 	put("fruit_bowl", 8.95, F1 + 0.775, -2.05)
 	put("chandelier", 8.7, H, -1.9, 0, 0.0, null, "chandelier_kitchen")
-	# зал (x 10.4..14): диван (прятки, щель за спинкой), тумба с ТВ и приставкой, стремянка, шпаклёвка
+	# зал (x 10.4..14): диван (прятки, щель за спинкой), тумба с ТВ и приставкой, стремянка с лампочкой
 	put("sofa", 11.6, F1, "back", 0, 0.38)
 	put("smartphone", 11.1, F1 + 0.48, -D + 0.85)
 	put("tv_stand", 13.2, F1)
@@ -314,23 +314,23 @@ func build_furniture() -> void:
 	put("gamepad", 12.8, F1 + 0.5, -D + 0.5)
 	put("soda_bottle", 12.95, F1 + 0.5, -D + 0.42)
 	put("stepladder", 12.4, F1, -2.35)
-	put("putty_bucket", 12.95, F1, -2.55)
 	put("chandelier", 12.4, H, -2.3, 0, 0.0, null, "chandelier_living")
 	put("rug", 12.2, F1, -1.6, 0, 0.0, null, "rug_living")
 	put("plant", 13.75, F1, -0.6)
 	put("radiator", 13.6, F1 + 0.12, "wall")
 	# ванная (2 этаж, x 3..6.4): ванна со шторкой (прятки), раковина (фанфурик), полочка (ополаскиватель), унитаз (пиво)
-	put("bathtub", 4.0, F2)
-	put("shower_curtain", 4.0, F2, -D + 0.8)
-	put("sink_vanity", 5.3, F2)
-	put("mirror_cabinet", 5.3, F2 + 1.32, "wall")
-	put("bath_shelf", 5.3, F2 + 1.16, "wall")
-	put("toilet", 6.02, F2)
+	# всё сдвинуто влево от перегородки: у x > 5.9 предметы у задней стены закрывает стена спальни
+	put("bathtub", 3.85, F2).scale.x = 0.82
+	put("shower_curtain", 3.85, F2, -D + 0.8).scale.x = 0.82
+	put("sink_vanity", 4.92, F2)
+	put("mirror_cabinet", 4.92, F2 + 1.32, "wall")
+	put("bath_shelf", 4.92, F2 + 1.16, "wall")
+	put("toilet", 5.55, F2)
 	put("wall_lamp", 4.0, F2 + 2.25, "wall", 0, 0, null, "wall_lamp_bath")
-	# спальня (x 6.4..10.4): кровать (прятки), тумбочка (ящик), комод, часы
+	# спальня (x 6.4..10.4): кровать (прятки), комод, часы; справа сосед шпаклюет стену
 	put("dresser", 6.98, F2)
 	put("bed", 8.4, F2)
-	put("nightstand", 9.8, F2)
+	put("putty_bucket", 10.12, F2, -3.62)
 	put("clock", 10.05, F2 + 1.85, "wall")
 	put("chandelier", 8.4, TOP, -2.0, 0, 0.0, null, "chandelier_bedroom")
 	put("rug", 8.4, F2, -1.2, 0, 0.0, null, "rug_bedroom")

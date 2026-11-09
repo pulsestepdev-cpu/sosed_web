@@ -1,9 +1,8 @@
-# Звуки и озвучка уровня 1 — генерируются кодом (чистый Python, без библиотек) + голос Windows (SAPI, ru-RU).
+# Звуки и озвучка уровня 1: эффекты и запасная музыка — кодом (чистый Python), голос — нейросинтез Microsoft Edge (edge-tts).
 #   python tools/gen_audio.py            — всё
-#   python tools/gen_audio.py sfx|voice|music
-# Результат: assets/audio/sfx/*.wav, assets/audio/voice/*.wav + voice/index.json (текст → файл), assets/audio/music/*.wav
-# Голос: русский синтезатор, затем понижение тона (сосед — грубее и ниже, герой — чуть ниже).
-import json, math, os, random, struct, subprocess, sys, tempfile, wave
+#   python tools/gen_audio.py sfx|voice|music      (voice ключ1,ключ2 — только эти реплики)
+# Результат: assets/audio/sfx/*.wav, assets/audio/voice/*.mp3 + voice/index.json (текст → файл), assets/audio/music/*.wav
+import json, math, os, random, struct, sys, wave
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 OUT = os.path.join(ROOT, "assets", "audio")
@@ -243,6 +242,8 @@ def gen_music():
     save(os.path.join(OUT, "music", "menu_loop.wav"), slow, sr)
 
 # ---------------------------------------------------------------- голос
+# Нейросетевой синтез Microsoft Edge (бесплатно, нужен интернет): pip install edge-tts
+# Голос ru-RU-DmitryNeural; сосед — ниже и грубее, герой — выше и быстрее. Файлы — voice/<ключ>.mp3.
 # [ключ, кто, текст]. Кто: n — сосед, h — герой. Текст в игре сверяется с index.json по точному совпадению.
 LINES = [
     ("n_oath", "n", "Всё, сегодня больше не пью!"),
@@ -254,13 +255,26 @@ LINES = [
     ("n_wtf5", "n", "Да вы издеваетесь, нахуй?!"),
     ("n_wtf6", "n", "Ну ёпт твою налево!"),
     ("n_mouthwash", "n", "Ух… бодрит!"),
+    ("n_mouthwash0", "n", "Кхе-кхе! Это чё такое?!"),
+    ("n_mouthwash2", "n", "А ничё так, освежает!"),
+    ("n_coffee0", "n", "Кхм! Это кофе?!"),
     ("n_coffee", "n", "Чё-то кофе сегодня крепкий…"),
+    ("n_coffee2", "n", "Ну и ладно, допью."),
+    ("n_fridge1", "n", "Это ж не минералка…"),
     ("n_fridge2", "n", "Ну раз уж открыл…"),
+    ("n_fridge3", "n", "Эх, понеслась!"),
     ("n_soda", "n", "Хм. А газировка-то с пеной…"),
+    ("n_soda2", "n", "Пивасик?! …Ну, раз налито."),
+    ("n_jacket0", "n", "Опа… А это чё в кармане?"),
     ("n_jacket", "n", "…Это знак."),
+    ("n_jacket2", "n", "За знакомство!"),
     ("n_gamepad", "n", "Где геймпад?!"),
     ("n_phone", "n", "Где телефон?!"),
-    ("n_keys", "n", "Где ключи?! …Ну раз дома — можно."),
+    ("n_left", "n", "Я же его тут оставлял!"),
+    ("n_angry", "n", "Ну всё, я злой!"),
+    ("n_keys", "n", "Где ключи?!"),
+    ("n_keys2", "n", "Я же их в миску клал!"),
+    ("n_keys3", "n", "…Ну раз дома — можно."),
     ("n_who", "n", "Э… Кто здесь?"),
     ("n_steps", "n", "Кто здесь топает?"),
     ("n_seemed", "n", "Мне показалось?"),
@@ -280,7 +294,11 @@ LINES = [
     ("n_merry1", "n", "А чё, нормально сидим!"),
     ("n_merry2", "n", "Завтра точно брошу."),
     ("n_stash", "n", "Э… А где моя заначка за банками?"),
+    ("n_stash2", "n", "Домовой, что ли, завёлся?"),
     ("n_bulb", "n", "Опять перегорела?"),
+    ("n_bulb2", "n", "Да что ж такое-то, а?!"),
+    ("n_bulb3", "n", "Кто лампочку подсунул?!"),
+    ("n_fall", "n", "Уа-а-а!"),
     ("n_mineral", "n", "Минералочка… Успокоился."),
     ("n_more1", "n", "Ну ещё по одной…"),
     ("n_more2", "n", "За ремонт!"),
@@ -290,89 +308,77 @@ LINES = [
     ("n_grumble3", "n", "Эх, жизнь…"),
     ("n_grumble4", "n", "Хм-м… Ну и ладно."),
     ("n_ouch", "n", "Ой-ё-ёй… Спина моя…"),
+    ("n_slip0", "n", "Оп-оп-оп… А-а-а!"),
     ("n_slip", "n", "Твою ж… Кто мыло бросил?!"),
+    ("n_slip2", "n", "Кто кожуру бросил?!"),
+    ("n_revenge", "n", "Узнаю, кто это сделал — урою!"),
     ("n_salad", "n", "Салатик… моя подушечка…"),
     ("h_taunt1", "h", "Пивная открывашка!"),
     ("h_taunt2", "h", "Ветродуйка!"),
     ("h_taunt3", "h", "Турбина перегарная!"),
     ("h_taunt4", "h", "Пей до дна, открывашка!"),
     ("h_taunt5", "h", "Давай-давай, ветродуйка!"),
-    ("h_taunt6", "h", "Спи, турбина перегарная."),
+    ("h_set_mouthwash", "h", "Пусть прополощет, ветродуйка!"),
+    ("h_set_coffee", "h", "Кофеёк с сюрпризом!"),
+    ("h_set_fridge", "h", "Минералочка, ага. Хе-хе."),
+    ("h_set_soda", "h", "Газировочка с пенкой!"),
+    ("h_set_jacket", "h", "Сходит он за хлебом, как же!"),
+    ("h_set_ladder", "h", "Электрик, ты где? Хе-хе."),
+    ("h_set_peel", "h", "Смотри под ноги, турбина перегарная!"),
+    ("h_set_soap", "h", "Скользкого утречка, ветродуйка!"),
+    ("h_set_keys", "h", "Ключики теперь мои!"),
+    ("h_set_gamepad", "h", "Поиграл — и хватит!"),
+    ("h_set_phone", "h", "Позвонишь потом, открывашка!"),
+    ("h_set_salad", "h", "Подушечка готова!"),
     ("h_found", "h", "Опа, заначка!"),
     ("h_heh", "h", "Хе-хе-хе…"),
     ("h_oops", "h", "Ой-ой-ой!"),
-    ("h_shh", "h", "Тс-с-с…"),
     ("h_ouch", "h", "Ай! Да за что?!"),
     ("h_win", "h", "Готов, голубчик!"),
 ]
 
-PS = r'''
-Add-Type -AssemblyName System.Speech
-$s = New-Object System.Speech.Synthesis.SpeechSynthesizer
-$s.SelectVoice("Microsoft Irina Desktop")
-$fmt = New-Object System.Speech.AudioFormat.SpeechAudioFormatInfo(22050, [System.Speech.AudioFormat.AudioBitsPerSample]::Sixteen, [System.Speech.AudioFormat.AudioChannel]::Mono)
-foreach ($line in Get-Content -Encoding UTF8 $args[0]) {
-  $p = $line.Split("`t")
-  $s.SetOutputToWaveFile($p[0], $fmt)
-  $s.Rate = [int]$p[2]
-  $s.Speak($p[1])
+VOICES = {   # кто -> (голос, скорость, высота)
+    "n": ("ru-RU-DmitryNeural", "-4%", "-14Hz"),
+    "h": ("ru-RU-DmitryNeural", "+10%", "+16Hz"),
 }
-$s.SetOutputToNull()
-'''
 
-def read_wav(path):
-    with wave.open(path, "rb") as w:
-        n = w.getnframes(); raw = w.readframes(n)
-    return [v / 32768 for v in struct.unpack("<%dh" % n, raw)]
+def tts_text(text):
+    """Текст для синтеза: многоточия — паузы, тире — запятые."""
+    return text.replace("…", "... ").replace(" — ", ", ").strip(" .")
 
-def pitch_down(x, k):
-    """Тон ниже в 1/k раз (k<1): растянуть отсчёты (замедление), а речь заранее синтезирована быстрее."""
-    out, i = [], 0.0
-    while i < len(x) - 1:
-        a = int(i); f = i - a
-        out.append(x[a] * (1 - f) + x[a + 1] * f)
-        i += k
-    return out
-
-def gruff(x, amount):
-    """Хрипотца: лёгкий перегруз + немного шума по огибающей."""
-    out, e = [], 0.0
-    for v in x:
-        e = max(abs(v), e * 0.995)
-        y = math.tanh(v * (1 + amount * 4)) / math.tanh(1 + amount * 4)
-        out.append(y + random.uniform(-1, 1) * e * amount * 0.15)
-    return out
-
-def trim(x, thr=0.01):
-    a = next((i for i, v in enumerate(x) if abs(v) > thr), 0)
-    b = len(x) - next((i for i, v in enumerate(reversed(x)) if abs(v) > thr), 0)
-    return x[max(0, a - 300):min(len(x), b + 1500)]
-
-def gen_voice():
+def gen_voice(only=None):
+    import asyncio
+    import edge_tts
     d = os.path.join(OUT, "voice")
     os.makedirs(d, exist_ok=True)
-    tmp = tempfile.mkdtemp()
-    tsv = os.path.join(tmp, "lines.tsv")
-    with open(tsv, "w", encoding="utf-8") as f:
+
+    async def one(key, who, text):
+        voice, rate, pitch = VOICES[who]
+        path = os.path.join(d, key + ".mp3")
+        for attempt in range(6):   # сервис иногда отвечает пусто — повторить
+            try:
+                await edge_tts.Communicate(tts_text(text), voice, rate=rate, pitch=pitch).save(path)
+                if os.path.getsize(path) > 2000:
+                    print("MP3", key, text)
+                    return True
+            except Exception as e:
+                err = e
+            await asyncio.sleep(1.0 + attempt)
+        print("FAIL", key, text)
+        return False
+
+    async def run():
         for key, who, text in LINES:
-            rate = 4 if who == "n" else 3
-            f.write("%s\t%s\t%d\n" % (os.path.join(tmp, key + ".wav"), text.replace("…", ", "), rate))
-    ps1 = os.path.join(tmp, "say.ps1")
-    open(ps1, "w", encoding="utf-8-sig").write(PS)
-    subprocess.run(["powershell", "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", ps1, tsv], check=True)
-    index = {}
-    for key, who, text in LINES:
-        x = trim(read_wav(os.path.join(tmp, key + ".wav")))
-        if who == "n":
-            x = gruff(pitch_down(x, 0.66), 0.35)
-        else:
-            x = gruff(pitch_down(x, 0.78), 0.12)
-        save(os.path.join(d, key + ".wav"), x)
-        index[text] = key
+            if only and key not in only:
+                continue
+            await one(key, who, text)
+    asyncio.run(run())
+    index = {text: key for key, who, text in LINES if os.path.exists(os.path.join(d, key + ".mp3"))}
     json.dump(index, open(os.path.join(d, "index.json"), "w", encoding="utf-8"), ensure_ascii=False, indent=1)
+    print("index:", len(index), "/", len(LINES))
 
 if __name__ == "__main__":
     what = sys.argv[1] if len(sys.argv) > 1 else "all"
     if what in ("all", "sfx"): gen_sfx()
     if what in ("all", "music"): gen_music()
-    if what in ("all", "voice"): gen_voice()
+    if what in ("all", "voice"): gen_voice(sys.argv[2].split(",") if len(sys.argv) > 2 else None)

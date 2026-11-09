@@ -9,7 +9,7 @@ const SNEAK_SPEED := 0.8
 ## Укрытия: id -> [клип, точка (x, y от пола, z), исчезает ли целиком, разворот]
 const HIDES := {
 	"wardrobe": ["hide_wardrobe", Vector3(3.72, 0.0, -1.55), true, PI],
-	"curtain":  ["hide_curtain", Vector3(4.05, 0.0, -3.35), false, 0.0],
+	"curtain":  ["hide_curtain", Vector3(3.85, 0.0, -3.35), false, 0.0],
 	"bed":      ["hide_bed", Vector3(8.4, 0.0, -1.7), false, PI],
 	"table":    ["hide_table", Vector3(8.7, 0.0, -1.95), false, 0.0],
 	"sofa":     ["hide_sofa", Vector3(11.6, 0.0, -3.82), false, 0.0],
@@ -104,13 +104,14 @@ func found() -> void:
 		if not frozen:
 			set_face("sneaky" if sneaking or in_hiding else "normal"))
 
-## Злорадство: смех и обзывательство соседа.
+## Злорадство: смех (и обзывательство, если line не пустая).
 func gloat(line: String) -> void:
 	if frozen or _gloat_cd > 0.0:
 		return
 	_gloat_cd = 4.0
 	set_face("laugh")
-	say(line, 2.4)
+	if line != "":
+		say(line, 2.4)
 	if not is_walking() and not in_hiding and busy <= 0.0:
 		act("laugh", 2.4)
 	get_tree().create_timer(2.6, false).timeout.connect(func():
@@ -125,7 +126,6 @@ func get_caught() -> void:
 	busy = 0.0
 	set_face("scared")
 	act("caught")
-	say(["Ой-ой-ой!", "Ай! Да за что?!"].pick_random(), 1.8)
 
 func respawn(at: Vector3) -> void:
 	frozen = false

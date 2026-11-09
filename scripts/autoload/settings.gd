@@ -98,7 +98,9 @@ func voice(text: String, who := "n") -> float:
 	var key: String = _voice_index.get(text, "")
 	if key == "":
 		return 0.0
-	var s := _stream(VOICE_DIR + key + ".wav")
+	var s := _stream(VOICE_DIR + key + ".mp3")      # нейроголос (tools/gen_audio.py voice)
+	if s == null:
+		s = _stream(VOICE_DIR + key + ".wav")
 	if s == null:
 		return 0.0
 	if not _voice_players.has(who):
@@ -111,8 +113,16 @@ func voice(text: String, who := "n") -> float:
 	pl.play()
 	return s.get_length()
 
+func stop_voice(who: String) -> void:
+	if _voice_players.has(who):
+		(_voice_players[who] as AudioStreamPlayer).stop()
+
 func has_voice(text: String) -> bool:
 	return _voice_index.has(text)
+
+## Треки: имя -> [с какой секунды играть (вступление пропускаем, туда же возвращается цикл), громкость, дБ].
+## main_musik — песня автора игры: в меню и фоном в игре, средняя громкость, не перезапускается между сценами.
+const TRACKS := {"main_musik": [15.8, -7.0]}
 
 func music(name: String) -> void:
 	if name == _music_name:
@@ -121,9 +131,20 @@ func music(name: String) -> void:
 	if name == "":
 		_music.stop()
 		return
+	var cfg: Array = TRACKS.get(name, [0.0, 0.0])
+	var mp := _stream(MUSIC_DIR + name + ".mp3") as AudioStreamMP3
+	if mp:
+		mp.loop = true
+		mp.loop_offset = cfg[0]
+		_music.stream = mp
+		_music.volume_db = -30.0
+		_music.play(cfg[0])
+		create_tween().tween_property(_music, "volume_db", cfg[1], 2.5)
+		return
 	var s := _stream(MUSIC_DIR + name + ".wav") as AudioStreamWAV
 	if s:
 		s.loop_mode = AudioStreamWAV.LOOP_FORWARD
 		s.loop_end = int(s.get_length() * s.mix_rate)
 		_music.stream = s
+		_music.volume_db = cfg[1]
 		_music.play()

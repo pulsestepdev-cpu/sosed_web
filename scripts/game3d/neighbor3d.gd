@@ -6,33 +6,41 @@ extends Actor
 signal finale_done
 
 ## Распорядок дня — цепочка дел, как в классике жанра: пришёл, сколько-то секунд занят делом, пошёл дальше.
-## Дела чередуют комнаты и этажи, каждый предмет он трогает за день несколько раз — есть окна, чтобы
-## набрать заначки, и подставы успевают сработать. Когда список кончился — по кругу с LOOP_FROM.
-## [x, этаж, что делает, клип, использует, куда смотрит: back | front | left | right, секунд на месте]
+## Дела чередуют комнаты и этажи (зал — только короткими заходами), каждый предмет он трогает за день
+## несколько раз — есть окна, чтобы набрать заначки, и подставы успевают сработать. Когда список кончился —
+## по кругу с LOOP_FROM. Куда пойдёт дальше, видно заранее: облачко-мысль над головой и метка на полу.
+## [x, этаж, что делает, клип, использует, куда смотрит: back | front | left | right | tv, секунд на месте, z (необяз.)]
 const PLAN := [
 	[8.4,   1, "спит",                  "sleep",      "",          "front", 0],
-	[9.35,  1, "проснулся",             "idle",       "wake",      "front", 8],
-	[5.25,  1, "чистит зубы",           "work",       "mouthwash", "back",  16],
-	[8.3,   0, "пьёт кофе",             "idle",       "coffee",    "back",  16],
-	[12.95, 0, "шпаклюет стену",        "work",       "",          "back",  30],
-	[9.45,  0, "пьёт минералку",        "idle",       "fridge",    "back",  10],
-	[12.75, 0, "играет в приставку",    "phone",      "gamepad",   "tv",    26],
-	[12.0,  1, "дышит воздухом",        "idle",       "balcony",   "back",  16],
-	[12.0,  0, "меняет лампочку",       "bulb",       "ladder",    "front", 14],
-	[5.25,  1, "умывается",             "work",       "mouthwash", "back",  14],
-	[13.05, 0, "пьёт газировку",        "idle",       "soda",      "back",  12],
-	[12.95, 0, "шпаклюет стену",        "work",       "",          "back",  26],
-	[8.3,   0, "пьёт кофе",             "idle",       "coffee",    "back",  14],
-	[11.1,  0, "сидит в чат-рулетке",   "phone",      "phone",     "front", 26],
-	[5.45,  0, "собирается за хлебом",  "idle",       "jacket",    "back",  10],
-	[4.62,  0, "ищет ключи",            "suspicious", "keys",      "back",  10],
-	[9.45,  0, "пьёт минералку",        "idle",       "fridge",    "back",  10],
-	[12.0,  1, "проверяет заначку",     "idle",       "balcony",   "back",  12],
-	[5.25,  1, "умывается",             "work",       "mouthwash", "back",  12],
-	[12.75, 0, "играет в приставку",    "phone",      "gamepad",   "tv",    22],
-	[13.05, 0, "пьёт газировку",        "idle",       "soda",      "back",  10],
-	[9.45,  0, "ужинает",               "idle",       "fridge",    "back",  14],
+	[9.35,  1, "проснулся",             "idle",       "wake",      "front", 6],
+	[4.92,  1, "чистит зубы",           "work",       "mouthwash", "back",  10],
+	[8.3,   0, "пьёт кофе",             "idle",       "coffee",    "back",  10],
+	[9.85,  1, "шпаклюет стену",        "work",       "",          "back",  14, -3.25],
+	[9.45,  0, "пьёт минералку",        "idle",       "fridge",    "back",  8],
+	[12.75, 0, "играет в приставку",    "phone",      "gamepad",   "tv",    14],
+	[12.0,  1, "дышит воздухом",        "idle",       "balcony",   "back",  10],
+	[12.0,  0, "меняет лампочку",       "bulb",       "ladder",    "front", 3],
+	[4.92,  1, "умывается",             "work",       "mouthwash", "back",  10],
+	[13.05, 0, "пьёт газировку",        "idle",       "soda",      "back",  7],
+	[9.85,  1, "шпаклюет стену",        "work",       "",          "back",  12, -3.25],
+	[8.3,   0, "пьёт кофе",             "idle",       "coffee",    "back",  9],
+	[11.1,  0, "сидит в чат-рулетке",   "phone",      "phone",     "front", 14],
+	[5.45,  0, "собирается за хлебом",  "idle",       "jacket",    "back",  8],
+	[4.62,  0, "ищет ключи",            "suspicious", "keys",      "back",  8],
+	[12.0,  1, "проверяет заначку",     "idle",       "balcony",   "back",  9],
+	[9.45,  0, "пьёт минералку",        "idle",       "fridge",    "back",  8],
+	[4.92,  1, "умывается",             "work",       "mouthwash", "back",  9],
+	[12.75, 0, "играет в приставку",    "phone",      "gamepad",   "tv",    12],
+	[9.85,  1, "шпаклюет стену",        "work",       "",          "back",  12, -3.25],
+	[13.05, 0, "пьёт газировку",        "idle",       "soda",      "back",  7],
+	[9.45,  0, "ужинает",               "idle",       "fridge",    "back",  10],
 ]
+## Мысль перед делом: activity -> что он думает (в облачке, вместе с комнатой).
+const THOUGHTS := {"чистит зубы": "почистить зубы", "умывается": "умыться", "пьёт кофе": "кофейку",
+	"шпаклюет стену": "пошпаклевать стену", "пьёт минералку": "минералочки", "играет в приставку": "в приставку",
+	"дышит воздухом": "подышать воздухом", "меняет лампочку": "лампочку поменять", "пьёт газировку": "газировочки",
+	"сидит в чат-рулетке": "в чат-рулетку", "собирается за хлебом": "за хлебом сходить", "ищет ключи": "где ключи?",
+	"проверяет заначку": "проверить заначку", "ужинает": "поужинать"}
 const LOOP_FROM := 3
 const WAKE_HOUR := 8.0
 ## Что у него в руке, когда пользуется вещью: id -> [модель обычная, модель после подмены]
@@ -44,7 +52,7 @@ const HAND := {
 }
 const USE_DELAY := 1.2
 const SOBER_RANGE := 3.0
-const GRUMBLE := ["Бу-бу-бу… никто не ценит…", "Так-с… шпаклёвочка…", "Эх, жизнь…", "Хм-м… Ну и ладно."]
+const GRUMBLE := ["Бу-бу-бу… никто не ценит…", "Эх, жизнь…", "Хм-м… Ну и ладно."]
 
 var game: Node                 # Game3D
 var rules: Rules3D
@@ -54,6 +62,8 @@ var mode := "bed"              # bed | schedule | detour | react | chase | aslee
 var suspicion := 0.0
 var suspicious_until := 0.0
 var on_ladder := false
+var thought := ""             # облачко-мысль: куда и зачем пойдёт (рисует Overlay3D)
+var goal := Vector3.INF        # куда идёт — метка на полу
 var _use_timer := -1.0
 var _use_id := ""
 var _seq: Array = []
@@ -154,12 +164,14 @@ func update_schedule(hour: float, delta: float) -> void:
 	if mode == "detour" or is_walking() or not _here:
 		return
 	_stay_left -= delta
+	if _stay_left < 5.0 and thought == "" and _use_timer <= 0.0 and bubble == "":
+		_think(_next_index())
 	if _stay_left <= 0.0 and _use_timer <= 0.0:
 		next_task()
 
 ## Следующее дело по распорядку (после последнего — по кругу).
 func next_task() -> void:
-	current = current + 1 if current + 1 < PLAN.size() else LOOP_FROM
+	current = _next_index()
 	_used_entry = -1
 	_go_to_current()
 
@@ -176,6 +188,30 @@ func skip_to(hour: float) -> void:
 	release()
 	_go_to_current()
 
+func _next_index() -> int:
+	return current + 1 if current + 1 < PLAN.size() else LOOP_FROM
+
+func _plan_point(i: int) -> Vector3:
+	var e: Array = PLAN[i]
+	var p: Vector3 = game.lane_point(e[0], e[1])
+	if e.size() > 7:
+		p.z = e[7]
+	return p
+
+## Подумать о деле i: облачко «Комната: зачем» и метка на полу там, куда пойдёт.
+func _think(i: int) -> void:
+	var e: Array = PLAN[i]
+	if not THOUGHTS.has(e[2]):
+		_clear_thought()
+		return
+	var p := _plan_point(i)
+	thought = "%s: %s" % [game.ROOM_NAMES[game.room_at(p)], THOUGHTS.get(e[2], e[2])]
+	goal = Vector3(p.x, p.y, game.LANE)
+
+func _clear_thought() -> void:
+	thought = ""
+	goal = Vector3.INF
+
 func _go_to_current() -> void:
 	var e: Array = PLAN[current]
 	activity = "идёт: " + e[2]
@@ -183,7 +219,8 @@ func _go_to_current() -> void:
 	release()
 	hold_item("")
 	_to_floor()
-	var target: Vector3 = game.lane_point(e[0], e[1])
+	_think(current)
+	var target: Vector3 = _plan_point(current)
 	if position.distance_to(target) < 0.05:
 		_on_arrived()
 	else:
@@ -201,6 +238,7 @@ func _on_arrived() -> void:
 		return
 	if mode == "detour":
 		activity = _detour.get("title", "")
+		_clear_thought()
 		face_dir(Vector3(0, 0, -1))
 		_use_id = "detour"
 		_use_timer = USE_DELAY
@@ -209,6 +247,7 @@ func _on_arrived() -> void:
 		return
 	var e: Array = PLAN[current]
 	_here = true
+	_clear_thought()
 	if _stay_entry != current:
 		_stay_entry = current
 		_stay_left = float(e[6])
@@ -217,6 +256,8 @@ func _on_arrived() -> void:
 	set_face(rules.default_face())
 	if e[3] != "idle":
 		act(e[3])
+	if e[2] == "шпаклюет стену" and randf() < 0.6:
+		say("Так-с… шпаклёвочка…", 2.2)
 	if e[4] in ["gamepad", "phone"] and not rules.taken.has(e[4]):
 		hold_item(HAND[e[4]][0])
 	if e[4] != "" and _used_entry != current:
@@ -277,6 +318,8 @@ func detour(x: float, fl: int, title: String, use_id: String) -> void:
 	release()
 	_to_floor()
 	var target: Vector3 = game.lane_point(x, fl)
+	thought = "%s: %s" % [game.ROOM_NAMES[game.room_at(target)], _detour["title"].trim_prefix("идёт ")]
+	goal = target
 	if position.distance_to(target) < 0.05:
 		_on_arrived()
 	else:
@@ -294,6 +337,7 @@ func _finish_detour() -> void:
 func react_seq(steps: Array, next := Callable()) -> void:
 	mode = "react"
 	stop()
+	_clear_thought()
 	_use_timer = -1.0
 	_seq = steps.duplicate()
 	_seq_next = next
@@ -349,6 +393,7 @@ func _to_floor(t := 0.3) -> void:
 ## Подбежать к герою и выдать «люлей». on_hit — когда ударил.
 func catch_hero(hero_pos: Vector3, line: String, on_hit: Callable) -> void:
 	mode = "chase"
+	_clear_thought()
 	_use_timer = -1.0
 	_seq.clear()
 	_to_floor()
@@ -380,6 +425,7 @@ func catch_hero(hero_pos: Vector3, line: String, on_hit: Callable) -> void:
 func finale(salad: bool) -> void:
 	mode = "asleep"
 	stop()
+	_clear_thought()
 	_use_timer = -1.0
 	_seq.clear()
 	_to_floor()

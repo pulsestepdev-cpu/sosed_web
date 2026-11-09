@@ -93,6 +93,9 @@ func _ready() -> void:
 	hero.rotation.y = PI / 2
 	hero.target_yaw = PI / 2
 	hero.arrived.connect(_on_hero_arrived)
+	neighbor.partner = hero        # говорят по очереди: сосед в приоритете, герой ждёт
+	hero.partner = neighbor
+	hero.yields = true
 
 	rules = Rules3D.new()
 	add_child(rules)
@@ -128,7 +131,7 @@ func _ready() -> void:
 	process_mode = Node.PROCESS_MODE_ALWAYS
 	level.process_mode = Node.PROCESS_MODE_PAUSABLE
 	rules.process_mode = Node.PROCESS_MODE_PAUSABLE
-	Settings.music("level_loop")
+	Settings.music("main_musik")
 
 	_apply_debug(args)
 	if hour > Neighbor3D.WAKE_HOUR and neighbor.mode == "bed":   # старт с середины дня
@@ -171,8 +174,12 @@ func _apply_debug(args: Dictionary) -> void:
 	if args.has("log"):   # печать событий в консоль — для автопрогонов
 		rules.toast.connect(func(t, _g): print("[%05.2f] TOAST %s" % [hour, t]))
 		rules.finished.connect(func(w, r): print("[%05.2f] FINISHED %s %s score=%d shame=%d" % [hour, w, r, rules.score, rules.shame_percent()]))
-		var last := ["", ""]
+		var last := ["", "", ""]
 		get_tree().process_frame.connect(func():
+			if neighbor.thought != last[2]:
+				last[2] = neighbor.thought
+				if neighbor.thought != "":
+					print("[%05.2f] THINK %s" % [hour, neighbor.thought])
 			if neighbor.activity != last[0]:
 				last[0] = neighbor.activity
 				print("[%05.2f] N %s  drunk=%d  pos=%.1f,%.1f" % [hour, neighbor.activity, rules.drunk, neighbor.position.x, neighbor.position.y])
@@ -316,11 +323,23 @@ func _add_props() -> void:
 	_props["salad"] = _put("salad", "salad", Vector3(7.85, counter.end.y, counter.get_center().z + 0.1))
 	_props["salad_table"] = _put("salad_table", "salad", Vector3(8.7, table.end.y, table.get_center().z - 0.15))
 	_props["salad_table"].visible = false
-	_props["soap_dish"] = _put("soap_dish", "soap_dish", Vector3(4.55, tub.end.y, tub.end.z - 0.12))
+	_props["soap_dish"] = _put("soap_dish", "soap_dish", Vector3(4.3, tub.end.y, tub.end.z - 0.12))
 	_props["peeltrap"] = _put("peel", "banana_peel", Vector3(9.45, F1 + 0.01, LANE + 0.18), 30, 1.3)
 	_props["peeltrap"].visible = false
-	_props["soaptrap"] = _put("soap_floor", "soap_dish", Vector3(5.25, F2 + 0.01, LANE + 0.18), 20)
+	_props["soaptrap"] = _put("soap_floor", "soap_dish", Vector3(4.92, F2 + 0.01, LANE + 0.18), 20)
 	_props["soaptrap"].visible = false
+	# свежая шпаклёвка на стене спальни, где сосед «работает»
+	var patch := MeshInstance3D.new()
+	patch.name = "putty_patch"
+	var bm := BoxMesh.new()
+	bm.size = Vector3(0.7, 0.85, 0.01)
+	patch.mesh = bm
+	var pm := StandardMaterial3D.new()
+	pm.albedo_color = Color("d9d4c7")
+	pm.roughness = 1.0
+	patch.material_override = pm
+	furn.add_child(patch)
+	patch.position = Vector3(9.9, F2 + 1.15, -3.982)
 
 func _build_spots() -> void:
 	for d in Rules3D.SPOTS:
@@ -579,15 +598,34 @@ func screen_rect(b: AABB) -> Rect2:
 		first = false
 	return r
 
+## Зона клика места: сам предмет на экране, но не меньше HIT_MIN пикселей, плюс кружок-метка над ним —
+## мелочь (телефон, кружка, геймпад) берётся, если ткнуть рядом, без точного прицеливания.
+const HIT_MIN := 86.0
+
+func hit_rect(s: Spot3D) -> Rect2:
+	var r := screen_rect(s.aabb)
+	var m := HIT_MIN * clampf(_home_fov / cam.fov, 1.0, 2.2)
+	var sz := Vector2(maxf(r.size.x + 12.0, m), maxf(r.size.y + 12.0, m))
+	r = Rect2(r.get_center() - sz * 0.5, sz)
+	var mk := cam.unproject_position(s.marker_pos())
+	return r.merge(Rect2(mk - Vector2(m, m) * 0.4, Vector2(m, m) * 0.8))
+
 func _spot_at(mp: Vector2) -> Spot3D:
 	var best: Spot3D = null
-	var best_area := INF
+	var best_score := INF
 	for s in spots.values():
 		if not s.active:
 			continue
+		if not hit_rect(s).has_point(mp):
+			continue
+		# меньшая зона важнее (кружка на столе, а не стол); у мелочи зона — квадрат HIT_MIN,
+		# среди нескольких мелких — ближайший к курсору
 		var r := screen_rect(s.aabb).grow(6)
-		if r.has_point(mp) and r.get_area() < best_area:
-			best_area = r.get_area()
+		var mk := cam.unproject_position(s.marker_pos())
+		var m := HIT_MIN * clampf(_home_fov / cam.fov, 1.0, 2.2)
+		var score := maxf(r.get_area(), m * m) + minf(mp.distance_to(r.get_center()), mp.distance_to(mk))
+		if score < best_score:
+			best_score = score
 			best = s
 	return best
 

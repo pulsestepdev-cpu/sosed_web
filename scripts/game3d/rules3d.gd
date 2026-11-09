@@ -29,12 +29,12 @@ const ITEMS := {
 ## stash — взять предмет; swap — подменить (нужен предмет); take — утащить; hide — укрытие;
 ## trap — положить ловушку на пол (нужен предмет).
 const SPOTS := [
-	["toilet",    "stash", "toilet",          5.78, 1, "Бачок унитаза",          "beer"],
-	["sink",      "stash", "sink_vanity",     5.25, 1, "Шкафчик под раковиной", "tincture"],
-	["mouthwash", "swap",  "bath_shelf",      5.05, 1, "Ополаскиватель",         "antifreeze"],
-	["soapdish",  "stash", "soap_dish",       4.55, 1, "Мыльница",               "soap"],
-	["curtain",   "hide",  "shower_curtain",  4.0,  1, "Шторка ванной",          ""],
-	["soaptrap",  "trap",  "",                5.25, 1, "Пол у раковины",         "soap"],
+	["toilet",    "stash", "toilet",          5.55, 1, "Бачок унитаза",          "beer"],
+	["sink",      "stash", "sink_vanity",     4.92, 1, "Шкафчик под раковиной", "tincture"],
+	["mouthwash", "swap",  "bath_shelf",      4.92, 1, "Ополаскиватель",         "antifreeze"],
+	["soapdish",  "stash", "soap_dish",       4.3,  1, "Мыльница",               "soap"],
+	["curtain",   "hide",  "shower_curtain",  3.75, 1, "Шторка ванной",          ""],
+	["soaptrap",  "trap",  "",                4.92, 1, "Пол у раковины",         "soap"],
 	["bed",       "hide",  "bed",             8.0,  1, "Под кроватью",           ""],
 	["jars",      "stash", "balcony_shelf",   11.0, 1, "Банки с соленьями",      "vodka"],
 	["canisters", "stash", "antifreeze",      12.4, 1, "Канистра",               "antifreeze"],
@@ -70,6 +70,17 @@ const RAGE := ["Да ну нахуй!", "Да как так нахуй?!", "Да
 	"Да вы издеваетесь, нахуй?!", "Ну ёпт твою налево!"]
 const TAUNTS := ["Пивная открывашка!", "Ветродуйка!", "Турбина перегарная!", "Пей до дна, открывашка!",
 	"Давай-давай, ветродуйка!"]
+
+## Герой говорит, пока подстраивает пакость (а не когда сосед попался — тогда говорит сосед):
+## id места -> реплика.
+const SETUP_LINES := {
+	"mouthwash": "Пусть прополощет, ветродуйка!", "coffee": "Кофеёк с сюрпризом!",
+	"fridge": "Минералочка, ага. Хе-хе.", "soda": "Газировочка с пенкой!",
+	"jacket": "Сходит он за хлебом, как же!", "ladder": "Электрик, ты где? Хе-хе.",
+	"peeltrap": "Смотри под ноги, турбина перегарная!", "soaptrap": "Скользкого утречка, ветродуйка!",
+	"keys": "Ключики теперь мои!", "gamepad": "Поиграл — и хватит!", "phone": "Позвонишь потом, открывашка!",
+	"salad": "Подушечка готова!",
+}
 
 const STAGES := ["Трезвый", "Чуть-чуть", "Весёлый", "Тренер", "В стельку", "Уснул"]
 const STAGE_FROM := [0, 15, 35, 60, 85, 100]
@@ -130,14 +141,20 @@ func _award(key: String, points: int, text: String) -> bool:
 	Settings.sfx("prank", 0.7)
 	return true
 
-## Герой злорадствует: смех и обзывательство (где бы он ни был).
+## Герой злорадствует, пока сосед бушует: смеётся молча (говорит в это время сосед).
 func gloat(delay := 1.2) -> void:
 	get_tree().create_timer(delay, false).timeout.connect(func():
 		if over and not salad_on_table and drunk < 100.0:
 			return
-		var line: String = TAUNTS[_taunt_i % TAUNTS.size()]
-		_taunt_i += 1
-		hero.gloat(line))
+		hero.gloat(""))
+
+## Реплика героя, когда он подстраивает пакость.
+func setup_line(id: String, delay := 0.5) -> void:
+	var line: String = SETUP_LINES.get(id, TAUNTS[_taunt_i % TAUNTS.size()])
+	_taunt_i += 1
+	get_tree().create_timer(delay, false).timeout.connect(func():
+		if not over:
+			hero.say(line, 2.2))
 
 func rage_line() -> String:
 	return RAGE[randi() % RAGE.size()]
@@ -192,6 +209,7 @@ func hero_use(s: Spot3D) -> void:
 			hero.busy_act("take", 1.0)
 			get_tree().create_timer(0.6, false).timeout.connect(func():
 				_give(s.item)
+				setup_line(s.item, 0.2)
 				taken[s.item] = true
 				s.active = false
 				s.done = true
@@ -204,6 +222,7 @@ func hero_use(s: Spot3D) -> void:
 				salad_on_table = true
 				game.place_salad()
 				toast.emit("Салат на столе. Ждём финала…", true)
+				setup_line("salad")
 				return
 			hero.hide_in(s)
 		"swap":
@@ -223,8 +242,7 @@ func hero_use(s: Spot3D) -> void:
 				"fridge": "Минералка → водка", "soda": "Газировка → пиво", "jacket": "Чекушка в куртке",
 				"ladder": "Лампочка подменена"}
 			toast.emit(what.get(s.id, "Готово"), true)
-			if randf() < 0.5:
-				get_tree().create_timer(1.2, false).timeout.connect(func(): hero.say("Хе-хе-хе…", 1.5))
+			setup_line(s.id, 0.6)
 		"trap":
 			if traps.has(s.id):
 				return
@@ -237,6 +255,7 @@ func hero_use(s: Spot3D) -> void:
 			s.done = true
 			game.show_trap(s.id, true)
 			toast.emit("%s на полу. Смотри под ноги, сосед!" % item_title(s.item), true)
+			setup_line(s.id, 0.5)
 
 func _give(item: String) -> void:
 	inventory.append(item)
@@ -274,8 +293,10 @@ func neighbor_use(id: String) -> void:
 				if first:
 					neighbor.react_seq([
 						{"face": "tipsy", "clip": "drink", "t": 1.8, "item": "vodka"},
-						{"face": "shock", "clip": "suspicious", "t": 1.6, "line": "Да как так нахуй?!", "sfx": "alert"},
+						{"face": "shock", "clip": "suspicious", "t": 1.6, "line": "Да как так нахуй?!", "sfx": "alert", "shake": 0.2},
+						{"face": "suspicious", "clip": "suspicious", "t": 1.6, "line": "Это ж не минералка…"},
 						{"face": "happy", "clip": "idle", "t": 2.0, "line": "Ну раз уж открыл…"},
+						{"face": "happy", "clip": "dance", "t": 2.6, "line": "Эх, понеслась!", "item": ""},
 					])
 					gloat(3.0)
 				else:
@@ -295,8 +316,10 @@ func neighbor_use(id: String) -> void:
 				_scored["rage"] = true
 				_award("prank_" + id, 75, "Пакость: спрятан " + ("геймпад" if id == "gamepad" else "телефон"))
 				neighbor.react_seq([
-					{"face": "suspicious", "clip": "suspicious", "t": 1.6, "line": "Где геймпад?!" if id == "gamepad" else "Где телефон?!"},
-					{"face": "yell", "clip": "angry", "t": 2.4, "line": rage_line(), "shake": 0.25},
+					{"face": "suspicious", "clip": "suspicious", "t": 1.8, "line": "Где геймпад?!" if id == "gamepad" else "Где телефон?!"},
+					{"face": "suspicious", "clip": "suspicious", "t": 1.8, "line": "Я же его тут оставлял!"},
+					{"face": "yell", "clip": "angry", "t": 2.4, "line": rage_line(), "shake": 0.3},
+					{"face": "angry", "clip": "kick", "t": 2.2, "line": "Ну всё, я злой!", "sfx": "thud", "shake": 0.2},
 				], _go_fridge)
 				gloat(2.0)
 			elif id == "phone" and stage() >= 2:
@@ -321,35 +344,43 @@ func neighbor_use(id: String) -> void:
 					_award("chain_electric", 150, "Цепочка «Электрик»")
 					neighbor.react_seq([
 						{"face": "drunk", "clip": "bulb", "t": 1.8, "item": "light_bulb_burnt"},
-						{"face": "shock", "item": "", "clip": "fall_back", "t": 1.4, "fall": true, "sfx": "thud", "shake": 0.5},
+						{"face": "shock", "item": "", "clip": "fall_back", "t": 1.5, "fall": true, "sfx": "thud", "shake": 0.6, "line": "Уа-а-а!"},
 						{"face": "yell", "clip": "lie_back", "t": 2.2, "line": "Да как так нахуй?!"},
-						{"face": "drunk", "clip": "get_up", "t": 1.6, "line": "Ой-ё-ёй… Спина моя…"},
+						{"face": "drunk", "clip": "lie_back", "t": 1.8, "line": "Ой-ё-ёй… Спина моя…"},
+						{"face": "drunk", "clip": "get_up", "t": 1.6},
+						{"face": "yell", "clip": "angry", "t": 2.2, "line": "Кто лампочку подсунул?!", "shake": 0.25},
 					], func():
 						_scored["rage"] = true
 						_go_fridge())
 					gloat(3.0)
 				else:
 					neighbor.react_seq([
-						{"face": "normal", "clip": "bulb", "t": 2.0, "item": "light_bulb_burnt"},
-						{"face": "yell", "clip": "angry", "t": 2.2, "line": "Опять перегорела?", "down": true},
+						{"face": "normal", "clip": "bulb", "t": 1.6, "item": "light_bulb_burnt"},
+						{"face": "shock", "clip": "bulb", "t": 1.2, "sfx": "alert"},
+						{"face": "yell", "clip": "angry", "t": 2.2, "line": "Опять перегорела?", "down": true, "item": "", "shake": 0.2},
+						{"face": "angry", "clip": "angry", "t": 2.0, "line": "Да что ж такое-то, а?!"},
 					])
 					gloat(2.0)
 			else:
-				neighbor.react_seq([{"face": default_face(), "clip": "bulb", "t": 3.0, "item": "light_bulb"},
-					{"face": default_face(), "clip": "idle", "t": 0.5, "item": "", "down": true}])
+				neighbor.react_seq([{"face": default_face(), "clip": "bulb", "t": 1.6, "item": "light_bulb"},
+					{"face": default_face(), "clip": "idle", "t": 0.4, "item": "", "down": true}])
 		"keys":
 			if taken.has("keys"):
 				_scored["rage"] = true
 				_award("prank_keys", 75, "Пакость: спрятаны ключи")
 				neighbor.react_seq([
-					{"face": "suspicious", "clip": "suspicious", "t": 1.6},
-					{"face": "yell", "clip": "angry", "t": 2.2, "line": rage_line(), "shake": 0.2},
-					{"face": "happy", "clip": "idle", "t": 2.4, "line": "Где ключи?! …Ну раз дома — можно."},
+					{"face": "suspicious", "clip": "suspicious", "t": 1.8, "line": "Где ключи?!"},
+					{"face": "suspicious", "clip": "suspicious", "t": 1.6, "line": "Я же их в миску клал!"},
+					{"face": "yell", "clip": "angry", "t": 2.2, "line": rage_line(), "shake": 0.3},
+					{"face": "happy", "clip": "idle", "t": 2.4, "line": "…Ну раз дома — можно."},
 				], _go_fridge)
 				gloat(2.0)
 		"balcony":
 			if inventory.has("vodka") or swapped.has("fridge") or not game.spots["jars"].active:
-				neighbor.react_seq([{"face": "suspicious", "clip": "suspicious", "t": 2.6, "line": "Э… А где моя заначка за банками?"}])
+				neighbor.react_seq([
+					{"face": "suspicious", "clip": "suspicious", "t": 2.4, "line": "Э… А где моя заначка за банками?"},
+					{"face": "angry", "clip": "angry", "t": 2.0, "line": "Домовой, что ли, завёлся?"},
+				])
 
 func _use_drink(id: String) -> void:
 	if not swapped.has(id):
@@ -360,14 +391,23 @@ func _use_drink(id: String) -> void:
 	var sw: Array = SWAPS[id]
 	_award("swap_" + id, 100, "Подмена: " + game.spots[id].title)
 	Settings.sfx("drink", 0.6)
-	var seq: Array = [{"face": default_face(), "clip": "drink", "t": 1.8, "item": neighbor.hand_for(id)}]
-	if id == "mouthwash":
-		seq.append({"face": "shock", "clip": "suspicious", "t": 1.2, "sfx": "hiccup"})
-	if id == "soda":
-		seq.append({"face": "tipsy", "clip": "idle", "t": 1.0, "sfx": "burp"})
+	var seq: Array = []
+	if id == "jacket":
+		seq.append({"face": "suspicious", "clip": "suspicious", "t": 1.6, "line": "Опа… А это чё в кармане?"})
+	seq.append({"face": default_face(), "clip": "drink", "t": 1.8, "item": neighbor.hand_for(id)})
+	match id:
+		"mouthwash":
+			seq.append({"face": "shock", "clip": "suspicious", "t": 1.4, "sfx": "hiccup", "line": "Кхе-кхе! Это чё такое?!", "shake": 0.2})
+		"coffee":
+			seq.append({"face": "shock", "clip": "suspicious", "t": 1.4, "sfx": "hiccup", "line": "Кхм! Это кофе?!"})
+		"soda":
+			seq.append({"face": "tipsy", "clip": "idle", "t": 1.0, "sfx": "burp"})
 	if id == "jacket" and taken.has("keys"):
 		_award("chain_bread", 150, "Цепочка «За хлебом»")
 	seq.append({"face": sw[2], "clip": "idle" if id != "jacket" else "oath", "t": 2.2, "line": sw[1], "item": ""})
+	seq.append({"face": "happy", "clip": "dance" if id != "coffee" else "idle", "t": 2.2,
+		"line": {"mouthwash": "А ничё так, освежает!", "coffee": "Ну и ладно, допью.",
+			"soda": "Пивасик?! …Ну, раз налито.", "jacket": "За знакомство!"}[id]})
 	neighbor.react_seq(seq)
 	add_drunk(sw[0])
 	gloat(2.4)
@@ -376,7 +416,7 @@ func _use_drink(id: String) -> void:
 		game.spots[id].done = false
 		game.spots[id].active = id != "jacket"
 
-## Сосед наступил на ловушку.
+## Сосед наступил на ловушку: поскользнулся, грохнулся, лежит и ругается, встаёт и ищет виноватого.
 func trap_hit(id: String) -> void:
 	if over or not traps.has(id):
 		return
@@ -384,13 +424,16 @@ func trap_hit(id: String) -> void:
 	game.show_trap(id, false)
 	game.spots[id].done = false
 	game.spots[id].active = false
-	var line := "Твою ж… Кто мыло бросил?!" if id == "soaptrap" else rage_line()
-	_award("prank_" + id, 75, "Пакость: " + ("мыло на полу" if id == "soaptrap" else "банановая кожура"))
+	var soap := id == "soaptrap"
+	_award("prank_" + id, 75, "Пакость: " + ("мыло на полу" if soap else "банановая кожура"))
 	_scored["rage"] = true
 	neighbor.react_seq([
-		{"face": "shock", "clip": "fall_back", "t": 1.3, "fall": true, "sfx": "thud", "shake": 0.45},
-		{"face": "yell", "clip": "lie_back", "t": 2.0, "line": line},
-		{"face": default_face(), "clip": "get_up", "t": 1.6},
+		{"face": "shock", "clip": "fall_back", "t": 1.5, "fall": true, "sfx": "thud", "shake": 0.6, "line": "Оп-оп-оп… А-а-а!"},
+		{"face": "yell", "clip": "lie_back", "t": 2.2, "line": "Твою ж… Кто мыло бросил?!" if soap else "Кто кожуру бросил?!"},
+		{"face": "angry", "clip": "lie_back", "t": 1.8, "line": "Ой-ё-ёй… Спина моя…"},
+		{"face": "angry", "clip": "get_up", "t": 1.6},
+		{"face": "yell", "clip": "angry", "t": 2.2, "line": rage_line(), "shake": 0.3},
+		{"face": "suspicious", "clip": "suspicious", "t": 2.0, "line": "Узнаю, кто это сделал — урою!"},
 	])
 	gloat(1.6)
 

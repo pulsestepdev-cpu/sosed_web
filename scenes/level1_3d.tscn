@@ -2178,7 +2178,7 @@ transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 12.95, 0.5, -3.58)
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 12.4, 0, -2.35)
 
 [node name="putty_bucket" type="Node3D" parent="Furniture" unique_id=2143208800 instance=ExtResource("41_bcjtm")]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 12.95, 0, -2.55)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 10.12, 3.05, -3.62)
 
 [node name="chandelier_living" type="Node3D" parent="Furniture" unique_id=954547546 instance=ExtResource("23_n8xnb")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 12.4, 2.7, -2.3)
@@ -2193,22 +2193,22 @@ transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 13.75, 0, -0.6)
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 13.6, 0.12, -3.988)
 
 [node name="bathtub" type="Node3D" parent="Furniture" unique_id=1501516800 instance=ExtResource("44_ti8a7")]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 4, 3.05, -3.558)
+transform = Transform3D(0.82, 0, 0, 0, 1, 0, 0, 0, 1, 3.85, 3.05, -3.558)
 
 [node name="shower_curtain" type="Node3D" parent="Furniture" unique_id=1546523300 instance=ExtResource("45_at624")]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 4, 3.05, -3.2)
+transform = Transform3D(0.82, 0, 0, 0, 1, 0, 0, 0, 1, 3.85, 3.05, -3.2)
 
 [node name="sink_vanity" type="Node3D" parent="Furniture" unique_id=693097207 instance=ExtResource("46_xa7v0")]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 5.3, 3.05, -3.728)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 4.92, 3.05, -3.728)
 
 [node name="mirror_cabinet" type="Node3D" parent="Furniture" unique_id=941535775 instance=ExtResource("47_5721m")]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 5.3, 4.37, -3.988)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 4.92, 4.37, -3.988)
 
 [node name="bath_shelf" type="Node3D" parent="Furniture" unique_id=237122327 instance=ExtResource("48_s3ri2")]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 5.3, 4.21, -3.988)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 4.92, 4.21, -3.988)
 
 [node name="toilet" type="Node3D" parent="Furniture" unique_id=2065456561 instance=ExtResource("49_s5sl7")]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 6.02, 3.05, -3.633)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 5.55, 3.05, -3.633)
 
 [node name="wall_lamp_bath" type="Node3D" parent="Furniture" unique_id=794421392 instance=ExtResource("25_pj3bt")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 4, 5.3, -3.988)
@@ -2218,9 +2218,6 @@ transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 6.98, 3.05, -3.723)
 
 [node name="bed" type="Node3D" parent="Furniture" unique_id=1534974762 instance=ExtResource("51_vb3w4")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 8.4, 3.05, -3.188)
-
-[node name="nightstand" type="Node3D" parent="Furniture" unique_id=434623704 instance=ExtResource("52_4cs76")]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 9.8, 3.05, -3.753)
 
 [node name="clock" type="Node3D" parent="Furniture" unique_id=1529103778 instance=ExtResource("53_62p77")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 10.05, 4.9, -3.988)

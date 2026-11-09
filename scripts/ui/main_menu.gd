@@ -63,7 +63,7 @@ func _ready() -> void:
 	_loading.visible = false
 	add_child(_loading)
 
-	Settings.music("menu_loop")
+	Settings.music("main_musik")
 	# появление кнопок
 	_buttons.modulate.a = 0.0
 	create_tween().tween_property(_buttons, "modulate:a", 1.0, 0.6).set_delay(0.2)

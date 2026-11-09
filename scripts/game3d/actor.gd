@@ -27,6 +27,12 @@ var target_yaw := 0.0
 var step_sfx := "step"
 var step_vol := 0.5
 var _step_t := 0.0
+var partner: Actor              # второй персонаж: говорят по очереди, не перебивая
+var yields := false             # true — ждёт, пока партнёр договорит (герой); false — перебивает его (сосед)
+var speech_t := 0.0             # сколько ещё звучит своя реплика
+var _queued := ""
+var _queued_secs := 0.0
+var _queued_wait := 0.0
 var _faces := {}
 var _clip := ""
 
@@ -97,11 +103,32 @@ func set_alpha(a: float) -> void:
 	mat.albedo_color.a = a
 
 ## Реплика над головой; озвучивается, если есть запись. Возвращает, сколько секунд она звучит.
+## Говорят по очереди: герой ждёт, пока сосед договорит (до 4 с, потом реплика пропадает),
+## сосед своей репликой обрывает героя.
 func say(text: String, seconds := 2.5) -> float:
+	if text != "" and partner:
+		if yields and partner.is_speaking():
+			_queued = text
+			_queued_secs = seconds
+			_queued_wait = 4.0
+			return 0.0
+		if not yields and partner.is_speaking():
+			partner.shut_up()
 	bubble = text
 	var dur := Settings.voice(text, "n" if kind == "neighbor" else "h") if text != "" else 0.0
 	bubble_time = maxf(seconds, dur + 0.4)
+	speech_t = maxf(dur + 0.25, minf(bubble_time, 1.6)) if text != "" else 0.0
 	return dur
+
+func is_speaking() -> bool:
+	return speech_t > 0.0
+
+func shut_up() -> void:
+	bubble = ""
+	bubble_time = 0.0
+	speech_t = 0.0
+	_queued = ""
+	Settings.stop_voice("n" if kind == "neighbor" else "h")
 
 # ---------------------------------------------------------------- ходьба
 func walk_path(points: Array[Vector3]) -> void:
@@ -136,6 +163,16 @@ func _process(delta: float) -> void:
 		bubble_time -= delta
 		if bubble_time <= 0.0:
 			bubble = ""
+	if speech_t > 0.0:
+		speech_t -= delta
+	if _queued != "":
+		_queued_wait -= delta
+		if partner == null or not partner.is_speaking():
+			var q := _queued
+			_queued = ""
+			say(q, _queued_secs)
+		elif _queued_wait <= 0.0:
+			_queued = ""
 	rotation.y = lerp_angle(rotation.y, target_yaw, minf(1.0, delta * 9.0))
 	if path.is_empty():
 		if not hold:

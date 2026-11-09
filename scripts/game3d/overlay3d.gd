@@ -1,7 +1,8 @@
 class_name Overlay3D
 extends Control
-## Рисует поверх 3D: кружки над местами (жёлтые — заначки/подмены, голубые — укрытия, красные — ловушки),
-## подсветку места под курсором, облачка реплик и значки «?» / «!» над соседом.
+## Рисует поверх 3D: кружки над местами (жёлтые — заначки/подмены, голубые — укрытия, красные — ловушки;
+## под курсором кружок крупнее, с белым ободком), облачка реплик, мысль соседа «куда пойдёт» с меткой
+## на полу и значки «?» / «!» над соседом.
 
 var game: Node    # Game3D
 var _t := 0.0
@@ -27,14 +28,15 @@ func _draw() -> void:
 			continue
 		var top := cam.unproject_position(sp.marker_pos())
 		var col := Color("9fe3ff") if sp.kind == "hide" else (Color("ff9a7a") if sp.kind == "trap" else Color("ffe08a"))
-		if sp.hovered and sp.active:
-			var r: Rect2 = game.screen_rect(sp.aabb)
-			draw_rect(r, Color(col, 0.16), true)
-			draw_rect(r, col, false, 4.0)
-		if sp.done:
+		if sp.hovered and sp.active and not sp.done:
+			var hr := 12.0 * k
+			draw_circle(top, hr + 5.0 * k, Color(0, 0, 0, 0.45))
+			draw_circle(top, hr + 3.0 * k, Color.WHITE)
+			draw_circle(top, hr, col)
+		elif sp.done:
 			draw_circle(top, 13.0 * k, Color(0.15, 0.55, 0.2, 0.92))
 			draw_polyline(PackedVector2Array([top + Vector2(-6, 0) * k, top + Vector2(-1, 5) * k, top + Vector2(7, -5) * k]), Color.WHITE, 3.5 * k)
-		elif not sp.hovered:
+		else:
 			var rr := (7.0 + sin(_t * 4.0 + top.x * 0.01) * 1.8) * k
 			draw_circle(top, rr + 3.0 * k, Color(0, 0, 0, 0.35))
 			draw_circle(top, rr, Color(col, 0.95))
@@ -53,6 +55,15 @@ func _draw() -> void:
 				draw_circle(Vector2.ZERO, 5.5 * k, Color.WHITE)
 				draw_circle(Vector2(sin(_t * 0.8) * 2.0 * k, 0.5 * k), 2.6 * k, Color("1a0d05"))
 				draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
+	# куда пойдёт сосед: метка на полу и облачко-мысль
+	var nb := game.neighbor as Neighbor3D
+	if nb.goal != Vector3.INF and not game.rules.over:
+		_goal_mark(cam.unproject_position(nb.goal), k)
+	if nb.thought != "" and not game.rules.over:
+		var hp := cam.unproject_position(nb.head_pos())
+		if nb.bubble != "":
+			hp.y -= 78.0 * clampf(k, 0.9, 1.4)
+		_thought(hp, nb.thought, k)
 	# реплики
 	for a in [game.neighbor, game.hero]:
 		var ac := a as Actor
@@ -95,3 +106,63 @@ func _bubble(at: Vector2, text: String, is_neighbor: bool, k: float) -> void:
 	draw_colored_polygon(PackedVector2Array([tip + Vector2(-10, -2), tip + Vector2(10, -2), tip + Vector2(0, 16)]), bg)
 	draw_polyline(PackedVector2Array([tip + Vector2(-10, 0), tip + Vector2(0, 16), tip + Vector2(10, 0)]), Color("3a1b0c"), 3)
 	draw_string(_font, r.position + Vector2(pad.x, pad.y + fs * 0.92), text, HORIZONTAL_ALIGNMENT_LEFT, -1, fs, Color("2b1208"))
+
+## Метка цели соседа на полу: пульсирующее кольцо и стрелка вниз.
+func _goal_mark(at: Vector2, k: float) -> void:
+	var col := Color("ff8a3d")
+	var ph := fmod(_t * 1.4, 1.0)
+	draw_set_transform(at, 0.0, Vector2(1.0, 0.35))
+	draw_arc(Vector2.ZERO, (26.0 + ph * 30.0) * k, 0.0, TAU, 48, Color(col, 0.9 * (1.0 - ph)), 5.0 * k)
+	draw_arc(Vector2.ZERO, 26.0 * k, 0.0, TAU, 48, Color("3a1b0c"), 9.0 * k)
+	draw_arc(Vector2.ZERO, 26.0 * k, 0.0, TAU, 48, col, 5.0 * k)
+	draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
+	var y := at.y - (46.0 + sin(_t * 5.0) * 6.0) * k
+	var tri := PackedVector2Array([Vector2(at.x - 16 * k, y - 18 * k), Vector2(at.x + 16 * k, y - 18 * k), Vector2(at.x, y + 6 * k)])
+	draw_colored_polygon(tri, col)
+	tri.append(tri[0])
+	draw_polyline(tri, Color("3a1b0c"), 2.5)
+
+## Облачко-мысль: овальное «облако» из кружков и цепочка пузырьков к голове.
+func _thought(head: Vector2, text: String, k: float) -> void:
+	var fs := int(24 * clampf(k, 0.9, 1.4))
+	var parts := text.split(": ", true, 1)
+	var room := parts[0] + ": " if parts.size() > 1 else ""
+	var rest := parts[1] if parts.size() > 1 else text
+	var w1 := _font.get_string_size(room, HORIZONTAL_ALIGNMENT_LEFT, -1, fs).x
+	var w2 := _font.get_string_size(rest, HORIZONTAL_ALIGNMENT_LEFT, -1, fs).x
+	var size := Vector2(w1 + w2 + 44, fs * 1.15 + 26)
+	var r := Rect2(head - Vector2(size.x * 0.5, size.y + 64), size)
+	r.position.x = clampf(r.position.x, 12, 1908 - r.size.x)
+	r.position.y = maxf(r.position.y, 150)
+	var bg := Color("f4f7ff")
+	var line := Color("3a1b0c")
+	# облако: контур из кружков по краю, потом заливка поверх
+	var bumps: Array[Vector2] = []
+	var br := r.size.y * 0.3
+	var n := maxi(3, int(r.size.x / 44.0))
+	for i in n + 1:
+		var x := lerpf(r.position.x + r.size.y * 0.45, r.end.x - r.size.y * 0.45, float(i) / n)
+		bumps.append(Vector2(x, r.position.y + 2))
+		bumps.append(Vector2(x + 14.0 * (1 if i % 2 else -1), r.end.y - 2))
+	for b in bumps:
+		draw_circle(b, br + 3.0, line)
+	var sb := StyleBoxFlat.new()
+	sb.bg_color = bg
+	sb.border_color = line
+	sb.set_border_width_all(3)
+	sb.set_corner_radius_all(int(r.size.y * 0.5))
+	draw_style_box(sb, r.grow_individual(10, 0, 10, 0))
+	for b in bumps:
+		draw_circle(b, br, bg)
+	draw_rect(r.grow_individual(4, -6, 4, -6), bg)
+	# пузырьки к голове
+	var from := Vector2(clampf(head.x, r.position.x + 20, r.end.x - 20), r.end.y + br * 0.6)
+	for i in 3:
+		var t := float(i + 1) / 4.0
+		var c := from.lerp(head + Vector2(0, -14), t)
+		var rad := (9.0 - i * 2.5) * clampf(k, 0.9, 1.3)
+		draw_circle(c, rad + 2.5, line)
+		draw_circle(c, rad, bg)
+	var base := Vector2(r.position.x + 22, r.position.y + 13 + fs * 0.92)
+	draw_string(_font, base, room, HORIZONTAL_ALIGNMENT_LEFT, -1, fs, Color("c2410c"))
+	draw_string(_font, base + Vector2(w1, 0), rest, HORIZONTAL_ALIGNMENT_LEFT, -1, fs, Color("2b1208"))
