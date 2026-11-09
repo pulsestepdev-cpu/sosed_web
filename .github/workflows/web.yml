@@ -1,5 +1,6 @@
 # Веб-версия: на каждый push в main — сборка Godot 4.7.2 (Web) и выкладка в CapRover.
-# Секреты репозитория: CAPROVER_SERVER (https://captain.домен), CAPROVER_APP_TOKEN (токен приложения).
+# Секреты репозитория: CAPROVER_SERVER (https://captain.домен) и одно из двух — CAPROVER_APP_TOKEN (токен
+# приложения, есть в новых версиях CapRover) или CAPROVER_PASSWORD (пароль панели, работает во всех версиях).
 # Переменная (необязательно): CAPROVER_APP — имя приложения в CapRover (по умолчанию sosed).
 name: Web build & deploy
 
@@ -44,12 +45,17 @@ jobs:
         env:
           CAPROVER_SERVER: ${{ secrets.CAPROVER_SERVER }}
           CAPROVER_APP_TOKEN: ${{ secrets.CAPROVER_APP_TOKEN }}
+          CAPROVER_PASSWORD: ${{ secrets.CAPROVER_PASSWORD }}
           CAPROVER_APP: ${{ vars.CAPROVER_APP || 'sosed' }}
         run: |
-          if [ -z "$CAPROVER_SERVER" ] || [ -z "$CAPROVER_APP_TOKEN" ]; then
+          if [ -z "$CAPROVER_SERVER" ] || { [ -z "$CAPROVER_APP_TOKEN" ] && [ -z "$CAPROVER_PASSWORD" ]; }; then
             echo "Секреты CapRover не заданы — сборка готова, выкладку пропускаю."
             exit 0
           fi
           mkdir -p pack && cp deploy/* pack/ && cp -r build/web pack/web
           tar -C pack -cf deploy.tar .
-          npx -y caprover deploy --caproverUrl "$CAPROVER_SERVER" --appToken "$CAPROVER_APP_TOKEN" --appName "$CAPROVER_APP" --tarFile deploy.tar
+          if [ -n "$CAPROVER_APP_TOKEN" ]; then
+            npx -y caprover deploy --caproverUrl "$CAPROVER_SERVER" --appToken "$CAPROVER_APP_TOKEN" --appName "$CAPROVER_APP" --tarFile deploy.tar
+          else
+            npx -y caprover deploy --caproverUrl "$CAPROVER_SERVER" --caproverPassword "$CAPROVER_PASSWORD" --appName "$CAPROVER_APP" --tarFile deploy.tar
+          fi

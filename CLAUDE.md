@@ -33,7 +33,7 @@
   "%APPDATA%/Godot/export_templates/4.7.2.stable"`.
 - В вебе нет системных шрифтов: в текстах только кириллица/латиница и « » — … · • (стрелки, эмодзи — квадратики).
 - Выкладка: push в `main` → GitHub Actions (`.github/workflows/web.yml`) собирает и деплоит в CapRover (`deploy/`: Dockerfile
-  с nginx, gzip, no-cache). Секреты репозитория: `CAPROVER_SERVER`, `CAPROVER_APP_TOKEN`; переменная `CAPROVER_APP` (по умолч. sosed).
+  с nginx, gzip, no-cache). Секреты репозитория: `CAPROVER_SERVER` и `CAPROVER_APP_TOKEN` или `CAPROVER_PASSWORD` (пароль панели); переменная `CAPROVER_APP` (по умолч. sosed).
 
 ## Blender
 - `C:\Program Files\Blender Foundation\Blender 5.2\blender.exe` (5.2.3 LTS). Управлять скриптами в фоне:
