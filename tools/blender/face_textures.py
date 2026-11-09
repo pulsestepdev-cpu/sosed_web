@@ -121,33 +121,36 @@ RX, RZ = F["eye_r"]
 def blush(img, x, z, r, k, col=(0.86, 0.25, 0.2)):
     region(img, x, z, r, r, lambda dx, dz: (np.clip(1 - np.hypot(dx, dz) / r, 0, 1) ** 1.5 * k, col))
 
-def eyelid(img, frac, slant=0.0):
-    """Опустить верхние веки на долю frac высоты глаза (1 — закрыт). slant — злой наклон к переносице."""
+def eyelid(img, frac, slant=0.0, sides=(1, -1)):
+    """Опустить верхние веки на долю frac высоты глаза (1 — закрыт). slant — злой наклон к переносице.
+    Веко непрозрачное и шире нарисованного глаза — иначе сквозь край просвечивают белок и зрачок."""
     for i, (ex, ez) in enumerate(F["eyes"]):
         side = 1 if ex > 0 else -1
+        if side not in sides:
+            continue
         def fn(dx, dz, side=side):
-            inside = soft((dx / (RX * 1.18)) ** 2 + (dz / (RZ * 1.35)) ** 2, 0.25)
+            inside = soft((dx / (RX * 1.38)) ** 2 + (dz / (RZ * 1.85)) ** 2, 0.06)
             edge = RZ * 1.35 - 2 * RZ * 1.35 * frac + slant * RZ * (-side * dx / RX)   # линия края века
-            lid = np.clip((dz - edge) / (RZ * 0.25), 0, 1) * inside
+            lid = np.clip((dz - edge) / (RZ * 0.12), 0, 1) * inside
             return lid, LID
-        region(img, ex, ez, RX * 1.3, RZ * 1.5, fn)
+        region(img, ex, ez, RX * 1.5, RZ * 2.0, fn)
         def line(dx, dz, side=side):                                               # тёмный край века
             edge = RZ * 1.35 - 2 * RZ * 1.35 * frac + slant * RZ * (-side * dx / RX)
-            within = soft((dx / (RX * 1.12)) ** 2, 0.2)
+            within = soft((dx / (RX * 1.15)) ** 2, 0.15)
             return soft(np.abs(dz - edge) / (RZ * 0.22), 0.6) * within, LASH
-        region(img, ex, ez, RX * 1.3, RZ * 1.5, line)
+        region(img, ex, ez, RX * 1.5, RZ * 2.0, line)
 
 def eyes_closed(img, happy=False):
     """Глаза закрыты: веко целиком + ресничная дуга (вниз — спит, вверх «^^» — радуется)."""
     for ex, ez in F["eyes"]:
-        region(img, ex, ez, RX * 1.3, RZ * 1.6,
-               lambda dx, dz: (soft((dx / (RX * 1.2)) ** 2 + (dz / (RZ * 1.45)) ** 2, 0.2), LID))
+        region(img, ex, ez, RX * 1.6, RZ * 2.1,
+               lambda dx, dz: (soft((dx / (RX * 1.4)) ** 2 + (dz / (RZ * 1.85)) ** 2, 0.06), LID))
         def arc(dx, dz):
             u = np.clip(dx / (RX * 1.05), -1, 1)
             cz = (RZ * 0.55 * (u * u) - RZ * 0.35) if not happy else (-RZ * 0.8 * (u * u) + RZ * 0.45)
             within = soft((dx / (RX * 1.05)) ** 2, 0.15)
             return soft(np.abs(dz - cz) / (RZ * 0.28), 0.5) * within, LASH
-        region(img, ex, ez, RX * 1.3, RZ * 1.6, arc)
+        region(img, ex, ez, RX * 1.6, RZ * 2.1, arc)
 
 def eyes_wide(img):
     """Глаза навыкате: большой белок, крошечный зрачок, блик."""
@@ -188,6 +191,28 @@ def mouth_open(img, rx, rz):
     region(img, mx, mz, rx * 1.3, rz * 1.4,
            lambda dx, dz: (soft(np.abs(np.sqrt((dx / rx) ** 2 + (dz / rz) ** 2) - 1) / 0.12, 0.5), LASH * 0.7))
 
+def smile(img, k=1.0):
+    """Уголки рта вверх: тёмная дуга-улыбка по линии губ."""
+    mx, mz = F["mouth"]
+    rx = F["mouth_r"][0] * 1.5
+    def fn(dx, dz):
+        u = np.clip(dx / rx, -1, 1)
+        cz = F["mouth_r"][1] * (1.4 * u * u - 0.4) * k
+        return soft(np.abs(dz - cz) / (F["mouth_r"][1] * 0.32), 0.6) * soft(u * u, 0.1), LASH * 0.6
+    region(img, mx, mz, rx * 1.2, F["mouth_r"][1] * 2.5, fn)
+
+def pupils_cross(img):
+    """Пьяные глаза: белок + зрачки съехали к переносице."""
+    for ex, ez in F["eyes"]:
+        side = 1 if ex > 0 else -1
+        region(img, ex, ez, RX * 1.4, RZ * 1.6,
+               lambda dx, dz: (soft((dx / (RX * 1.12)) ** 2 + (dz / (RZ * 1.3)) ** 2, 0.1), (0.95, 0.9, 0.86)))
+        region(img, ex, ez, RX * 1.4, RZ * 1.6,
+               lambda dx, dz: (soft(np.abs(np.sqrt((dx / (RX * 1.12)) ** 2 + (dz / (RZ * 1.3)) ** 2) - 1) / 0.06, 0.6), LASH))
+        pr = RZ * 0.62
+        px = ex - side * RX * 0.45
+        region(img, px, ez - RZ * 0.1, pr * 1.3, pr * 1.3, lambda dx, dz: (soft(np.hypot(dx, dz) / pr, 0.2), (0.12, 0.08, 0.06)))
+
 def sweat(img):
     ex, ez = F["eyes"][0]
     x, z = ex + RX * 1.9, ez + RZ * 2.5
@@ -215,15 +240,25 @@ EXPR = {
         "sleep":  [lambda i: red_face(i, 0.6), lambda i: eyes_closed(i)],
         "angry":  [lambda i: tint(i, 0.35, (0.85, 0.2, 0.15)), lambda i: eyelid(i, 0.25, slant=0.9),
                    lambda i: brows(i, -0.004, -0.9)],
-        "happy":  [lambda i: red_face(i, 0.5), lambda i: eyes_closed(i, happy=True)],
+        "happy":  [lambda i: red_face(i, 0.5), lambda i: eyelid(i, 0.12), lambda i: smile(i, 0.9)],
+        "wasted": [lambda i: red_face(i, 1.3), lambda i: pupils_cross(i), lambda i: eyelid(i, 0.45, slant=-0.6),
+                   lambda i: mouth_open(i, F["mouth_r"][0] * 0.8, F["mouth_r"][1] * 0.9)],
+        "shock":  [lambda i: hide_brows(i), lambda i: eyes_wide(i), lambda i: brows(i, 0.012, 0.8),
+                   lambda i: mouth_open(i, F["mouth_r"][0] * 1.1, F["mouth_r"][1] * 2.2)],
+        "yell":   [lambda i: tint(i, 0.5, (0.9, 0.15, 0.1)), lambda i: eyelid(i, 0.2, slant=1.0),
+                   lambda i: brows(i, -0.004, -1.0), lambda i: mouth_open(i, F["mouth_r"][0] * 1.4, F["mouth_r"][1] * 2.6)],
+        "suspicious": [lambda i: eyelid(i, 0.42, sides=(1,)), lambda i: hide_brows(i), lambda i: brows(i, 0.0, -0.3),
+                   lambda i: eyelid(i, 0.1, sides=(-1,))],
     },
     "hero": {
         "normal": [],
         "scared": [lambda i: tint(i, 0.18, (0.75, 0.85, 0.95)), lambda i: hide_brows(i), lambda i: eyes_wide(i),
                    lambda i: brows(i, 0.012, 0.8), lambda i: mouth_open(i, F["mouth_r"][0], F["mouth_r"][1]),
                    lambda i: sweat(i)],
-        "happy":  [lambda i: red_face(i, 0.4), lambda i: eyes_closed(i, happy=True)],
-        "sneaky": [lambda i: eyelid(i, 0.35)],
+        "happy":  [lambda i: red_face(i, 0.4), lambda i: eyelid(i, 0.1)],
+        "laugh":  [lambda i: red_face(i, 0.5), lambda i: eyelid(i, 0.18),
+                   lambda i: mouth_open(i, F["mouth_r"][0] * 0.9, F["mouth_r"][1] * 0.8)],
+        "sneaky": [lambda i: eyelid(i, 0.28)],
     },
 }
 
