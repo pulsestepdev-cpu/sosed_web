@@ -6,15 +6,15 @@ extends Control
 signal closed
 
 func _ready() -> void:
-	set_anchors_preset(Control.PRESET_FULL_RECT)
+	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	mouse_filter = Control.MOUSE_FILTER_STOP
 	process_mode = Node.PROCESS_MODE_ALWAYS
 	var dim := ColorRect.new()
 	dim.color = Color(0.05, 0.02, 0.0, 0.6)
-	dim.set_anchors_preset(Control.PRESET_FULL_RECT)
+	dim.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	add_child(dim)
 	var center := CenterContainer.new()
-	center.set_anchors_preset(Control.PRESET_FULL_RECT)
+	center.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	add_child(center)
 	var p := UiStyle.panel()
 	center.add_child(p)
@@ -58,8 +58,37 @@ func _check(parent: Control, title: String, value: bool, on_toggle: Callable) ->
 	cb.add_theme_color_override("font_hover_color", Color.WHITE)
 	cb.add_theme_color_override("font_pressed_color", UiStyle.C_TEXT)
 	cb.add_theme_color_override("font_hover_pressed_color", Color.WHITE)
+	cb.add_theme_constant_override("h_separation", 22)
+	# крупный тумблер вместо стандартного (в браузере игра уменьшается под окно — стандартный не разглядеть)
+	var on_icon := _toggle_icon(true)
+	var off_icon := _toggle_icon(false)
+	for n in ["checked", "checked_mirrored", "checked_disabled", "checked_disabled_mirrored"]:
+		cb.add_theme_icon_override(n, on_icon)
+	for n in ["unchecked", "unchecked_mirrored", "unchecked_disabled", "unchecked_disabled_mirrored"]:
+		cb.add_theme_icon_override(n, off_icon)
 	cb.toggled.connect(on_toggle)
 	parent.add_child(cb)
+
+## Тумблер 84×44: дорожка (оранжевая — вкл, тёмная — выкл) с белым кружком справа/слева.
+func _toggle_icon(on: bool) -> ImageTexture:
+	var w := 84
+	var h := 44
+	var img := Image.create(w, h, false, Image.FORMAT_RGBA8)
+	img.fill(Color(0, 0, 0, 0))
+	var r := h * 0.5
+	var track := Color("e07a2a") if on else Color("4a2c18")
+	var knob_x := w - r if on else r
+	for y in h:
+		for x in w:
+			var p := Vector2(x + 0.5, y + 0.5)
+			var cx := clampf(p.x, r, w - r)
+			var d := p.distance_to(Vector2(cx, r))
+			if d < r:
+				img.set_pixel(x, y, Color("3a1b0c") if d > r - 3.0 else track)
+			var dk := p.distance_to(Vector2(knob_x, r))
+			if dk < r - 6.0:
+				img.set_pixel(x, y, Color("fff3d6") if dk < r - 8.0 else Color("3a1b0c"))
+	return ImageTexture.create_from_image(img)
 
 func _slider(parent: Control, title: String, value: float, on_change: Callable) -> void:
 	var hb := HBoxContainer.new()

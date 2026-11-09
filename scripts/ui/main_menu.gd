@@ -47,6 +47,7 @@ func _ready() -> void:
 	_buttons.add_child(opts)
 	var quit := UiStyle.button("Выход", 44, 460)
 	quit.pressed.connect(func(): get_tree().quit())
+	quit.visible = not OS.has_feature("web")     # в браузере закрыть игру нельзя — вкладку закрывают сами
 	_buttons.add_child(quit)
 
 	var ver := UiStyle.label("Уровень 1 · «Понедельник. Больше не пью»", 24, Color("ffe6b0"), 8)

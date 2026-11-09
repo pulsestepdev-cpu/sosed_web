@@ -14,6 +14,11 @@ config/name="Сосед на бутылке"
 run/main_scene="res://scenes/main_menu.tscn"
 config/features=PackedStringArray("4.7")
 
+[audio]
+
+general/default_playback_type.web=0
+driver/output_latency.web=120
+
 [autoload]
 
 Settings="*res://scripts/autoload/settings.gd"
