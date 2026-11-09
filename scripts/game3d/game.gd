@@ -60,13 +60,16 @@ var _props := {}               # доп. предметы: keys, salad, salad_ta
 var _last_nx := 0.0
 var _debug_uses: Array = []
 var _ghost := false
+var _pan := Vector2(8.5, 3.0)  # крупная камера: куда смотрит (x, высота)
+var _manual_cam := false       # игрок сам сдвинул обзор к краю
+var finale_hero := false       # финал: камера крупно на танцующем герое
 var _focus_n := false          # отладка: камера крупно на соседе            # отладка: сосед не замечает героя
 
 func _ready() -> void:
 	var args := _args()
 	time_scale = float(args.get("timescale", "1"))
 	hour = float(args.get("start", str(START_HOUR)))
-	zoomed = args.has("zoom")
+	zoomed = args.has("zoom") or Settings.camera_close
 
 	level = (load(LEVEL) as PackedScene).instantiate() as Node3D
 	level.set_script(null)                 # в сцене — скрипт просмотрщика, в игре он не нужен
@@ -89,6 +92,7 @@ func _ready() -> void:
 	hero.game = self
 	level.add_child(hero)
 	hero.setup("res://assets/models/characters/hero.glb", "hero")
+	hero.borrow_clip("res://assets/models/characters/neighbor.glb", "dance", "dance")
 	hero.position = HERO_START
 	hero.rotation.y = PI / 2
 	hero.target_yaw = PI / 2
@@ -614,8 +618,28 @@ func hit_rect(s: Spot3D) -> Rect2:
 	var mk := cam.unproject_position(s.marker_pos())
 	return r.merge(Rect2(mk - Vector2(m, m) * 0.4, Vector2(m, m) * 0.8))
 
+## Нужен ли этому месту предмет, который сейчас в руке (салат — на стол, водка — в холодильник...).
+func _wants_selected(s: Spot3D) -> bool:
+	if rules.selected == "":
+		return false
+	if s.id == "table":
+		return rules.selected == "salad"
+	return s.kind in ["swap", "trap"] and s.item == rules.selected and not s.done
+
 func _spot_at(mp: Vector2) -> Spot3D:
+	var k := clampf(_home_fov / cam.fov, 1.0, 2.2)
+	# 1) ткнул прямо в кружок-метку — это место, что бы ни стояло рядом
 	var best: Spot3D = null
+	var best_d := 26.0 * k
+	for s in spots.values():
+		if s.active:
+			var d := mp.distance_to(cam.unproject_position(s.marker_pos()))
+			if d < best_d:
+				best_d = d
+				best = s
+	if best:
+		return best
+	# 2) иначе — по зонам предметов
 	var best_score := INF
 	for s in spots.values():
 		if not s.active:
@@ -628,6 +652,8 @@ func _spot_at(mp: Vector2) -> Spot3D:
 		var mk := cam.unproject_position(s.marker_pos())
 		var m := HIT_MIN * clampf(_home_fov / cam.fov, 1.0, 2.2)
 		var score := maxf(r.get_area(), m * m) + minf(mp.distance_to(r.get_center()), mp.distance_to(mk))
+		if _wants_selected(s):
+			score -= 1e7       # с нужной вещью в руке — сначала туда, куда её можно применить
 		if score < best_score:
 			best_score = score
 			best = s
@@ -662,7 +688,7 @@ func _floor_point(mp: Vector2) -> Variant:
 
 func _unhandled_input(ev: InputEvent) -> void:
 	if ev is InputEventKey and ev.pressed and not ev.echo:
-		match ev.keycode:
+		match ev.physical_keycode:     # физические клавиши — работают и в русской раскладке
 			KEY_ESCAPE:
 				if started and not rules.over:
 					_set_paused(not paused)
@@ -674,14 +700,27 @@ func _unhandled_input(ev: InputEvent) -> void:
 				hero.toggle_sneak()
 			KEY_F:
 				Engine.time_scale = 1.0 if Engine.time_scale > 1.0 else 3.0
+			KEY_C:
+				zoomed = true
+				center_on_hero()
+			KEY_Z:
+				zoomed = not zoomed
+				_manual_cam = false
+			KEY_TAB:
+				hud.toggle_tasks()
 		return
 	if not (ev is InputEventMouseButton and ev.pressed):
 		return
 	match ev.button_index:
 		MOUSE_BUTTON_WHEEL_UP:
+			if not zoomed:
+				_manual_cam = false
 			zoomed = true
 		MOUSE_BUTTON_WHEEL_DOWN:
 			zoomed = false
+		MOUSE_BUTTON_MIDDLE:
+			zoomed = true
+			center_on_hero()
 		MOUSE_BUTTON_RIGHT:
 			if started and not paused:
 				hero.toggle_sneak()
@@ -690,10 +729,12 @@ func _unhandled_input(ev: InputEvent) -> void:
 				return
 			var s := _spot_at(ev.position)
 			if s:
+				_manual_cam = false
 				_go_spot(s)
 				return
 			var p: Variant = _floor_point(ev.position)
 			if p != null:
+				_manual_cam = false
 				_pending = null
 				hero.go(plan_path(hero.position, p))
 
@@ -709,11 +750,16 @@ func _set_paused(on: bool) -> void:
 func _update_camera(instant: bool, delta := 0.016) -> void:
 	var fov := _home_fov
 	var target := _home.origin
-	var who: Actor = neighbor if (rules and rules.over and rules.drunk >= 100.0) or _focus_n else hero
-	if zoomed or who == neighbor:
-		fov = 12.5 if who == hero else (9.5 if not _focus_n else 5.0)
+	var who: Actor = neighbor if (rules and rules.over and rules.drunk >= 100.0 and not finale_hero) or _focus_n else hero
+	var close_up := who == neighbor or finale_hero
+	if zoomed and not close_up:
+		_close_cam(instant, delta)
+		target = Vector3(_cam_x, _cam_y, _home.origin.z)
+		fov = CLOSE_FOV
+	elif close_up:
+		fov = 9.5 if not _focus_n else 5.0
 		var f := floor_of(who.position) if not on_stairs(who.position) else (1 if who.position.y > F2 * 0.5 else 0)
-		var y := floor_y(f) + (1.3 if who == hero else (1.0 if not _focus_n else 1.35))
+		var y := floor_y(f) + (1.05 if who == hero else (1.0 if not _focus_n else 1.35))
 		var x := clampf(who.position.x, 2.4, 14.6)
 		_cam_x = x if instant else lerpf(_cam_x, x, minf(1.0, delta * 4.0))
 		_cam_y = y if instant else lerpf(_cam_y, y, minf(1.0, delta * 4.0))
@@ -728,6 +774,46 @@ func _update_camera(instant: bool, delta := 0.016) -> void:
 		_shake = maxf(0.0, _shake - delta * 1.5)
 		pos += Vector3(randf_range(-1, 1), randf_range(-1, 1), 0) * _shake * 0.12
 	cam.transform = Transform3D(_home.basis, pos)
+
+## Крупная камера: следует за героем; мышь у края экрана (или стрелки / WASD) сдвигает обзор —
+## посмотреть, где сосед. Как только герой пошёл или нажата C / средняя кнопка — снова за героем.
+const CLOSE_FOV := 13.0
+const EDGE := 36.0             # ширина «горячей» полосы у края экрана, px
+const PAN_SPEED := 7.0         # м/с
+
+func _close_cam(instant: bool, delta: float) -> void:
+	var f := floor_of(hero.position) if not on_stairs(hero.position) else (1 if hero.position.y > F2 * 0.5 else 0)
+	var hero_pt := Vector2(clampf(hero.position.x, 2.6, 14.4), floor_y(f) + 1.3)
+	var dir := Vector2.ZERO
+	if started and not paused and not hud.has_overlay():
+		var vs := get_viewport().get_visible_rect().size
+		var mp := get_viewport().get_mouse_position()
+		if Rect2(Vector2.ZERO, vs).has_point(mp) and DisplayServer.window_is_focused():
+			dir.x = -1.0 if mp.x < EDGE else (1.0 if mp.x > vs.x - EDGE else 0.0)
+			dir.y = 1.0 if mp.y < EDGE else (-1.0 if mp.y > vs.y - EDGE else 0.0)
+		if Input.is_physical_key_pressed(KEY_LEFT) or Input.is_physical_key_pressed(KEY_A):
+			dir.x = -1.0
+		if Input.is_physical_key_pressed(KEY_RIGHT) or Input.is_physical_key_pressed(KEY_D):
+			dir.x = 1.0
+		if Input.is_physical_key_pressed(KEY_UP) or Input.is_physical_key_pressed(KEY_W):
+			dir.y = 1.0
+		if Input.is_physical_key_pressed(KEY_DOWN) or Input.is_physical_key_pressed(KEY_S):
+			dir.y = -1.0
+	if dir != Vector2.ZERO:
+		if not _manual_cam:
+			_pan = Vector2(_cam_x, _cam_y)
+		_manual_cam = true
+		_pan += dir * PAN_SPEED * delta
+	if not _manual_cam:
+		_pan = hero_pt
+	_pan.x = clampf(_pan.x, 2.6, 14.4)
+	_pan.y = clampf(_pan.y, F1 + 1.3, F2 + 1.3)
+	var kf := 1.0 if instant else minf(1.0, delta * (9.0 if _manual_cam else 4.0))
+	_cam_x = lerpf(_cam_x, _pan.x, kf)
+	_cam_y = lerpf(_cam_y, _pan.y, kf)
+
+func center_on_hero() -> void:
+	_manual_cam = false
 
 func _args() -> Dictionary:
 	var out := {}

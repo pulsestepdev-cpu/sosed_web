@@ -1,6 +1,7 @@
 class_name SettingsPanel
 extends Control
-## Окно настроек: громкость музыки, звуков, голоса; полный экран. Закрывается кнопкой «Назад» или Esc.
+## Окно настроек: громкость музыки, звуков, голоса; полный экран; камера; список заданий.
+## Закрывается кнопкой «Назад» или Esc.
 
 signal closed
 
@@ -28,22 +29,37 @@ func _ready() -> void:
 		Settings.sfx_volume = v
 		Settings.sfx("pickup", 0.6))
 	_slider(vb, "Голоса", Settings.voice_volume, func(v): Settings.voice_volume = v)
-	var fs := CheckButton.new()
-	fs.text = "Полный экран"
-	fs.focus_mode = Control.FOCUS_NONE
-	fs.button_pressed = Settings.fullscreen
-	fs.add_theme_font_size_override("font_size", 36)
-	fs.add_theme_color_override("font_color", UiStyle.C_TEXT)
-	fs.add_theme_color_override("font_hover_color", Color.WHITE)
-	fs.add_theme_color_override("font_pressed_color", UiStyle.C_TEXT)
-	fs.toggled.connect(func(on):
+	_check(vb, "Полный экран", Settings.fullscreen, func(on):
 		Settings.fullscreen = on
 		Settings.apply())
-	vb.add_child(fs)
+	_check(vb, "Крупная камера (обзор — мышь к краю экрана)", Settings.camera_close, func(on):
+		Settings.camera_close = on
+		var g := get_tree().current_scene
+		if g is Game3D:
+			g.zoomed = on
+			g.center_on_hero())
+	_check(vb, "Список заданий (Tab)", Settings.show_tasks, func(on):
+		Settings.show_tasks = on
+		var g := get_tree().current_scene
+		if g is Game3D:
+			g.hud.set_tasks_visible(on))
 	var back := UiStyle.button("Назад", 40, 360)
 	back.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
 	back.pressed.connect(_close)
 	vb.add_child(back)
+
+func _check(parent: Control, title: String, value: bool, on_toggle: Callable) -> void:
+	var cb := CheckButton.new()
+	cb.text = title
+	cb.focus_mode = Control.FOCUS_NONE
+	cb.button_pressed = value
+	cb.add_theme_font_size_override("font_size", 32)
+	cb.add_theme_color_override("font_color", UiStyle.C_TEXT)
+	cb.add_theme_color_override("font_hover_color", Color.WHITE)
+	cb.add_theme_color_override("font_pressed_color", UiStyle.C_TEXT)
+	cb.add_theme_color_override("font_hover_pressed_color", Color.WHITE)
+	cb.toggled.connect(on_toggle)
+	parent.add_child(cb)
 
 func _slider(parent: Control, title: String, value: float, on_change: Callable) -> void:
 	var hb := HBoxContainer.new()

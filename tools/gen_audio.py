@@ -1,6 +1,6 @@
 # Звуки и озвучка уровня 1: эффекты и запасная музыка — кодом (чистый Python), голос — нейросинтез Microsoft Edge (edge-tts).
 #   python tools/gen_audio.py            — всё
-#   python tools/gen_audio.py sfx|voice|music      (voice ключ1,ключ2 — только эти реплики)
+#   python tools/gen_audio.py sfx|voice|music      (voice ключ1,ключ2 — только эти реплики; voice missing — недостающие)
 # Результат: assets/audio/sfx/*.wav, assets/audio/voice/*.mp3 + voice/index.json (текст → файл), assets/audio/music/*.wav
 import json, math, os, random, struct, sys, wave
 
@@ -335,6 +335,8 @@ LINES = [
     ("h_oops", "h", "Ой-ой-ой!"),
     ("h_ouch", "h", "Ай! Да за что?!"),
     ("h_win", "h", "Готов, голубчик!"),
+    ("h_fin1", "h", "Так тебе, ветродуйка!"),
+    ("h_fin2", "h", "И вот опять ты на бутылке!"),
 ]
 
 VOICES = {   # кто -> (голос, скорость, высота)
@@ -364,16 +366,25 @@ def gen_voice(only=None):
             except Exception as e:
                 err = e
             await asyncio.sleep(1.0 + attempt)
+        if os.path.exists(path):
+            os.remove(path)        # пустой/обрезанный файл не оставлять — иначе текст есть, а звука нет
         print("FAIL", key, text)
         return False
 
     async def run():
         for key, who, text in LINES:
-            if only and key not in only:
+            if only == ["missing"]:
+                if ok(key):
+                    continue
+            elif only and key not in only:
                 continue
             await one(key, who, text)
+    def ok(key):
+        f = os.path.join(d, key + ".mp3")
+        return os.path.exists(f) and os.path.getsize(f) > 2000
+
     asyncio.run(run())
-    index = {text: key for key, who, text in LINES if os.path.exists(os.path.join(d, key + ".mp3"))}
+    index = {text: key for key, who, text in LINES if ok(key)}
     json.dump(index, open(os.path.join(d, "index.json"), "w", encoding="utf-8"), ensure_ascii=False, indent=1)
     print("index:", len(index), "/", len(LINES))
 

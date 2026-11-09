@@ -3,11 +3,12 @@
 importer="mp3"
 type="AudioStreamMP3"
 uid="uid://dt7yu6btmwhef"
-valid=false
+path="res://.godot/imported/h_set_salad.mp3-365036f01cadaf819d507d2aeecb347f.mp3str"
 
 [deps]
 
 source_file="res://assets/audio/voice/h_set_salad.mp3"
+dest_files=["res://.godot/imported/h_set_salad.mp3-365036f01cadaf819d507d2aeecb347f.mp3str"]
 
 [params]
 

@@ -64,6 +64,12 @@ func _draw() -> void:
 		if nb.bubble != "":
 			hp.y -= 78.0 * clampf(k, 0.9, 1.4)
 		_thought(hp, nb.thought, k)
+	# сосед за кадром (крупная камера) — стрелка у края экрана в его сторону
+	if not game.rules.over and size.x > 400.0:
+		var np := cam.unproject_position(nb.head_pos() + Vector3(0, -0.8, 0))
+		var vr := Rect2(Vector2.ZERO, size)
+		if not vr.grow(-10).has_point(np) or cam.is_position_behind(nb.head_pos()):
+			_offscreen_arrow(np, vr, nb.thought)
 	# реплики
 	for a in [game.neighbor, game.hero]:
 		var ac := a as Actor
@@ -166,3 +172,38 @@ func _thought(head: Vector2, text: String, k: float) -> void:
 	var base := Vector2(r.position.x + 22, r.position.y + 13 + fs * 0.92)
 	draw_string(_font, base, room, HORIZONTAL_ALIGNMENT_LEFT, -1, fs, Color("c2410c"))
 	draw_string(_font, base + Vector2(w1, 0), rest, HORIZONTAL_ALIGNMENT_LEFT, -1, fs, Color("2b1208"))
+
+## Стрелка у края экрана к соседу, который сейчас не в кадре, с подписью (и его мыслью, если есть).
+func _offscreen_arrow(target: Vector2, vr: Rect2, thought: String) -> void:
+	var c := vr.get_center()
+	var inner := vr.grow_individual(-70, -180, -70, -190)   # не залезать на верхние и нижнюю панели
+	var d := target - c
+	if d.length() < 1.0:
+		return
+	var t := INF
+	if absf(d.x) > 0.001:
+		t = minf(t, ((inner.end.x if d.x > 0 else inner.position.x) - c.x) / d.x)
+	if absf(d.y) > 0.001:
+		t = minf(t, ((inner.end.y if d.y > 0 else inner.position.y) - c.y) / d.y)
+	var p := c + d * t
+	var dir := d.normalized()
+	var col := Color("ff8a3d")
+	var pulse := 1.0 + sin(_t * 6.0) * 0.08
+	draw_circle(p, 30.0 * pulse, Color("3a1b0c"))
+	draw_circle(p, 26.0 * pulse, col)
+	var tip := p + dir * 44.0
+	var side := Vector2(-dir.y, dir.x)
+	var tri := PackedVector2Array([tip, p + dir * 24.0 + side * 14.0, p + dir * 24.0 - side * 14.0])
+	draw_colored_polygon(tri, col)
+	tri.append(tri[0])
+	draw_polyline(tri, Color("3a1b0c"), 3.0)
+	var label := "Сосед" + ("  ·  " + thought if thought != "" else "")
+	var fs := 22
+	var w := _font.get_string_size(label, HORIZONTAL_ALIGNMENT_LEFT, -1, fs).x
+	var lp := p + Vector2(-w * 0.5, 54.0)
+	lp.x = clampf(lp.x, 12.0, size.x - w - 12.0)
+	if dir.y > 0.5:
+		lp.y = p.y - 44.0
+	draw_string_outline(_font, lp, label, HORIZONTAL_ALIGNMENT_LEFT, -1, fs, 8, Color("2b1208"))
+	draw_string(_font, lp, label, HORIZONTAL_ALIGNMENT_LEFT, -1, fs, Color("ffe9b8"))
+	draw_string(_font, p + Vector2(-7, 8), "!", HORIZONTAL_ALIGNMENT_LEFT, -1, 26, Color("2b1208"))

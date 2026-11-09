@@ -1,7 +1,7 @@
 class_name Hud3D
 extends CanvasLayer
 ## Интерфейс 3D-уровня: часы и что делает сосед, шкала опьянения, поимки и очки, сумка,
-## подсказка у курсора, всплывающие сообщения, вступление, пауза, итоги.
+## список заданий, подсказка у курсора, всплывающие сообщения, вступление, пауза, итоги.
 
 signal start_pressed
 signal restart_pressed
@@ -22,6 +22,8 @@ var tooltip: Label
 var toasts: VBoxContainer
 var overlay: Control
 var suspicion_bar: ProgressBar
+var tasks: Control
+var _task_t := 0.0
 var _drunk_shown := 0.0
 
 func _ready() -> void:
@@ -62,8 +64,10 @@ func _ready() -> void:
 	inv_panel.resized.connect(func(): inv_panel.position.x = (1920 - inv_panel.size.x) * 0.5)
 
 	var hint := _label(18, Color("c9a777"))
-	hint.text = "ЛКМ — идти / пошарить / спрятаться / подложить  ·  ПКМ или Shift — крадучись  ·  колесо — приблизить  ·  Пробел — пауза  ·  F — ускорить  ·  Esc — меню"
+	hint.text = "ЛКМ — идти / взять / подложить  ·  ПКМ/Shift — крадучись  ·  колесо или Z — крупно (мышь к краю — обзор, C — к герою)  ·  Tab — задания  ·  Пробел — пауза  ·  F — ускорить  ·  Esc — меню"
 	hint.position = Vector2(24, 1050)
+	hint.add_theme_color_override("font_outline_color", Color(0.1, 0.05, 0.02))
+	hint.add_theme_constant_override("outline_size", 6)
 	add_child(hint)
 
 	toasts = VBoxContainer.new()
@@ -71,6 +75,8 @@ func _ready() -> void:
 	toasts.custom_minimum_size = Vector2(800, 0)
 	toasts.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(toasts)
+
+	_build_tasks()
 
 	tooltip = _label(26, Color.WHITE)
 	tooltip.add_theme_color_override("font_outline_color", Color.BLACK)
@@ -95,6 +101,7 @@ func update_view(hour: float, neighbor_text: String, hero_text: String, suspicio
 	stats.text = "Поимки: %d / 3      Очки: %d" % [rules.catches, rules.score]
 	suspicion_bar.visible = suspicion > 0.01
 	suspicion_bar.value = suspicion * 100.0
+	_update_tasks_fade(delta)
 
 func set_tooltip(text: String, at: Vector2) -> void:
 	tooltip.visible = text != ""
@@ -148,6 +155,129 @@ func _rebuild_inventory() -> void:
 			Settings.sfx("click", 0.6)
 			rules.select(item))
 		inv_box.add_child(b)
+
+# ---------------------------------------------------------------- задания
+## Список заданий справа: что подменить, какие пакости устроить, финал. Квадратик: пустой — не сделано,
+## оранжевый — подложено, ждём соседа; зелёная галочка — сработало. Tab — свернуть/развернуть.
+const TASKS := [
+	["Подмены", ""],
+	["Незамерзайка в ополаск.", "swap_mouthwash", "sw:mouthwash"],
+	["Настойка в кофе", "swap_coffee", "sw:coffee"],
+	["Минералка → водка", "swap_fridge", "sw:fridge"],
+	["Газировка → пиво", "swap_soda", "sw:soda"],
+	["Чекушка в куртку", "swap_jacket", "sw:jacket"],
+	["Пакости", ""],
+	["Спрятать геймпад", "prank_gamepad", "tk:gamepad"],
+	["Спрятать телефон", "prank_phone", "tk:phone"],
+	["Спрятать ключи", "prank_keys", "tk:keys"],
+	["Перегоревшая лампочка", "prank_bulb", "sw:ladder"],
+	["Кожура у холодильника", "prank_peeltrap", "tr:peeltrap"],
+	["Мыло у раковины", "prank_soaptrap", "tr:soaptrap"],
+	["Финал", ""],
+	["Салат на стол", "final_salad", "salad"],
+]
+const TASK_RECT := Rect2(1584, 146, 326, 0)
+
+func _build_tasks() -> void:
+	tasks = Control.new()
+	tasks.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	tasks.position = TASK_RECT.position
+	tasks.size = Vector2(TASK_RECT.size.x, 40)
+	tasks.draw.connect(_draw_tasks)
+	add_child(tasks)
+	move_child(tasks, 0)
+
+func toggle_tasks() -> void:
+	set_tasks_visible(not Settings.show_tasks)
+	Settings.save()
+
+func set_tasks_visible(on: bool) -> void:
+	Settings.show_tasks = on
+	if tasks:
+		tasks.queue_redraw()
+
+func _task_state(t: Array) -> int:   # 0 — нет, 1 — подложено, 2 — готово
+	if rules._scored.has(t[1]):
+		return 2
+	var c: String = t[2]
+	if c == "salad":
+		return 1 if rules.salad_on_table else 0
+	var id := c.substr(3)
+	match c.substr(0, 3):
+		"sw:":
+			return 1 if rules.swapped.has(id) else 0
+		"tk:":
+			return 1 if rules.taken.has(id) else 0
+		"tr:":
+			return 1 if rules.traps.has(id) else 0
+	return 0
+
+func _draw_tasks() -> void:
+	if rules == null:
+		return
+	var f := tasks.get_theme_default_font()
+	var w := TASK_RECT.size.x
+	var open := Settings.show_tasks
+	var row := 27.0
+	var h := 44.0 if not open else 50.0 + TASKS.size() * row
+	tasks.size = Vector2(w, h)
+	var sb := StyleBoxFlat.new()
+	sb.bg_color = Color(0.17, 0.09, 0.04, 0.82)
+	sb.border_color = Color("c98a3c")
+	sb.set_border_width_all(3)
+	sb.set_corner_radius_all(14)
+	tasks.draw_style_box(sb, Rect2(Vector2.ZERO, tasks.size))
+	var done := 0
+	var total := 0
+	for t in TASKS:
+		if t[1] != "":
+			total += 1
+			if _task_state(t) == 2:
+				done += 1
+	tasks.draw_string(f, Vector2(16, 30), "Задания  %d / %d" % [done, total], HORIZONTAL_ALIGNMENT_LEFT, -1, 24, C_TEXT)
+	tasks.draw_string(f, Vector2(w - 60, 30), "Tab", HORIZONTAL_ALIGNMENT_LEFT, -1, 18, Color("b8966a"))
+	if not open:
+		return
+	var y := 50.0
+	for t in TASKS:
+		if t[1] == "":
+			tasks.draw_string(f, Vector2(16, y + 20), t[0], HORIZONTAL_ALIGNMENT_LEFT, -1, 18, Color("d99a4e"))
+			y += row
+			continue
+		var st := _task_state(t)
+		var box := Rect2(20, y + 5, 18, 18)
+		if st == 2:
+			tasks.draw_rect(box, Color("4caf50"))
+			tasks.draw_polyline(PackedVector2Array([box.position + Vector2(3, 9), box.position + Vector2(8, 14), box.position + Vector2(16, 3)]), Color.WHITE, 3.0)
+		elif st == 1:
+			tasks.draw_rect(box, Color("ff9a3d"))
+			tasks.draw_circle(box.get_center(), 3.5, Color("3a1b0c"))
+		else:
+			tasks.draw_rect(box, Color(1, 1, 1, 0.12))
+		tasks.draw_rect(box, Color("e2c697"), false, 2.0)
+		var col := Color("9fcf8a") if st == 2 else (Color("ffcf8a") if st == 1 else C_DIM)
+		var txt: String = t[0] + ("  — ждём" if st == 1 else "")
+		tasks.draw_string(f, Vector2(48, y + 21), txt, HORIZONTAL_ALIGNMENT_LEFT, w - 56, 18, col)
+		y += row
+
+func _update_tasks_fade(delta: float) -> void:
+	if tasks == null or rules == null or rules.game == null:
+		return
+	# кто-то из персонажей за панелью — сделать её прозрачнее
+	var behind := false
+	var r := Rect2(tasks.position, tasks.size).grow(20)
+	for a in [rules.game.hero, rules.game.neighbor]:
+		var ac := a as Node3D
+		var cam: Camera3D = rules.game.cam
+		for hgt in [0.3, 1.0, 1.7]:
+			var p := ac.global_position + Vector3(0, hgt, 0)
+			if not cam.is_position_behind(p) and r.has_point(cam.unproject_position(p)):
+				behind = true
+	tasks.modulate.a = move_toward(tasks.modulate.a, 0.3 if behind else 1.0, delta * 4.0)
+	_task_t -= delta
+	if _task_t <= 0.0:
+		_task_t = 0.25
+		tasks.queue_redraw()
 
 # ---------------------------------------------------------------- экраны
 func show_intro() -> void:

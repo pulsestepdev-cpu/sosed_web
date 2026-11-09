@@ -30,6 +30,47 @@ func _init() -> void:
 	step_sfx = "step"
 	step_vol = 0.45
 
+## Взять клип из модели соседа (скелеты с одинаковыми именами костей): танец для финала.
+## Перемещение оставляем только у таза (с поправкой на рост), кости, которых у героя нет, — выкидываем.
+func borrow_clip(src_glb: String, clip: String, as_name: String) -> void:
+	if ap.has_animation(as_name):
+		return
+	var src := (load(src_glb) as PackedScene).instantiate()
+	var sap := src.find_children("*", "AnimationPlayer", true, false)[0] as AnimationPlayer
+	if not sap.has_animation(clip):
+		src.free()
+		return
+	var a := sap.get_animation(clip).duplicate(true) as Animation
+	var ssk := src.find_children("*", "Skeleton3D", true, false)[0] as Skeleton3D
+	var hsk := model.find_children("*", "Skeleton3D", true, false)[0] as Skeleton3D
+	var k := hsk.get_bone_rest(hsk.find_bone("Hips")).origin.length() / maxf(0.001, ssk.get_bone_rest(ssk.find_bone("Hips")).origin.length())
+	var sk_path := str(ap.get_node(ap.root_node).get_path_to(hsk))
+	for i in range(a.get_track_count() - 1, -1, -1):
+		var bone := a.track_get_path(i).get_concatenated_subnames()
+		if hsk.find_bone(bone) < 0:
+			a.remove_track(i)
+			continue
+		a.track_set_path(i, NodePath(sk_path + ":" + bone))
+		if a.track_get_type(i) == Animation.TYPE_POSITION_3D:
+			if bone != "Hips":
+				a.remove_track(i)
+				continue
+			for j in a.track_get_key_count(i):
+				a.track_set_key_value(i, j, a.track_get_key_value(i, j) * k)
+	a.loop_mode = Animation.LOOP_LINEAR
+	ap.get_animation_library("").add_animation(as_name, a)
+	src.free()
+
+## Финал: вылезти, встать лицом к игроку и сплясать.
+func victory_dance() -> void:
+	stop()
+	leave_hiding()
+	frozen = true
+	busy = 0.0
+	target_yaw = 0.0
+	set_face("laugh")
+	act("dance", -1.0, 0.3)
+
 func toggle_sneak() -> void:
 	sneaking = not sneaking
 	speed = SNEAK_SPEED if sneaking else WALK_SPEED

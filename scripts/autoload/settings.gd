@@ -11,6 +11,8 @@ var music_volume := 0.6
 var sfx_volume := 0.8
 var voice_volume := 1.0
 var fullscreen := false
+var camera_close := false       # true — крупная камера на героя с прокруткой у краёв экрана
+var show_tasks := true          # список заданий в игре (Tab)
 
 var _music: AudioStreamPlayer
 var _music_name := ""
@@ -48,6 +50,8 @@ func _load() -> void:
 	sfx_volume = c.get_value("audio", "sfx", sfx_volume)
 	voice_volume = c.get_value("audio", "voice", voice_volume)
 	fullscreen = c.get_value("video", "fullscreen", fullscreen)
+	camera_close = c.get_value("game", "camera_close", camera_close)
+	show_tasks = c.get_value("game", "show_tasks", show_tasks)
 
 func save() -> void:
 	var c := ConfigFile.new()
@@ -55,6 +59,8 @@ func save() -> void:
 	c.set_value("audio", "sfx", sfx_volume)
 	c.set_value("audio", "voice", voice_volume)
 	c.set_value("video", "fullscreen", fullscreen)
+	c.set_value("game", "camera_close", camera_close)
+	c.set_value("game", "show_tasks", show_tasks)
 	c.save(PATH)
 
 func apply() -> void:

@@ -193,6 +193,9 @@ func hero_use(s: Spot3D) -> void:
 		return
 	match s.kind:
 		"stash":
+			if not s.active:     # уже обшарил (или шарит прямо сейчас — повторный клик)
+				return
+			s.active = false
 			var low: bool = s.aabb.get_center().y - game.floor_y(s.floor) < 0.7
 			hero.busy_act("search_low" if low else "search_mid", 1.4)
 			game.open_prop(s, 1.6)
@@ -201,11 +204,13 @@ func hero_use(s: Spot3D) -> void:
 				if over:
 					return
 				_give(s.item)
-				s.active = false
 				hero.found()
 				if s.id == "salad":
 					game.show_prop("salad", false))
 		"take":
+			if not s.active:
+				return
+			s.active = false
 			hero.busy_act("take", 1.0)
 			get_tree().create_timer(0.6, false).timeout.connect(func():
 				_give(s.item)
@@ -448,13 +453,18 @@ func _finale() -> void:
 		return
 	over = true
 	neighbor.finale(salad_on_table)
+	await neighbor.finale_done
 	if salad_on_table:
-		await neighbor.finale_done
 		_award("final_salad", 300, "Финал: лицом в салат!")
-	else:
-		await get_tree().create_timer(3.0, false).timeout
-	hero.gloat("Готов, голубчик!")
-	await get_tree().create_timer(5.5, false).timeout
+	# полюбоваться на соседа, потом камера — на героя: пляшет и подкалывает
+	await get_tree().create_timer(2.2, false).timeout
+	game.finale_hero = true
+	hero.victory_dance()
+	await get_tree().create_timer(1.0, false).timeout
+	var d := hero.say("Так тебе, ветродуйка!", 2.4)
+	await get_tree().create_timer(maxf(2.4, d + 0.5), false).timeout
+	d = hero.say("И вот опять ты на бутылке!", 2.8)
+	await get_tree().create_timer(maxf(3.2, d + 1.2), false).timeout
 	finished.emit(true, "Сосед уснул" + (" лицом в салате!" if salad_on_table else ""))
 
 func caught() -> void:
