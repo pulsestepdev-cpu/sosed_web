@@ -11,11 +11,12 @@ config_version=5
 [application]
 
 config/name="Сосед на бутылке"
-run/main_scene="res://scenes/level1.tscn"
+run/main_scene="res://scenes/main_menu.tscn"
 config/features=PackedStringArray("4.7")
 
 [autoload]
 
+Settings="*res://scripts/autoload/settings.gd"
 DebugScreenshot="*res://scripts/debug/screenshot.gd"
 
 [display]
