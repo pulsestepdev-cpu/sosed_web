@@ -25,7 +25,7 @@ const ROOM_MAX := 13.75
 const START_HOUR := 7.5
 const END_HOUR := 20.0
 const SEC_PER_HOUR := 50.0
-const HERO_START := Vector3(6.4, 0.0, -1.0)
+const HERO_START := Vector3(5.1, 0.0, -1.0)
 const RESPAWN := Vector3(0.38, F2 * 0.5, -1.0)   # после «люлей» — на площадку лестницы (там сосед не видит)
 const MATTRESS_H := 0.5       # высота матраса над полом
 const SALAD_SPOT := Vector3(8.7, 0.0, -2.72)   # где сосед встаёт за столом в финале
@@ -62,7 +62,10 @@ var _debug_uses: Array = []
 var _ghost := false
 var _pan := Vector2(8.5, 3.0)  # крупная камера: куда смотрит (x, высота)
 var _manual_cam := false       # игрок сам сдвинул обзор к краю
-var finale_hero := false       # финал: камера крупно на танцующем герое
+var finale_hero := false
+var _tv: MeshInstance3D
+var _tv_mat: ShaderMaterial
+var _tv_power := 0.0       # финал: камера крупно на танцующем герое
 var _focus_n := false          # отладка: камера крупно на соседе            # отладка: сосед не замечает героя
 
 func _ready() -> void:
@@ -217,6 +220,10 @@ func _apply_debug(args: Dictionary) -> void:
 				e.position = Vector2(float(q[0]), float(q[1]))
 				Input.warp_mouse(e.position)
 				Input.parse_input_event(e))
+	if args.has("dump-spots"):   # экранные зоны кликов: --dump-spots
+		get_tree().create_timer(1.0).timeout.connect(func():
+			for sp in spots.values():
+				print("SPOT %-10s rect=%s hit=%s" % [sp.id, screen_rect(sp.aabb), hit_rect(sp)]))
 	if args.has("speed"):
 		Engine.time_scale = float(args["speed"])
 	if args.has("autostart"):
@@ -336,6 +343,25 @@ func _add_props() -> void:
 	_props["peeltrap"].visible = false
 	_props["soaptrap"] = _put("soap_floor", "soap_dish", Vector3(4.92, F2 + 0.01, LANE + 0.18), 20)
 	_props["soaptrap"].visible = false
+	# телефон на диване: крупнее и прислонён к спинке экраном к игроку, иначе с общего плана не видно
+	var phone := furn.get_node_or_null("smartphone") as Node3D
+	if phone:
+		phone.scale = Vector3.ONE * 2.6
+		phone.position = Vector3(11.15, 0.5, -3.05)
+		phone.rotation_degrees = Vector3(-65, 180, 0)
+	# экран телевизора: включается, пока сосед играет в приставку
+	var tvb := _bounds(furn.get_node("tv") as Node3D)
+	_tv = MeshInstance3D.new()
+	_tv.name = "tv_screen"
+	var qm := QuadMesh.new()
+	qm.size = Vector2(tvb.size.x * 0.88, tvb.size.y * 0.8)
+	_tv.mesh = qm
+	_tv_mat = ShaderMaterial.new()
+	_tv_mat.shader = load("res://assets/tv_game.gdshader")
+	_tv.material_override = _tv_mat
+	furn.add_child(_tv)
+	_tv.position = Vector3(tvb.get_center().x, tvb.get_center().y + tvb.size.y * 0.04, tvb.end.z + 0.006)
+	_tv.visible = false
 	# свежая шпаклёвка на стене спальни, где сосед «работает»
 	var patch := MeshInstance3D.new()
 	patch.name = "putty_patch"
@@ -478,6 +504,14 @@ func _process(delta: float) -> void:
 	hud.update_view(hour, "%s  ·  %s" % [neighbor.activity, ROOM_NAMES[room_at(neighbor.position)]],
 		hero_text, neighbor.suspicion, paused, Engine.time_scale > 1.0, delta)
 	_last_nx = neighbor.position.x
+	_update_tv(delta)
+
+## Телевизор включён, пока сосед на месте «играет в приставку»: экран «раскрывается» полоской и гаснет.
+func _update_tv(delta: float) -> void:
+	var on := neighbor.activity == "играет в приставку" and not neighbor.is_walking()
+	_tv_power = move_toward(_tv_power, 1.0 if on else 0.0, delta * (2.5 if on else 4.0))
+	_tv.visible = _tv_power > 0.001
+	_tv_mat.set_shader_parameter("power", _tv_power)
 
 func _check_traps() -> void:
 	if neighbor.mode not in ["schedule", "detour"] or neighbor.on_ladder or on_stairs(neighbor.position):
@@ -646,14 +680,16 @@ func _spot_at(mp: Vector2) -> Spot3D:
 			continue
 		if not hit_rect(s).has_point(mp):
 			continue
-		# меньшая зона важнее (кружка на столе, а не стол); у мелочи зона — квадрат HIT_MIN,
-		# среди нескольких мелких — ближайший к курсору
+		# порядок: попал точно в предмет → в расширенную зону мелочи → точно в мебель-укрытие → рядом с ним.
+		# Так тумбочка под раковиной берётся кликом по ней (а не соседняя ловушка на полу), а телефон
+		# на диване — кликом рядом (а не сам диван). Внутри уровня: меньший / ближайший.
 		var r := screen_rect(s.aabb).grow(6)
 		var mk := cam.unproject_position(s.marker_pos())
-		var m := HIT_MIN * clampf(_home_fov / cam.fov, 1.0, 2.2)
-		var score := maxf(r.get_area(), m * m) + minf(mp.distance_to(r.get_center()), mp.distance_to(mk))
+		var exact := r.has_point(mp)
+		var tier := (0 if exact else 1) + (2 if s.kind == "hide" else 0)
+		var score := tier * 1e7 + (r.get_area() if exact else minf(mp.distance_to(r.get_center()), mp.distance_to(mk)))
 		if _wants_selected(s):
-			score -= 1e7       # с нужной вещью в руке — сначала туда, куда её можно применить
+			score -= 1e8       # с нужной вещью в руке — сначала туда, куда её можно применить
 		if score < best_score:
 			best_score = score
 			best = s
@@ -750,7 +786,7 @@ func _set_paused(on: bool) -> void:
 func _update_camera(instant: bool, delta := 0.016) -> void:
 	var fov := _home_fov
 	var target := _home.origin
-	var who: Actor = neighbor if (rules and rules.over and rules.drunk >= 100.0 and not finale_hero) or _focus_n else hero
+	var who: Actor = (neighbor as Actor) if (rules and rules.over and rules.drunk >= 100.0 and not finale_hero) or _focus_n else (hero as Actor)
 	var close_up := who == neighbor or finale_hero
 	if zoomed and not close_up:
 		_close_cam(instant, delta)

@@ -2,12 +2,13 @@
 
 importer="mp3"
 type="AudioStreamMP3"
-uid="uid://b5yv2hwu4f0sv"
-valid=false
+uid="uid://5c7qbti5w4at"
+path="res://.godot/imported/n_coffee.mp3-02638a1dea8332c65448b2bd8b10d467.mp3str"
 
 [deps]
 
 source_file="res://assets/audio/voice/n_coffee.mp3"
+dest_files=["res://.godot/imported/n_coffee.mp3-02638a1dea8332c65448b2bd8b10d467.mp3str"]
 
 [params]
 

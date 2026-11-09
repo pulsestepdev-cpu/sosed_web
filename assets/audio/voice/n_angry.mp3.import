@@ -2,12 +2,13 @@
 
 importer="mp3"
 type="AudioStreamMP3"
-uid="uid://yctume8d2vg3"
-valid=false
+uid="uid://ckreuxeqqhwaa"
+path="res://.godot/imported/n_angry.mp3-34104f2ac92d2247a01703090c1d9b21.mp3str"
 
 [deps]
 
 source_file="res://assets/audio/voice/n_angry.mp3"
+dest_files=["res://.godot/imported/n_angry.mp3-34104f2ac92d2247a01703090c1d9b21.mp3str"]
 
 [params]
 

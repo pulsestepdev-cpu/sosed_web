@@ -292,7 +292,8 @@ func build_furniture() -> void:
 	put("electric_panel", 4.75, F1 + 1.4, "wall")
 	put("coat_rack", 5.5, F1 + 1.75, "wall")
 	put("shoe_shelf", 5.5, F1)
-	put("chandelier", 5.0, H)
+	put("chandelier", 6.4, H, -2.3)
+	put("stepladder", 6.4, F1, -2.35)    # лампочку меняет в прихожей
 	put("rug", 5.0, F1, -1.3)
 	put("wall_lamp", 6.4, F1 + 2.25, "wall")
 	# кухня (x 7..10.4): гарнитур, холодильник (минералка/салат), стол (прятки), стулья, кофе, фрукты
@@ -306,14 +307,13 @@ func build_furniture() -> void:
 	put("coffee_mug", 8.45, F1 + 0.775, -1.85)
 	put("fruit_bowl", 8.95, F1 + 0.775, -2.05)
 	put("chandelier", 8.7, H, -1.9, 0, 0.0, null, "chandelier_kitchen")
-	# зал (x 10.4..14): диван (прятки, щель за спинкой), тумба с ТВ и приставкой, стремянка с лампочкой
+	# зал (x 10.4..14): диван (прятки, щель за спинкой), тумба с ТВ и приставкой, газировка
 	put("sofa", 11.6, F1, "back", 0, 0.38)
 	put("smartphone", 11.1, F1 + 0.48, -D + 0.85)
 	put("tv_stand", 13.2, F1)
 	put("tv", 13.2, F1 + 0.5, -D + 0.25)
 	put("gamepad", 12.8, F1 + 0.5, -D + 0.5)
 	put("soda_bottle", 12.95, F1 + 0.5, -D + 0.42)
-	put("stepladder", 12.4, F1, -2.35)
 	put("chandelier", 12.4, H, -2.3, 0, 0.0, null, "chandelier_living")
 	put("rug", 12.2, F1, -1.6, 0, 0.0, null, "rug_living")
 	put("plant", 13.75, F1, -0.6)

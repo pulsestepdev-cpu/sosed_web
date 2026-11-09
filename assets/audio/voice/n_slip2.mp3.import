@@ -2,12 +2,13 @@
 
 importer="mp3"
 type="AudioStreamMP3"
-uid="uid://b8trio5ceojib"
-valid=false
+uid="uid://crf3w2wuywr"
+path="res://.godot/imported/n_slip2.mp3-b87685bf723d3ec752022b05fbd1240e.mp3str"
 
 [deps]
 
 source_file="res://assets/audio/voice/n_slip2.mp3"
+dest_files=["res://.godot/imported/n_slip2.mp3-b87685bf723d3ec752022b05fbd1240e.mp3str"]
 
 [params]
 

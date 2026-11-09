@@ -2,12 +2,13 @@
 
 importer="mp3"
 type="AudioStreamMP3"
-uid="uid://bq6hdgvbu44h2"
-valid=false
+uid="uid://oi5i3u1j0mn4"
+path="res://.godot/imported/n_kick1.mp3-5b0624c30baead65685f7b8aa7e448a8.mp3str"
 
 [deps]
 
 source_file="res://assets/audio/voice/n_kick1.mp3"
+dest_files=["res://.godot/imported/n_kick1.mp3-5b0624c30baead65685f7b8aa7e448a8.mp3str"]
 
 [params]
 

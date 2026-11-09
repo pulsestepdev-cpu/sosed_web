@@ -2,12 +2,13 @@
 
 importer="mp3"
 type="AudioStreamMP3"
-uid="uid://blcr8uylv2uwb"
-valid=false
+uid="uid://btaucvbocgogy"
+path="res://.godot/imported/n_revenge.mp3-f373091d8be435eaa976e788c5b912c4.mp3str"
 
 [deps]
 
 source_file="res://assets/audio/voice/n_revenge.mp3"
+dest_files=["res://.godot/imported/n_revenge.mp3-f373091d8be435eaa976e788c5b912c4.mp3str"]
 
 [params]
 

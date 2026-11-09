@@ -2,12 +2,13 @@
 
 importer="mp3"
 type="AudioStreamMP3"
-uid="uid://2bp8tl3dw735"
-valid=false
+uid="uid://bwc2ddaaljyim"
+path="res://.godot/imported/n_fridge2.mp3-7ba7765bbc6c01e9bc6e5052c04c1d5e.mp3str"
 
 [deps]
 
 source_file="res://assets/audio/voice/n_fridge2.mp3"
+dest_files=["res://.godot/imported/n_fridge2.mp3-7ba7765bbc6c01e9bc6e5052c04c1d5e.mp3str"]
 
 [params]
 

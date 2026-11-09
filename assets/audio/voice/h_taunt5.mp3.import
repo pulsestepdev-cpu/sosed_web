@@ -2,12 +2,13 @@
 
 importer="mp3"
 type="AudioStreamMP3"
-uid="uid://2xcuo7ytxydp"
-valid=false
+uid="uid://dm1bgk77loi84"
+path="res://.godot/imported/h_taunt5.mp3-8b3210da3ddd2a5aa719c3ed088c0042.mp3str"
 
 [deps]
 
 source_file="res://assets/audio/voice/h_taunt5.mp3"
+dest_files=["res://.godot/imported/h_taunt5.mp3-8b3210da3ddd2a5aa719c3ed088c0042.mp3str"]
 
 [params]
 

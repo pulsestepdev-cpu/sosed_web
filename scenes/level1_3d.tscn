@@ -2118,7 +2118,7 @@ transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 5.5, 1.75, -3.988)
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 5.5, 0, -3.808)
 
 [node name="chandelier" type="Node3D" parent="Furniture" unique_id=742059289 instance=ExtResource("23_n8xnb")]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 5, 2.7, -3.6342504)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 6.4, 2.7, -2.3)
 
 [node name="rug" type="Node3D" parent="Furniture" unique_id=1318880407 instance=ExtResource("24_era42")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 5, 0, -1.3)
@@ -2175,7 +2175,7 @@ transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 12.8, 0.5, -3.5)
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 12.95, 0.5, -3.58)
 
 [node name="stepladder" type="Node3D" parent="Furniture" unique_id=1696895057 instance=ExtResource("40_5lurj")]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 12.4, 0, -2.35)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 6.4, 0, -2.35)
 
 [node name="putty_bucket" type="Node3D" parent="Furniture" unique_id=2143208800 instance=ExtResource("41_bcjtm")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 10.12, 3.05, -3.62)

@@ -17,9 +17,9 @@ const PLAN := [
 	[8.3,   0, "пьёт кофе",             "idle",       "coffee",    "back",  10],
 	[9.85,  1, "шпаклюет стену",        "work",       "",          "back",  14, -3.25],
 	[9.45,  0, "пьёт минералку",        "idle",       "fridge",    "back",  8],
-	[12.75, 0, "играет в приставку",    "phone",      "gamepad",   "tv",    14],
+	[12.75, 0, "играет в приставку",    "game",       "gamepad",   "tv",    14],
 	[12.0,  1, "дышит воздухом",        "idle",       "balcony",   "back",  10],
-	[12.0,  0, "меняет лампочку",       "bulb",       "ladder",    "front", 3],
+	[6.0,   0, "меняет лампочку",       "bulb",       "ladder",    "front", 3],
 	[4.92,  1, "умывается",             "work",       "mouthwash", "back",  10],
 	[13.05, 0, "пьёт газировку",        "idle",       "soda",      "back",  7],
 	[9.85,  1, "шпаклюет стену",        "work",       "",          "back",  12, -3.25],
@@ -27,10 +27,11 @@ const PLAN := [
 	[11.1,  0, "сидит в чат-рулетке",   "phone",      "phone",     "front", 14],
 	[5.45,  0, "собирается за хлебом",  "idle",       "jacket",    "back",  8],
 	[4.62,  0, "ищет ключи",            "suspicious", "keys",      "back",  8],
+	[6.0,   0, "меняет лампочку",       "bulb",       "ladder",    "front", 3],
 	[12.0,  1, "проверяет заначку",     "idle",       "balcony",   "back",  9],
 	[9.45,  0, "пьёт минералку",        "idle",       "fridge",    "back",  8],
 	[4.92,  1, "умывается",             "work",       "mouthwash", "back",  9],
-	[12.75, 0, "играет в приставку",    "phone",      "gamepad",   "tv",    12],
+	[12.75, 0, "играет в приставку",    "game",       "gamepad",   "tv",    12],
 	[9.85,  1, "шпаклюет стену",        "work",       "",          "back",  12, -3.25],
 	[13.05, 0, "пьёт газировку",        "idle",       "soda",      "back",  7],
 	[9.45,  0, "ужинает",               "idle",       "fridge",    "back",  10],
@@ -106,7 +107,7 @@ func _bed_tick(delta: float) -> void:
 	_snore_t -= delta
 	if _snore_t <= 0.0:
 		_snore_t = 3.2
-		Settings.sfx("snore", 0.55)
+		Settings.sfx(["snore", "snore_2"].pick_random(), 0.55)
 		bubble = "Хр-р-р…  z Z z"
 		bubble_time = 2.4
 
@@ -233,6 +234,36 @@ func _resume() -> void:
 func _ready() -> void:
 	arrived.connect(_on_arrived)
 
+func setup(glb_path: String, who: String) -> void:
+	super.setup(glb_path, who)
+	_make_game_clip()
+
+## Поза «играет на геймпаде»: клип phone, где левая рука повторяет правую зеркально — обе кисти
+## перед грудью (в модели нет отдельной двуручной позы).
+func _make_game_clip() -> void:
+	if ap == null or ap.has_animation("game") or not ap.has_animation("phone"):
+		return
+	var a := ap.get_animation("phone").duplicate(true) as Animation
+	var by_bone := {}
+	for i in a.get_track_count():
+		if a.track_get_type(i) == Animation.TYPE_ROTATION_3D:
+			by_bone[a.track_get_path(i).get_concatenated_subnames()] = i
+	for bone in by_bone:
+		if not (bone as String).begins_with("Left") or (bone as String).begins_with("LeftUpLeg") or bone in ["LeftLeg", "LeftFoot", "LeftToeBase"]:
+			continue
+		var src_name: String = "Right" + (bone as String).substr(4)
+		if not by_bone.has(src_name):
+			continue
+		var dst: int = by_bone[bone]
+		var src: int = by_bone[src_name]
+		while a.track_get_key_count(dst) > 0:
+			a.track_remove_key(dst, 0)
+		for k in a.track_get_key_count(src):
+			var q: Quaternion = a.track_get_key_value(src, k)
+			a.rotation_track_insert_key(dst, a.track_get_key_time(src, k), Quaternion(q.x, -q.y, -q.z, q.w))
+	a.loop_mode = Animation.LOOP_LINEAR
+	ap.get_animation_library("").add_animation("game", a)
+
 func _on_arrived() -> void:
 	if mode == "chase":
 		return
@@ -275,6 +306,12 @@ func hold_item(n: String) -> void:
 	_hand = null
 	if n == "":
 		return
+	if n == "gamepad":       # геймпад — двумя руками, горизонтально (см. _update_pad)
+		if not _hand_cache.has(n):
+			_hand_cache[n] = _make_pad()
+		_hand = _hand_cache[n]
+		_hand.visible = true
+		return
 	if not _hand_cache.has(n):
 		var sk := model.find_children("*", "Skeleton3D", true, false)[0] as Skeleton3D
 		var phone := n in ["smartphone", "gamepad"]
@@ -297,6 +334,35 @@ func hold_item(n: String) -> void:
 		_hand_cache[n] = att
 	_hand = _hand_cache[n]
 	_hand.visible = true
+
+## Геймпад: отдельный узел у соседа (не на кости одной руки): длинной стороной поперёк тела,
+## кнопками вверх; каждый кадр ставится между ладонями и наклоняется к лицу.
+func _make_pad() -> Node3D:
+	var holder := Node3D.new()
+	add_child(holder)
+	var inst := (load(game.PROPS + "gamepad.glb") as PackedScene).instantiate() as Node3D
+	holder.add_child(inst)
+	inst.scale = Vector3.ONE * 1.5
+	var b: AABB = game.local_bounds(inst)
+	if b.size.z > b.size.x:            # длинная сторона — по X (поперёк тела)
+		inst.rotation_degrees.y = 90.0
+	b = game.local_bounds_xf(inst)
+	inst.position -= b.get_center()
+	return holder
+
+func _update_pad() -> void:
+	if _hand_name != "gamepad" or _hand == null:
+		return
+	var sk := model.find_children("*", "Skeleton3D", true, false)[0] as Skeleton3D
+	var l := sk.to_global(sk.get_bone_global_pose(sk.find_bone("LeftHand")).origin)
+	var r := sk.to_global(sk.get_bone_global_pose(sk.find_bone("RightHand")).origin)
+	var fwd := global_transform.basis.z.normalized()
+	_hand.global_position = (l + r) * 0.5 + fwd * 0.05 + Vector3(0, 0.06, 0)
+	_hand.global_basis = Basis(Vector3.UP, rotation.y) * Basis(Vector3.RIGHT, deg_to_rad(-40.0))
+
+func _process(delta: float) -> void:
+	super._process(delta)
+	_update_pad()
 
 ## Модель предмета для «использует» с учётом подмены.
 func hand_for(use_id: String) -> String:
@@ -375,19 +441,23 @@ func _next_step() -> void:
 	if s.get("fall", false) or s.get("down", false):
 		_to_floor(0.45)
 
+## Стремянка с лампочкой — в прихожей, под люстрой у входной двери.
+const LADDER_STAND := 6.0                       # где стоит перед стремянкой (x на дорожке)
+const LADDER_TOP := Vector3(6.25, 0.62, -2.05)  # куда встаёт на стремянке
+
 func climb_ladder() -> void:
 	if on_ladder:
 		return
 	on_ladder = true
 	var tw := create_tween()
-	tw.tween_property(self, "position", Vector3(12.25, 0.62, -2.05), 0.5).set_trans(Tween.TRANS_QUAD)
+	tw.tween_property(self, "position", LADDER_TOP, 0.5).set_trans(Tween.TRANS_QUAD)
 
 func _to_floor(t := 0.3) -> void:
 	if not on_ladder:
 		return
 	on_ladder = false
 	var tw := create_tween()
-	tw.tween_property(self, "position", game.lane_point(12.0, 0), t).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN)
+	tw.tween_property(self, "position", game.lane_point(LADDER_STAND, 0), t).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN)
 
 # ---------------------------------------------------------------- поимка
 ## Подбежать к герою и выдать «люлей». on_hit — когда ударил.
@@ -474,7 +544,7 @@ func finale(salad: bool) -> void:
 		activity = "спит на полу"
 		finale_done.emit()
 	while is_inside_tree():
-		Settings.sfx("snore", 0.5)
+		Settings.sfx(["snore", "snore_2"].pick_random(), 0.5)
 		bubble = "Хр-р-р…  z Z z"
 		bubble_time = 2.4
 		await get_tree().create_timer(3.2, false).timeout

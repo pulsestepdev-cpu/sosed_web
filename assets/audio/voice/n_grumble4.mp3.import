@@ -2,12 +2,13 @@
 
 importer="mp3"
 type="AudioStreamMP3"
-uid="uid://dr0fafr0db475"
-valid=false
+uid="uid://bqe7ry3gqh1b6"
+path="res://.godot/imported/n_grumble4.mp3-e41a692fb80a558ba909a824f1ba15b4.mp3str"
 
 [deps]
 
 source_file="res://assets/audio/voice/n_grumble4.mp3"
+dest_files=["res://.godot/imported/n_grumble4.mp3-e41a692fb80a558ba909a824f1ba15b4.mp3str"]
 
 [params]
 

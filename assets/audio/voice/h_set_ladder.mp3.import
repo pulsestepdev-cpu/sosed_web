@@ -2,12 +2,13 @@
 
 importer="mp3"
 type="AudioStreamMP3"
-uid="uid://pkr3cowe18qs"
-valid=false
+uid="uid://dpbxqo0c2xiuq"
+path="res://.godot/imported/h_set_ladder.mp3-3c4cccd5adfcf7674ace0256d16cd665.mp3str"
 
 [deps]
 
 source_file="res://assets/audio/voice/h_set_ladder.mp3"
+dest_files=["res://.godot/imported/h_set_ladder.mp3-3c4cccd5adfcf7674ace0256d16cd665.mp3str"]
 
 [params]
 

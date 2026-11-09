@@ -2,12 +2,13 @@
 
 importer="mp3"
 type="AudioStreamMP3"
-uid="uid://l0pduas2nof7"
-valid=false
+uid="uid://d1pxm4eir5uuu"
+path="res://.godot/imported/h_set_jacket.mp3-fde58a3cacc5c68f04ab3779b41b00e5.mp3str"
 
 [deps]
 
 source_file="res://assets/audio/voice/h_set_jacket.mp3"
+dest_files=["res://.godot/imported/h_set_jacket.mp3-fde58a3cacc5c68f04ab3779b41b00e5.mp3str"]
 
 [params]
 

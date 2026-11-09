@@ -54,7 +54,7 @@ const SPOTS := [
 	["phone",     "take",  "smartphone",      11.1, 0, "Телефон на диване",      "phone"],
 	["gamepad",   "take",  "gamepad",         12.75, 0, "Геймпад",               "gamepad"],
 	["soda",      "swap",  "soda_bottle",     13.05, 0, "Газировка",             "beer"],
-	["ladder",    "swap",  "stepladder",      12.0, 0, "Стремянка и лампочка",   "bulb"],
+	["ladder",    "swap",  "stepladder",      6.0,  0, "Стремянка и лампочка",   "bulb"],
 ]
 
 ## Подмены: [опьянение, реплика, лицо после глотка]

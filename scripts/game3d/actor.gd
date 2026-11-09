@@ -6,7 +6,7 @@ extends Node3D
 signal arrived
 
 const FACE_DIR := "res://assets/models/characters/"
-const LOOPED := ["idle", "walk", "sneak", "walk_drunk", "drink", "work", "phone", "kick", "sleep", "dance",
+const LOOPED := ["idle", "walk", "sneak", "walk_drunk", "drink", "work", "phone", "game", "kick", "sleep", "dance",
 	"lie_back", "lie_forward", "bulb", "search_low", "search_mid"]
 
 var kind := "neighbor"          # neighbor | hero (имя файла модели и текстур лица)

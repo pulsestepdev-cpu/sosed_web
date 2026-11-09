@@ -178,7 +178,7 @@ def gen_sfx():
     save(os.path.join(d, "whoosh.wav"), whoosh())
     save(os.path.join(d, "thud.wav"), thud(True))
     save(os.path.join(d, "punch.wav"), punch())
-    save(os.path.join(d, "snore.wav"), snore())
+    # snore.wav, snore_2.wav — настоящая запись (Wikimedia Commons «Snoring of old man.ogg», CC0), не генерировать
     save(os.path.join(d, "hiccup.wav"), hiccup())
     save(os.path.join(d, "burp.wav"), burp())
     save(os.path.join(d, "splash.wav"), splash())
