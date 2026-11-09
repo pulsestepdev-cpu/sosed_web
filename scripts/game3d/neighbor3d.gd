@@ -516,6 +516,10 @@ func _drunk_behaviour(delta: float) -> void:
 			_grumble_t = randf_range(25.0, 40.0)
 			say(GRUMBLE.pick_random(), 2.5)
 
+## Пока бушует (вся цепочка реакции) — «говорит»: герой ждёт своей очереди.
+func is_speaking() -> bool:
+	return super.is_speaking() or mode == "react"
+
 func is_kicking() -> bool:
 	return clip() == "kick" and not is_walking()
 

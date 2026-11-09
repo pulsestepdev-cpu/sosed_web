@@ -174,8 +174,12 @@ func _apply_debug(args: Dictionary) -> void:
 	if args.has("log"):   # печать событий в консоль — для автопрогонов
 		rules.toast.connect(func(t, _g): print("[%05.2f] TOAST %s" % [hour, t]))
 		rules.finished.connect(func(w, r): print("[%05.2f] FINISHED %s %s score=%d shame=%d" % [hour, w, r, rules.score, rules.shame_percent()]))
-		var last := ["", "", ""]
+		var last := ["", "", "", ""]
 		get_tree().process_frame.connect(func():
+			if hero.bubble != last[3]:
+				last[3] = hero.bubble
+				if hero.bubble != "":
+					print("[%05.2f] HERO %s" % [hour, hero.bubble])
 			if neighbor.thought != last[2]:
 				last[2] = neighbor.thought
 				if neighbor.thought != "":

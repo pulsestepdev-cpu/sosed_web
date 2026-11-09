@@ -103,14 +103,14 @@ func set_alpha(a: float) -> void:
 	mat.albedo_color.a = a
 
 ## Реплика над головой; озвучивается, если есть запись. Возвращает, сколько секунд она звучит.
-## Говорят по очереди: герой ждёт, пока сосед договорит (до 4 с, потом реплика пропадает),
+## Говорят по очереди: герой ждёт, пока сосед договорит (до 14 с, потом реплика пропадает),
 ## сосед своей репликой обрывает героя.
 func say(text: String, seconds := 2.5) -> float:
 	if text != "" and partner:
 		if yields and partner.is_speaking():
 			_queued = text
 			_queued_secs = seconds
-			_queued_wait = 4.0
+			_queued_wait = 14.0
 			return 0.0
 		if not yields and partner.is_speaking():
 			partner.shut_up()

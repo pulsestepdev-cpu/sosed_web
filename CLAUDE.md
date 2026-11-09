@@ -17,8 +17,11 @@
   Отладочные аргументы — в шапке `game.gd` (`--autostart --start=11.2 --log --use=... --click=x:y:сек --finale --hide=sofa`).
   Автопрогон без окна: `Godot.exe --headless --path . res://scenes/game.tscn -- --autostart --log --speed=6 --use=...`
 - Старый 2D-прототип: `scenes/level1.tscn` (`scripts/game/`), больше не основной.
-- Звук и озвучка: `python tools/gen_audio.py [sfx|voice|music]` → `assets/audio/`. Голос — Windows SAPI (Irina, ru-RU)
-  с понижением тона; реплика озвучивается, если её текст есть в `assets/audio/voice/index.json`. Громкость — автозагрузка `Settings`.
+- Звук и озвучка: `python tools/gen_audio.py [sfx|voice|music]` → `assets/audio/`. Голос — нейросинтез Microsoft Edge
+  (`pip install edge-tts`, нужен интернет; ru-RU-DmitryNeural, сосед ниже, герой выше) → `voice/*.mp3`; `voice ключ1,ключ2` —
+  перезаписать только эти. Реплика озвучивается, если её текст есть в `assets/audio/voice/index.json`; новую реплику добавить
+  в `LINES` в gen_audio.py. После новых файлов — `Godot.exe --headless --path . --import`. Громкость — автозагрузка `Settings`.
+- Музыка: `assets/audio/music/main_musik.mp3` — песня автора, в меню и в игре (`Settings.TRACKS`: старт с 15.8 с, −7 дБ).
 - Вырезка картинок с однотонным фоном (зелёный #00FF00 или пурпурный #FF00FF):
   `Godot.exe --headless --path . --script res://tools/chroma_key.gd -- <вход.png> <папка> <префикс> [имена,через,запятую]`
 
