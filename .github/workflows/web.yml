@@ -52,10 +52,21 @@ jobs:
             echo "Секреты CapRover не заданы — сборка готова, выкладку пропускаю."
             exit 0
           fi
+          # адрес панели: captain.<корневой домен>; подойдёт и адрес самой игры (sosed.<домен>) или голый домен.
+          # Если HTTPS на панели не включён — по HTTP.
+          host=$(echo "$CAPROVER_SERVER" | sed -E 's#^[a-zA-Z]+://##; s#/.*$##')
+          case "$host" in
+            captain.*) ;;
+            "$CAPROVER_APP".*) host="captain.${host#"$CAPROVER_APP".}" ;;
+            *) host="captain.$host" ;;
+          esac
+          url="https://$host"
+          curl -sf -o /dev/null --max-time 15 "$url" || url="http://$host"
+          echo "Панель CapRover: $url"
           mkdir -p pack && cp deploy/* pack/ && cp -r build/web pack/web
           tar -C pack -cf deploy.tar .
           if [ -n "$CAPROVER_APP_TOKEN" ]; then
-            npx -y caprover deploy --caproverUrl "$CAPROVER_SERVER" --appToken "$CAPROVER_APP_TOKEN" --appName "$CAPROVER_APP" --tarFile deploy.tar
+            npx -y caprover deploy --caproverUrl "$url" --appToken "$CAPROVER_APP_TOKEN" --appName "$CAPROVER_APP" --tarFile deploy.tar
           else
-            npx -y caprover deploy --caproverUrl "$CAPROVER_SERVER" --caproverPassword "$CAPROVER_PASSWORD" --appName "$CAPROVER_APP" --tarFile deploy.tar
+            npx -y caprover deploy --caproverUrl "$url" --caproverPassword "$CAPROVER_PASSWORD" --appName "$CAPROVER_APP" --tarFile deploy.tar
           fi
