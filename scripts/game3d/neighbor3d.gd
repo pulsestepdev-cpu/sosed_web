@@ -5,27 +5,43 @@ extends Actor
 
 signal finale_done
 
-## [час, x, этаж, что делает, клип, использует, куда смотрит: back | front | left | right]
-const SCHEDULE := [
-	[7.5,  8.4,   1, "спит",                 "sleep",      "",          "front"],
-	[8.0,  9.35,  1, "проснулся",            "idle",       "wake",      "front"],
-	[8.17, 5.25,  1, "чистит зубы",          "work",       "mouthwash", "back"],
-	[8.5,  8.3,   0, "пьёт кофе",            "idle",       "coffee",    "back"],
-	[9.0,  12.95, 0, "шпаклюет стену",       "work",       "",          "back"],
-	[11.0, 9.45,  0, "пьёт минералку",       "idle",       "fridge",    "back"],
-	[11.25,12.75, 0, "играет в приставку",   "phone",      "gamepad",   "back"],
-	[11.6, 12.75, 0, "играет в приставку",   "phone",      "soda",      "back"],
-	[13.0, 5.25,  1, "умывается",            "work",       "mouthwash", "back"],
-	[13.5, 12.0,  0, "меняет лампочку",      "bulb",       "ladder",    "front"],
-	[14.0, 12.0,  1, "дышит воздухом",       "idle",       "balcony",   "back"],
-	[14.5, 12.95, 0, "шпаклюет стену",       "work",       "",          "back"],
-	[15.5, 8.3,   0, "пьёт кофе",            "idle",       "coffee",    "back"],
-	[16.5, 9.45,  0, "пьёт минералку",       "idle",       "fridge",    "back"],
-	[17.0, 11.1,  0, "сидит в чат-рулетке",  "phone",      "phone",     "front"],
-	[18.0, 5.45,  0, "собирается за хлебом", "idle",       "jacket",    "back"],
-	[18.3, 4.62,  0, "ищет ключи",           "suspicious", "keys",      "back"],
-	[19.0, 9.45,  0, "ужинает",              "idle",       "fridge",    "back"],
+## Распорядок дня — цепочка дел, как в классике жанра: пришёл, сколько-то секунд занят делом, пошёл дальше.
+## Дела чередуют комнаты и этажи, каждый предмет он трогает за день несколько раз — есть окна, чтобы
+## набрать заначки, и подставы успевают сработать. Когда список кончился — по кругу с LOOP_FROM.
+## [x, этаж, что делает, клип, использует, куда смотрит: back | front | left | right, секунд на месте]
+const PLAN := [
+	[8.4,   1, "спит",                  "sleep",      "",          "front", 0],
+	[9.35,  1, "проснулся",             "idle",       "wake",      "front", 8],
+	[5.25,  1, "чистит зубы",           "work",       "mouthwash", "back",  16],
+	[8.3,   0, "пьёт кофе",             "idle",       "coffee",    "back",  16],
+	[12.95, 0, "шпаклюет стену",        "work",       "",          "back",  30],
+	[9.45,  0, "пьёт минералку",        "idle",       "fridge",    "back",  10],
+	[12.75, 0, "играет в приставку",    "phone",      "gamepad",   "tv",    26],
+	[12.0,  1, "дышит воздухом",        "idle",       "balcony",   "back",  16],
+	[12.0,  0, "меняет лампочку",       "bulb",       "ladder",    "front", 14],
+	[5.25,  1, "умывается",             "work",       "mouthwash", "back",  14],
+	[13.05, 0, "пьёт газировку",        "idle",       "soda",      "back",  12],
+	[12.95, 0, "шпаклюет стену",        "work",       "",          "back",  26],
+	[8.3,   0, "пьёт кофе",             "idle",       "coffee",    "back",  14],
+	[11.1,  0, "сидит в чат-рулетке",   "phone",      "phone",     "front", 26],
+	[5.45,  0, "собирается за хлебом",  "idle",       "jacket",    "back",  10],
+	[4.62,  0, "ищет ключи",            "suspicious", "keys",      "back",  10],
+	[9.45,  0, "пьёт минералку",        "idle",       "fridge",    "back",  10],
+	[12.0,  1, "проверяет заначку",     "idle",       "balcony",   "back",  12],
+	[5.25,  1, "умывается",             "work",       "mouthwash", "back",  12],
+	[12.75, 0, "играет в приставку",    "phone",      "gamepad",   "tv",    22],
+	[13.05, 0, "пьёт газировку",        "idle",       "soda",      "back",  10],
+	[9.45,  0, "ужинает",               "idle",       "fridge",    "back",  14],
 ]
+const LOOP_FROM := 3
+const WAKE_HOUR := 8.0
+## Что у него в руке, когда пользуется вещью: id -> [модель обычная, модель после подмены]
+const HAND := {
+	"mouthwash": ["mouthwash", "antifreeze"], "coffee": ["coffee_mug", "coffee_mug"],
+	"fridge": ["mineral_water", "vodka"], "detour": ["mineral_water", "vodka"], "soda": ["soda_bottle", "beer_can"],
+	"jacket": ["chekushka", "chekushka"], "gamepad": ["gamepad", "gamepad"], "phone": ["smartphone", "smartphone"],
+	"ladder": ["light_bulb", "light_bulb_burnt"],
+}
 const USE_DELAY := 1.2
 const SOBER_RANGE := 3.0
 const GRUMBLE := ["Бу-бу-бу… никто не ценит…", "Так-с… шпаклёвочка…", "Эх, жизнь…", "Хм-м… Ну и ладно."]
@@ -52,7 +68,13 @@ var _grumble_t := 25.0
 var _snore_t := 0.5
 var _activity_yaw := 0.0
 var _busy_wake := false
-var _used_entry := -1          # пункт расписания, где предмет уже использован (не повторять после реакции)
+var _used_entry := -1          # пункт распорядка, где предмет уже использован (не повторять после реакции)
+var _stay_entry := -1          # пункт, для которого идёт отсчёт времени на месте
+var _stay_left := 0.0
+var _here := false             # дошёл до места текущего дела
+var _hand: Node3D              # предмет в руке
+var _hand_name := ""
+var _hand_cache := {}
 
 func _init() -> void:
 	speed = 1.05
@@ -108,7 +130,7 @@ func update_schedule(hour: float, delta: float) -> void:
 		return
 	if mode == "bed":
 		_bed_tick(delta)
-		if hour >= SCHEDULE[1][0]:
+		if hour >= WAKE_HOUR:
 			current = 1
 			mode = "schedule"
 			_get_off_bed(_go_to_current)
@@ -129,25 +151,39 @@ func update_schedule(hour: float, delta: float) -> void:
 				_used_entry = current
 				rules.neighbor_use(id)
 	_drunk_behaviour(delta)
-	if mode == "detour":
+	if mode == "detour" or is_walking() or not _here:
 		return
-	if current >= 0 and SCHEDULE[current][5] != "" and (is_walking() or _use_timer > 0.0):
-		return
-	var idx := -1
-	for i in SCHEDULE.size():
-		if hour >= SCHEDULE[i][0]:
-			idx = i
-	if idx == current or idx < 0:
-		return
-	current = idx
+	_stay_left -= delta
+	if _stay_left <= 0.0 and _use_timer <= 0.0:
+		next_task()
+
+## Следующее дело по распорядку (после последнего — по кругу).
+func next_task() -> void:
+	current = current + 1 if current + 1 < PLAN.size() else LOOP_FROM
+	_used_entry = -1
+	_go_to_current()
+
+## Старт с середины дня (отладка): пропустить дела, которые к этому часу уже прошли бы.
+func skip_to(hour: float) -> void:
+	var t: float = (hour - WAKE_HOUR) * game.SEC_PER_HOUR
+	current = 1
+	while t > 0.0:
+		t -= float(PLAN[current][6]) + 7.0
+		if t > 0.0:
+			current = current + 1 if current + 1 < PLAN.size() else LOOP_FROM
+	mode = "schedule"
+	position = game.lane_point(PLAN[current][0], PLAN[current][1])
+	release()
 	_go_to_current()
 
 func _go_to_current() -> void:
-	var e: Array = SCHEDULE[current]
-	activity = "идёт: " + e[3]
+	var e: Array = PLAN[current]
+	activity = "идёт: " + e[2]
+	_here = false
 	release()
+	hold_item("")
 	_to_floor()
-	var target: Vector3 = game.lane_point(e[1], e[2])
+	var target: Vector3 = game.lane_point(e[0], e[1])
 	if position.distance_to(target) < 0.05:
 		_on_arrived()
 	else:
@@ -171,18 +207,65 @@ func _on_arrived() -> void:
 		return
 	if current < 0 or mode != "schedule":
 		return
-	var e: Array = SCHEDULE[current]
-	activity = e[3]
-	_face_activity(e[6])
+	var e: Array = PLAN[current]
+	_here = true
+	if _stay_entry != current:
+		_stay_entry = current
+		_stay_left = float(e[6])
+	activity = e[2]
+	_face_activity(e[5])
 	set_face(rules.default_face())
-	if e[4] != "idle":
-		act(e[4])
-	if e[5] != "" and _used_entry != current:
-		_use_id = e[5]
+	if e[3] != "idle":
+		act(e[3])
+	if e[4] in ["gamepad", "phone"] and not rules.taken.has(e[4]):
+		hold_item(HAND[e[4]][0])
+	if e[4] != "" and _used_entry != current:
+		_use_id = e[4]
 		_use_timer = USE_DELAY
 
+## Предмет в правой руке (модель из assets/models/props), "" — убрать. Держит за кость RightHandGrip
+## (бутылки, кружка, лампочка — ось кости к горлышку) или RightHandPhone (телефон, геймпад).
+func hold_item(n: String) -> void:
+	if n == _hand_name:
+		return
+	_hand_name = n
+	if _hand:
+		_hand.visible = false
+	_hand = null
+	if n == "":
+		return
+	if not _hand_cache.has(n):
+		var sk := model.find_children("*", "Skeleton3D", true, false)[0] as Skeleton3D
+		var phone := n in ["smartphone", "gamepad"]
+		var att := BoneAttachment3D.new()
+		att.bone_name = "RightHandPhone" if phone else "RightHandGrip"
+		sk.add_child(att)
+		var inst := (load(game.PROPS + n + ".glb") as PackedScene).instantiate() as Node3D
+		att.add_child(inst)
+		inst.scale = Vector3.ONE * (1.6 if phone else 1.25)   # по-мультяшному крупнее, чтобы читалось издалека
+		var b: AABB = game.local_bounds(inst)
+		if phone:
+			# экраном к лицу: длинная сторона — вдоль кости (Y), толщина — по Z
+			var sz := b.size
+			if sz.y < sz.x and sz.y < sz.z:      # лежит плашмя (тонкий по Y) — поставить «на ребро»
+				inst.rotation_degrees.x = 90.0
+				if sz.x > sz.z:
+					inst.rotation_degrees.z = 90.0
+			b = game.local_bounds_xf(inst)
+		inst.position -= b.get_center()        # центр предмета — в точке хвата
+		_hand_cache[n] = att
+	_hand = _hand_cache[n]
+	_hand.visible = true
+
+## Модель предмета для «использует» с учётом подмены.
+func hand_for(use_id: String) -> String:
+	if not HAND.has(use_id):
+		return ""
+	var swapped: bool = rules.swapped.has("fridge" if use_id == "detour" else use_id)
+	return HAND[use_id][1 if swapped else 0]
+
 func _face_activity(where: String) -> void:
-	_activity_yaw = {"back": PI, "front": 0.0, "left": -PI / 2, "right": PI / 2}[where]
+	_activity_yaw = {"back": PI, "tv": PI * 0.72, "front": 0.0, "left": -PI / 2, "right": PI / 2}[where]
 	target_yaw = _activity_yaw
 
 # ---------------------------------------------------------------- отлучки и реакции
@@ -219,6 +302,7 @@ func react_seq(steps: Array, next := Callable()) -> void:
 func _next_step() -> void:
 	if _seq.is_empty():
 		mode = "schedule"
+		hold_item("")
 		release()
 		_to_floor()
 		set_face(rules.default_face())
@@ -235,6 +319,8 @@ func _next_step() -> void:
 		target_yaw = 0.35 if sin(rotation.y) >= 0.0 else -0.35
 	set_face(s.get("face", rules.default_face()))
 	act(s.get("clip", "idle"), -1.0, 0.15)
+	if s.has("item"):
+		hold_item(s["item"])
 	if s.has("line"):
 		var dur := say(s["line"], _seq_t + 0.4)
 		_seq_t = maxf(_seq_t, dur + 0.2)
@@ -416,6 +502,8 @@ func sees(h: Hero3D, hour: float) -> bool:
 		return r > 0.0
 	if c < -0.6:            # стоит лицом к стене — видит только краем глаза рядом
 		return absf(dx) <= r * 0.35
+	if c > 0.6:             # лицом к игроку — по бокам видит, но хуже
+		return absf(dx) <= r * 0.7
 	if absf(s) > 0.3 and (dx > 0.0) != (s > 0.0):
 		return false
 	return absf(dx) <= r

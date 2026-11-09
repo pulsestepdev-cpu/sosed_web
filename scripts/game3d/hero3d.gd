@@ -10,7 +10,7 @@ const SNEAK_SPEED := 0.8
 const HIDES := {
 	"wardrobe": ["hide_wardrobe", Vector3(3.72, 0.0, -1.55), true, PI],
 	"curtain":  ["hide_curtain", Vector3(4.05, 0.0, -3.35), false, 0.0],
-	"bed":      ["hide_bed", Vector3(8.4, 0.0, -2.0), false, 0.0],
+	"bed":      ["hide_bed", Vector3(8.4, 0.0, -1.7), false, PI],
 	"table":    ["hide_table", Vector3(8.7, 0.0, -1.95), false, 0.0],
 	"sofa":     ["hide_sofa", Vector3(11.6, 0.0, -3.82), false, 0.0],
 	"skis":     ["hide_skis", Vector3(13.25, 0.0, -3.55), false, 0.0],
@@ -35,7 +35,7 @@ func toggle_sneak() -> void:
 	speed = SNEAK_SPEED if sneaking else WALK_SPEED
 	walk_clip = "sneak" if sneaking else "walk"
 	step_sfx = "sneak" if sneaking else "step"
-	step_vol = 0.18 if sneaking else 0.45
+	step_vol = 0.25 if sneaking else 0.6
 	if not in_hiding and not frozen:
 		set_face("sneaky" if sneaking else "normal")
 
@@ -78,7 +78,7 @@ func hide_in(s: Spot3D) -> void:
 	# нырнул в укрытие и пропал — над укрытием только «глаза» (рисует Overlay3D)
 	var tw := create_tween()
 	tw.tween_property(self, "position", p, 0.4)
-	tw.tween_interval(0.35)
+	tw.tween_interval(1.15 if s.id == "bed" else 0.35)     # под кровать — видно, как ныряет «рыбкой»
 	tw.tween_callback(func():
 		if in_hiding:
 			visible = false)

@@ -11,6 +11,8 @@ SR = 22050
 random.seed(7)
 
 def save(path, samples, sr=SR):
+    if os.path.exists(path[:-4] + ".ogg"):      # есть настоящая запись (Kenney, CC0) — синтез не нужен
+        return
     os.makedirs(os.path.dirname(path), exist_ok=True)
     peak = max(1e-6, max(abs(s) for s in samples))
     k = 0.9 / peak if peak > 0.9 else 1.0

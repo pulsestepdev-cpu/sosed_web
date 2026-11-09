@@ -78,7 +78,9 @@ func _stream(path: String) -> AudioStream:
 
 ## Звуковой эффект по имени файла без расширения (step_0, pickup, ...). vol — 0..1, pitch — высота.
 func sfx(name: String, vol := 1.0, pitch := 1.0) -> void:
-	var s := _stream(SFX_DIR + name + ".wav")
+	var s := _stream(SFX_DIR + name + ".ogg")        # настоящие записи (Kenney, CC0) — в приоритете
+	if s == null:
+		s = _stream(SFX_DIR + name + ".wav")         # сгенерированные tools/gen_audio.py
 	if s == null:
 		return
 	var p: AudioStreamPlayer = _sfx_pool[0]

@@ -20,7 +20,7 @@ const ITEMS := {
 	"salad":      ["Салат",        "res://assets/props/misc/misc_salad.png"],
 	"gamepad":    ["Геймпад",      "res://assets/props/misc/misc_gamepad.png"],
 	"phone":      ["Телефон",      "res://assets/props/misc/misc_phone.png"],
-	"keys":       ["Ключи",        ""],
+	"keys":       ["Ключи",        "res://assets/props/misc/misc_keys.png"],
 	"banana":     ["Банановая кожура", "res://assets/props/misc/misc_banana_peel.png"],
 	"soap":       ["Мыло",         "res://assets/props/misc/misc_soap.png"],
 }
@@ -34,7 +34,7 @@ const SPOTS := [
 	["mouthwash", "swap",  "bath_shelf",      5.05, 1, "Ополаскиватель",         "antifreeze"],
 	["soapdish",  "stash", "soap_dish",       4.55, 1, "Мыльница",               "soap"],
 	["curtain",   "hide",  "shower_curtain",  4.0,  1, "Шторка ванной",          ""],
-	["soaptrap",  "trap",  "",                4.6,  1, "Пол у ванны",            "soap"],
+	["soaptrap",  "trap",  "",                5.25, 1, "Пол у раковины",         "soap"],
 	["bed",       "hide",  "bed",             8.0,  1, "Под кроватью",           ""],
 	["jars",      "stash", "balcony_shelf",   11.0, 1, "Банки с соленьями",      "vodka"],
 	["canisters", "stash", "antifreeze",      12.4, 1, "Канистра",               "antifreeze"],
@@ -44,7 +44,7 @@ const SPOTS := [
 	["keys",      "take",  "keys",            4.62, 0, "Ключи в миске",          "keys"],
 	["jacket",    "swap",  "coat_rack",       5.45, 0, "Куртка на вешалке",      "chekushka"],
 	["boots",     "stash", "shoe_shelf",      5.55, 0, "Ботинки на полке",       "chekushka"],
-	["peeltrap",  "trap",  "",                6.55, 0, "Порог прихожей",         "banana"],
+	["peeltrap",  "trap",  "",                9.45, 0, "Пол у холодильника",     "banana"],
 	["fruit",     "stash", "fruit_bowl",      9.05, 0, "Ваза с фруктами",        "banana"],
 	["fridge",    "swap",  "fridge",          9.45, 0, "Холодильник",            "vodka"],
 	["coffee",    "swap",  "coffee_mug",      8.3,  0, "Кружка кофе",            "tincture"],
@@ -241,7 +241,8 @@ func hero_use(s: Spot3D) -> void:
 func _give(item: String) -> void:
 	inventory.append(item)
 	toast.emit("Взял: %s" % item_title(item), true)
-	Settings.sfx("pickup", 0.7)
+	Settings.sfx("pickup", 0.6)
+	Settings.sfx("grab", 0.8)
 	if selected == "":
 		selected = item
 	inventory_changed.emit()
@@ -272,23 +273,23 @@ func neighbor_use(id: String) -> void:
 				Settings.sfx("drink", 0.6)
 				if first:
 					neighbor.react_seq([
-						{"face": "tipsy", "clip": "drink", "t": 1.8},
+						{"face": "tipsy", "clip": "drink", "t": 1.8, "item": "vodka"},
 						{"face": "shock", "clip": "suspicious", "t": 1.6, "line": "Да как так нахуй?!", "sfx": "alert"},
 						{"face": "happy", "clip": "idle", "t": 2.0, "line": "Ну раз уж открыл…"},
 					])
 					gloat(3.0)
 				else:
 					neighbor.react_seq([
-						{"face": "tipsy", "clip": "drink", "t": 2.2,
+						{"face": "tipsy", "clip": "drink", "t": 2.2, "item": "vodka",
 							"line": ["Ну ещё по одной…", "За ремонт!", "Последняя. Точно."].pick_random()},
 					])
 				if id == "detour" and _scored.has("rage"):
 					_award("chain_grief", 150, "Цепочка «Сорвался с горя»")
 				add_drunk(25)
 			elif id == "detour":
-				neighbor.react_seq([{"face": "normal", "clip": "drink", "t": 2.0, "line": "Минералочка… Успокоился."}])
+				neighbor.react_seq([{"face": "normal", "clip": "drink", "t": 2.0, "item": "mineral_water", "line": "Минералочка… Успокоился."}])
 			else:
-				neighbor.react_seq([{"face": default_face(), "clip": "drink", "t": 2.0}])
+				neighbor.react_seq([{"face": default_face(), "clip": "drink", "t": 2.0, "item": "mineral_water"}])
 		"gamepad", "phone":
 			if taken.has(id):
 				_scored["rage"] = true
@@ -319,8 +320,8 @@ func neighbor_use(id: String) -> void:
 				if stage() >= 2:
 					_award("chain_electric", 150, "Цепочка «Электрик»")
 					neighbor.react_seq([
-						{"face": "drunk", "clip": "bulb", "t": 1.8},
-						{"face": "shock", "clip": "fall_back", "t": 1.4, "fall": true, "sfx": "thud", "shake": 0.5},
+						{"face": "drunk", "clip": "bulb", "t": 1.8, "item": "light_bulb_burnt"},
+						{"face": "shock", "item": "", "clip": "fall_back", "t": 1.4, "fall": true, "sfx": "thud", "shake": 0.5},
 						{"face": "yell", "clip": "lie_back", "t": 2.2, "line": "Да как так нахуй?!"},
 						{"face": "drunk", "clip": "get_up", "t": 1.6, "line": "Ой-ё-ёй… Спина моя…"},
 					], func():
@@ -329,12 +330,13 @@ func neighbor_use(id: String) -> void:
 					gloat(3.0)
 				else:
 					neighbor.react_seq([
-						{"face": "normal", "clip": "bulb", "t": 2.0},
+						{"face": "normal", "clip": "bulb", "t": 2.0, "item": "light_bulb_burnt"},
 						{"face": "yell", "clip": "angry", "t": 2.2, "line": "Опять перегорела?", "down": true},
 					])
 					gloat(2.0)
 			else:
-				neighbor.react_seq([{"face": default_face(), "clip": "bulb", "t": 3.0, "down": true}])
+				neighbor.react_seq([{"face": default_face(), "clip": "bulb", "t": 3.0, "item": "light_bulb"},
+					{"face": default_face(), "clip": "idle", "t": 0.5, "item": "", "down": true}])
 		"keys":
 			if taken.has("keys"):
 				_scored["rage"] = true
@@ -353,19 +355,19 @@ func _use_drink(id: String) -> void:
 	if not swapped.has(id):
 		if id == "jacket":
 			return
-		neighbor.react_seq([{"face": default_face(), "clip": "drink", "t": 2.0}])
+		neighbor.react_seq([{"face": default_face(), "clip": "drink", "t": 2.0, "item": neighbor.hand_for(id)}])
 		return
 	var sw: Array = SWAPS[id]
 	_award("swap_" + id, 100, "Подмена: " + game.spots[id].title)
 	Settings.sfx("drink", 0.6)
-	var seq: Array = [{"face": default_face(), "clip": "drink", "t": 1.8}]
+	var seq: Array = [{"face": default_face(), "clip": "drink", "t": 1.8, "item": neighbor.hand_for(id)}]
 	if id == "mouthwash":
 		seq.append({"face": "shock", "clip": "suspicious", "t": 1.2, "sfx": "hiccup"})
 	if id == "soda":
 		seq.append({"face": "tipsy", "clip": "idle", "t": 1.0, "sfx": "burp"})
 	if id == "jacket" and taken.has("keys"):
 		_award("chain_bread", 150, "Цепочка «За хлебом»")
-	seq.append({"face": sw[2], "clip": "idle" if id != "jacket" else "oath", "t": 2.2, "line": sw[1]})
+	seq.append({"face": sw[2], "clip": "idle" if id != "jacket" else "oath", "t": 2.2, "line": sw[1], "item": ""})
 	neighbor.react_seq(seq)
 	add_drunk(sw[0])
 	gloat(2.4)

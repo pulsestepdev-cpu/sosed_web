@@ -26,6 +26,7 @@ const START_HOUR := 7.5
 const END_HOUR := 20.0
 const SEC_PER_HOUR := 50.0
 const HERO_START := Vector3(6.4, 0.0, -1.0)
+const RESPAWN := Vector3(0.38, F2 * 0.5, -1.0)   # после «люлей» — на площадку лестницы (там сосед не видит)
 const MATTRESS_H := 0.5       # высота матраса над полом
 const SALAD_SPOT := Vector3(8.7, 0.0, -2.72)   # где сосед встаёт за столом в финале
 const ROOM_NAMES := {"bathroom": "Ванная", "bedroom": "Спальня", "balcony": "Балкон",
@@ -58,6 +59,8 @@ var _warned := false
 var _props := {}               # доп. предметы: keys, salad, salad_table, peeltrap, soaptrap
 var _last_nx := 0.0
 var _debug_uses: Array = []
+var _ghost := false
+var _focus_n := false          # отладка: камера крупно на соседе            # отладка: сосед не замечает героя
 
 func _ready() -> void:
 	var args := _args()
@@ -128,14 +131,8 @@ func _ready() -> void:
 	Settings.music("level_loop")
 
 	_apply_debug(args)
-	if hour > 8.0 and neighbor.mode == "bed":   # старт с середины дня — сосед там, где был по расписанию
-		neighbor.mode = "schedule"
-		var prev: Array = Neighbor3D.SCHEDULE[1]
-		for e in Neighbor3D.SCHEDULE:
-			if e[0] < hour - 0.01:
-				prev = e
-		neighbor.position = lane_point(prev[1], prev[2])
-		neighbor.release()
+	if hour > Neighbor3D.WAKE_HOUR and neighbor.mode == "bed":   # старт с середины дня
+		neighbor.skip_to(hour)
 	_update_camera(true)
 
 func _apply_debug(args: Dictionary) -> void:
@@ -191,6 +188,10 @@ func _apply_debug(args: Dictionary) -> void:
 		get_tree().create_timer(0.5).timeout.connect(func(): rules.add_drunk(100.0))
 	if args.has("catch"):   # сосед ловит героя
 		get_tree().create_timer(0.8).timeout.connect(func(): _catch("А ну пошёл отсюда!"))
+	_ghost = args.has("ghost")
+	_focus_n = args.has("focus")
+	if args.has("sneak"):
+		hero.toggle_sneak()
 	if args.has("click"):   # эмуляция кликов мышью: --click=x:y:сек;x:y:сек
 		for c in args["click"].split(";"):
 			var q: PackedStringArray = c.split(":")
@@ -316,9 +317,9 @@ func _add_props() -> void:
 	_props["salad_table"] = _put("salad_table", "salad", Vector3(8.7, table.end.y, table.get_center().z - 0.15))
 	_props["salad_table"].visible = false
 	_props["soap_dish"] = _put("soap_dish", "soap_dish", Vector3(4.55, tub.end.y, tub.end.z - 0.12))
-	_props["peeltrap"] = _put("peel", "banana_peel", Vector3(6.55, F1 + 0.01, LANE + 0.1), 30, 1.3)
+	_props["peeltrap"] = _put("peel", "banana_peel", Vector3(9.45, F1 + 0.01, LANE + 0.18), 30, 1.3)
 	_props["peeltrap"].visible = false
-	_props["soaptrap"] = _put("soap_floor", "soap_dish", Vector3(4.6, F2 + 0.01, LANE + 0.1), 20)
+	_props["soaptrap"] = _put("soap_floor", "soap_dish", Vector3(5.25, F2 + 0.01, LANE + 0.18), 20)
 	_props["soaptrap"].visible = false
 
 func _build_spots() -> void:
@@ -337,8 +338,8 @@ func _build_spots() -> void:
 			s.node = furn.get_node_or_null(nname) as Node3D
 		if s.node:
 			s.aabb = _bounds(s.node)
-		else:   # ловушка на полу — область у пола
-			s.aabb = AABB(Vector3(d[3] - 0.35, floor_y(s.floor), LANE - 0.4), Vector3(0.7, 0.25, 0.8))
+		else:   # ловушка на полу — низкая область у пола перед предметом
+			s.aabb = AABB(Vector3(d[3] - 0.3, floor_y(s.floor), LANE - 0.2), Vector3(0.6, 0.12, 0.6))
 		spots[s.id] = s
 
 func _put_neighbor_in_bed() -> void:
@@ -358,6 +359,28 @@ func _put_neighbor_in_bed() -> void:
 	var hips: Vector3 = bone.call("Hips")
 	var mid := (head + feet) * 0.5
 	neighbor.position += Vector3(bed.get_center().x + 0.05 - mid.x, F2 + MATTRESS_H + 0.13 - hips.y, bed.get_center().z + 0.05 - mid.z)
+
+## Границы предмета в его собственных координатах (без его трансформа) и с ним (в координатах родителя).
+func local_bounds(n: Node3D) -> AABB:
+	return n.transform.affine_inverse() * local_bounds_xf(n)
+
+func local_bounds_xf(n: Node3D) -> AABB:
+	var out := AABB()
+	var first := true
+	for mi in n.find_children("*", "MeshInstance3D", true, false):
+		var m := mi as MeshInstance3D
+		var xf := n.transform
+		var p: Node = m
+		var chain: Array[Transform3D] = []
+		while p != n:
+			chain.push_front((p as Node3D).transform)
+			p = p.get_parent()
+		for t in chain:
+			xf = xf * t
+		var b: AABB = xf * m.get_aabb()
+		out = b if first else out.merge(b)
+		first = false
+	return out
 
 ## Открыть дверцу/крышку предмета (если у него есть клип open) и закрыть через seconds.
 func open_prop(s: Spot3D, seconds: float) -> void:
@@ -430,13 +453,11 @@ func _process(delta: float) -> void:
 	_last_nx = neighbor.position.x
 
 func _check_traps() -> void:
-	if not neighbor.is_walking() or neighbor.mode in ["react", "chase", "asleep"]:
+	if neighbor.mode not in ["schedule", "detour"] or neighbor.on_ladder or on_stairs(neighbor.position):
 		return
 	for id in rules.traps.keys():
 		var s: Spot3D = spots[id]
-		var x := s.walk.x
-		if floor_of(neighbor.position) == s.floor and not on_stairs(neighbor.position) \
-				and (_last_nx - x) * (neighbor.position.x - x) <= 0.0 and absf(neighbor.position.x - x) < 0.3:
+		if floor_of(neighbor.position) == s.floor and absf(neighbor.position.x - s.walk.x) < 0.28:
 			rules.trap_hit(id)
 			return
 
@@ -446,12 +467,12 @@ func _update_detection(delta: float) -> void:
 	if _caught_cd > 0.0 or neighbor.mode in ["asleep", "bed", "chase"] or hero.frozen:
 		return
 	# лоу-кик «тренера» по герою рядом
-	if neighbor.is_kicking() and not hero.in_hiding and room_at(hero.position) == room_at(neighbor.position) \
+	if neighbor.is_kicking() and not _ghost and not hero.in_hiding and room_at(hero.position) == room_at(neighbor.position) \
 			and floor_of(hero.position) == floor_of(neighbor.position) and absf(hero.position.x - neighbor.position.x) < 0.9:
 		_catch("Лоу-кик! Работаем!")
 		return
-	if neighbor.sees(hero, hour):
-		var rate := 1.0 / 1.1
+	if neighbor.sees(hero, hour) and not _ghost:
+		var rate := 1.0 / (1.7 if hero.sneaking else 1.0)
 		if hero.is_noisy():
 			rate *= 2.0
 		if hero.busy > 0.0:
@@ -474,7 +495,7 @@ func _update_detection(delta: float) -> void:
 				if randf() < 0.5:
 					neighbor.say("Мне показалось?", 1.6)
 		# шаги слышно на том же этаже
-		if hero.is_noisy() and _noise_cd <= 0.0 and neighbor.mode == "schedule" and not neighbor.on_ladder \
+		if hero.is_noisy() and _noise_cd <= 0.0 and not _ghost and neighbor.mode == "schedule" and not neighbor.on_ladder \
 				and floor_of(hero.position) == floor_of(neighbor.position) and not on_stairs(hero.position) \
 				and absf(hero.position.x - neighbor.position.x) < 3.6 and neighbor.view_range(hour) > 0.0:
 			_noise_cd = 5.0
@@ -489,6 +510,8 @@ func _catch(line: String) -> void:
 	neighbor.suspicion = 0.0
 	neighbor.suspicious_until = hour + 1.0
 	_pending = null
+	if not _debug_uses.is_empty():
+		get_tree().create_timer(5.0).timeout.connect(_debug_next_use)
 	hero.get_caught()
 	rules.caught()
 	hud.show_toast("Поймал! (%d / 3)" % rules.catches, false)
@@ -501,7 +524,7 @@ func _catch(line: String) -> void:
 			hero.visible = false)
 		tw.tween_interval(0.6)
 		tw.tween_callback(func():
-			hero.respawn(HERO_START)
+			hero.respawn(RESPAWN)
 			hero.visible = true
 			_caught_cd = 3.0
 			if rules.catches >= 3:
@@ -644,11 +667,11 @@ func _set_paused(on: bool) -> void:
 func _update_camera(instant: bool, delta := 0.016) -> void:
 	var fov := _home_fov
 	var target := _home.origin
-	var who: Actor = neighbor if rules and rules.over and rules.drunk >= 100.0 else hero
+	var who: Actor = neighbor if (rules and rules.over and rules.drunk >= 100.0) or _focus_n else hero
 	if zoomed or who == neighbor:
-		fov = 12.5 if who == hero else 9.5
+		fov = 12.5 if who == hero else (9.5 if not _focus_n else 5.0)
 		var f := floor_of(who.position) if not on_stairs(who.position) else (1 if who.position.y > F2 * 0.5 else 0)
-		var y := floor_y(f) + (1.3 if who == hero else 1.0)
+		var y := floor_y(f) + (1.3 if who == hero else (1.0 if not _focus_n else 1.35))
 		var x := clampf(who.position.x, 2.4, 14.6)
 		_cam_x = x if instant else lerpf(_cam_x, x, minf(1.0, delta * 4.0))
 		_cam_y = y if instant else lerpf(_cam_y, y, minf(1.0, delta * 4.0))
