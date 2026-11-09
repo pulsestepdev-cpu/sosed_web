@@ -1,0 +1,55 @@
+# Веб-версия: на каждый push в main — сборка Godot 4.7.2 (Web) и выкладка в CapRover.
+# Секреты репозитория: CAPROVER_SERVER (https://captain.домен), CAPROVER_APP_TOKEN (токен приложения).
+# Переменная (необязательно): CAPROVER_APP — имя приложения в CapRover (по умолчанию sosed).
+name: Web build & deploy
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: web-deploy
+  cancel-in-progress: true
+
+jobs:
+  web:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Godot 4.7.2 и веб-шаблоны
+        run: |
+          curl -sSL -o godot.zip https://github.com/godotengine/godot/releases/download/4.7.2-stable/Godot_v4.7.2-stable_linux.x86_64.zip
+          unzip -q godot.zip && mv Godot_v4.7.2-stable_linux.x86_64 godot && chmod +x godot && rm godot.zip
+          python3 tools/fetch_web_templates.py "$HOME/.local/share/godot/export_templates/4.7.2.stable"
+
+      - name: Импорт ресурсов и экспорт Web
+        run: |
+          ./godot --headless --path . --import || true
+          mkdir -p build/web
+          ./godot --headless --path . --export-release "Web" build/web/index.html
+          test -s build/web/index.pck && test -s build/web/index.wasm
+          ls -la build/web
+
+      - name: Сборка — артефакт (можно скачать из вкладки Actions)
+        uses: actions/upload-artifact@v4
+        with:
+          name: web-build
+          path: build/web
+          retention-days: 7
+
+      - name: Выкладка в CapRover
+        env:
+          CAPROVER_SERVER: ${{ secrets.CAPROVER_SERVER }}
+          CAPROVER_APP_TOKEN: ${{ secrets.CAPROVER_APP_TOKEN }}
+          CAPROVER_APP: ${{ vars.CAPROVER_APP || 'sosed' }}
+        run: |
+          if [ -z "$CAPROVER_SERVER" ] || [ -z "$CAPROVER_APP_TOKEN" ]; then
+            echo "Секреты CapRover не заданы — сборка готова, выкладку пропускаю."
+            exit 0
+          fi
+          mkdir -p pack && cp deploy/* pack/ && cp -r build/web pack/web
+          tar -C pack -cf deploy.tar .
+          npx -y caprover deploy --caproverUrl "$CAPROVER_SERVER" --appToken "$CAPROVER_APP_TOKEN" --appName "$CAPROVER_APP" --tarFile deploy.tar

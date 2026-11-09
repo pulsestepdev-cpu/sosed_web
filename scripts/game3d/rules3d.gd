@@ -243,8 +243,8 @@ func hero_use(s: Spot3D) -> void:
 			_use_selected()
 			swapped[s.id] = true
 			s.done = true
-			var what := {"mouthwash": "Ополаскиватель → незамерзайка", "coffee": "Настойка в кофе",
-				"fridge": "Минералка → водка", "soda": "Газировка → пиво", "jacket": "Чекушка в куртке",
+			var what := {"mouthwash": "Незамерзайка вместо ополаскивателя", "coffee": "Настойка в кофе",
+				"fridge": "Водка вместо минералки", "soda": "Пиво вместо газировки", "jacket": "Чекушка в куртке",
 				"ladder": "Лампочка подменена"}
 			toast.emit(what.get(s.id, "Готово"), true)
 			setup_line(s.id, 0.6)
@@ -293,7 +293,7 @@ func neighbor_use(id: String) -> void:
 			game.open_prop(game.spots["fridge"], 2.2)
 			if swapped.has("fridge"):
 				var first := not _scored.has("swap_fridge")
-				_award("swap_fridge", 100, "Подмена: минералка → водка")
+				_award("swap_fridge", 100, "Подмена: водка вместо минералки")
 				Settings.sfx("drink", 0.6)
 				if first:
 					neighbor.react_seq([

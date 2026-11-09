@@ -25,6 +25,16 @@
 - Вырезка картинок с однотонным фоном (зелёный #00FF00 или пурпурный #FF00FF):
   `Godot.exe --headless --path . --script res://tools/chroma_key.gd -- <вход.png> <папка> <префикс> [имена,через,запятую]`
 
+## Веб-версия
+- Пресет экспорта «Web» (`export_presets.cfg`): без потоков и PWA, в сборку — сцены меню/игры + `scripts/*`, `assets/textures/*`,
+  звук, модели, иконки (всё, что грузится по имени в коде, добавлять в `include_filter`). `assets/raw` не попадает.
+- Локально: `Godot.exe --headless --path . --export-release "Web" build/web/index.html`, затем
+  `python -m http.server 8060` в `build/web` → http://127.0.0.1:8060. Шаблоны: `python tools/fetch_web_templates.py
+  "%APPDATA%/Godot/export_templates/4.7.2.stable"`.
+- В вебе нет системных шрифтов: в текстах только кириллица/латиница и « » — … · • (стрелки, эмодзи — квадратики).
+- Выкладка: push в `main` → GitHub Actions (`.github/workflows/web.yml`) собирает и деплоит в CapRover (`deploy/`: Dockerfile
+  с nginx, gzip, no-cache). Секреты репозитория: `CAPROVER_SERVER`, `CAPROVER_APP_TOKEN`; переменная `CAPROVER_APP` (по умолч. sosed).
+
 ## Blender
 - `C:\Program Files\Blender Foundation\Blender 5.2\blender.exe` (5.2.3 LTS). Управлять скриптами в фоне:
   `blender.exe -b [файл.blend] -P tools/blender/<скрипт>.py -- <аргументы>`

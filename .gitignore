@@ -9,3 +9,6 @@ screenshots/
 # Фото реальных людей-прототипов — только локально
 assets/raw/ref/
 __pycache__/
+
+# Сборки (веб-версия собирается в GitHub Actions)
+build/

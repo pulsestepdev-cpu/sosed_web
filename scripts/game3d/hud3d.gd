@@ -94,7 +94,7 @@ func update_view(hour: float, neighbor_text: String, hero_text: String, suspicio
 	var h := int(hour)
 	clock.text = "%02d:%02d" % [h, int((hour - h) * 60.0)]
 	status.text = "Сосед: %s\nГерой: %s%s%s" % [neighbor_text, hero_text,
-		"   ⏸ ПАУЗА" if paused else "", "   ⏩ x3" if fast else ""]
+		"   · ПАУЗА" if paused else "", "   · УСКОРЕНИЕ x3" if fast else ""]
 	_drunk_shown = move_toward(_drunk_shown, rules.drunk, delta * 25.0)
 	drunk_label.text = "Опьянение соседа: %d%%  —  «%s»" % [int(_drunk_shown), rules.stage_name()]
 	drunk_bar.value = _drunk_shown
@@ -163,8 +163,8 @@ const TASKS := [
 	["Подмены", ""],
 	["Незамерзайка в ополаск.", "swap_mouthwash", "sw:mouthwash"],
 	["Настойка в кофе", "swap_coffee", "sw:coffee"],
-	["Минералка → водка", "swap_fridge", "sw:fridge"],
-	["Газировка → пиво", "swap_soda", "sw:soda"],
+	["Водка вместо минералки", "swap_fridge", "sw:fridge"],
+	["Пиво вместо газировки", "swap_soda", "sw:soda"],
 	["Чекушка в куртку", "swap_jacket", "sw:jacket"],
 	["Пакости", ""],
 	["Спрятать геймпад", "prank_gamepad", "tk:gamepad"],
