@@ -23,6 +23,7 @@ extends Node
 ##   --bot=careful|normal|reckless   бот сам проходит уровень
 ##   --report=путь.json  отчёт (события, задания, поимки, наложения голосов, FPS)
 ##   --quit-on-end       закрыть после итогов   --max-real=сек   страховка по реальному времени
+##   --save-progress     бот тоже записывает пройденный день (проверка прогресса)
 ##   --perf              печатать FPS раз в 5 с      --quality=low|high|auto  графика
 
 const PROPS := "res://assets/models/props/"
@@ -944,7 +945,7 @@ func _go_spot(s: Spot3D) -> void:
 
 func _on_finished(win: bool, reason: String) -> void:
 	Engine.time_scale = 1.0
-	if win and qa_bot == null:
+	if win and (qa_bot == null or Settings.debug_args().has("save-progress")):   # прогоны бота прогресс не пишут
 		Progress.complete(day_n, rules.shame_percent(), rules.score, rules.catches)
 	await get_tree().create_timer(0.8).timeout
 	Settings.sfx("win" if win else "fail", 0.8)
