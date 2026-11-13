@@ -119,9 +119,28 @@ func voice(text: String, who := "n") -> float:
 	pl.play()
 	return s.get_length()
 
+func voice_playing(who: String) -> bool:
+	return _voice_players.has(who) and (_voice_players[who] as AudioStreamPlayer).playing
+
 func stop_voice(who: String) -> void:
 	if _voice_players.has(who):
 		(_voice_players[who] as AudioStreamPlayer).stop()
+
+## Отладочные аргументы: из командной строки (после --) и, в браузере, из адреса страницы
+## (?qa=1&bot=normal&perf=1 — то же, что --qa --bot=normal --perf). Для автотестов (tools/qa/web_check.py).
+func debug_args() -> Dictionary:
+	var out := {}
+	for a in OS.get_cmdline_user_args():
+		if a.begins_with("--"):
+			var kv := a.substr(2).split("=", true, 1)
+			out[kv[0]] = kv[1] if kv.size() > 1 else "true"
+	if OS.has_feature("web"):
+		var q = JavaScriptBridge.eval("window.location.search", true)
+		if q is String and q.length() > 1:
+			for pair in (q as String).substr(1).split("&", false):
+				var kv := (pair as String).split("=", true, 1)
+				out[kv[0].uri_decode()] = kv[1].uri_decode() if kv.size() > 1 else "true"
+	return out
 
 func has_voice(text: String) -> bool:
 	return _voice_index.has(text)

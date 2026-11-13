@@ -68,7 +68,9 @@ func _ready() -> void:
 	# появление кнопок
 	_buttons.modulate.a = 0.0
 	create_tween().tween_property(_buttons, "modulate:a", 1.0, 0.6).set_delay(0.2)
-	if "--play" in OS.get_cmdline_user_args():
+	print("[QA] menu ready")
+	var dbg := Settings.debug_args()
+	if dbg.has("play") or dbg.has("qa"):
 		_play.call_deferred()
 
 func _play() -> void:

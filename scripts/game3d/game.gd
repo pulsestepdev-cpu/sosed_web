@@ -14,6 +14,11 @@ extends Node
 ##   --trap=a,b        ловушки на полу        --salad          салат на столе
 ##   --hero-at=X,F     герой в точке X на этаже F (0/1)
 ##   --zoom            начать с приближения   --use=a,sel:item,b  герой по очереди использует точки
+## Автотесты (scripts/debug/, обёртки в tools/qa/):
+##   --bot=careful|normal|reckless   бот сам проходит уровень
+##   --report=путь.json  отчёт (события, задания, поимки, наложения голосов, FPS)
+##   --quit-on-end       закрыть после итогов   --max-real=сек   страховка по реальному времени
+##   --perf              печатать FPS раз в 5 с
 
 const LEVEL := "res://scenes/level1_3d.tscn"
 const PROPS := "res://assets/models/props/"
@@ -66,7 +71,10 @@ var finale_hero := false
 var _tv: MeshInstance3D
 var _tv_mat: ShaderMaterial
 var _tv_power := 0.0       # финал: камера крупно на танцующем герое
-var _focus_n := false          # отладка: камера крупно на соседе            # отладка: сосед не замечает героя
+var _focus_n := false
+var qa_bot: QaBot
+var qa_rec: QaRecorder
+var _perf_t := 0.0          # отладка: камера крупно на соседе            # отладка: сосед не замечает героя
 
 func _ready() -> void:
 	var args := _args()
@@ -144,6 +152,7 @@ func _ready() -> void:
 	if hour > Neighbor3D.WAKE_HOUR and neighbor.mode == "bed":   # старт с середины дня
 		neighbor.skip_to(hour)
 	_update_camera(true)
+	print("[QA] game ready")
 
 func _apply_debug(args: Dictionary) -> void:
 	if args.has("drunk"):
@@ -224,6 +233,22 @@ func _apply_debug(args: Dictionary) -> void:
 		get_tree().create_timer(1.0).timeout.connect(func():
 			for sp in spots.values():
 				print("SPOT %-10s rect=%s hit=%s" % [sp.id, screen_rect(sp.aabb), hit_rect(sp)]))
+	if args.has("report"):
+		qa_rec = QaRecorder.new()
+		add_child(qa_rec)
+		qa_rec.setup(self, args["report"], args.has("quit-on-end"), float(args.get("max-real", "0")))
+	if args.has("bot"):
+		qa_bot = QaBot.new()
+		add_child(qa_bot)
+		qa_bot.setup(self, args["bot"])
+	if args.has("perf"):
+		get_tree().process_frame.connect(func():
+			_perf_t += get_process_delta_time() / maxf(0.001, Engine.time_scale)
+			if _perf_t >= 5.0:
+				_perf_t = 0.0
+				print("[%05.2f] PERF fps=%d  frame=%.1fms  objects=%d  draw_calls=%d" % [hour, Engine.get_frames_per_second(),
+					Performance.get_monitor(Performance.TIME_PROCESS) * 1000.0, Performance.get_monitor(Performance.OBJECT_COUNT),
+					Performance.get_monitor(Performance.RENDER_TOTAL_DRAW_CALLS_IN_FRAME)]))
 	if args.has("speed"):
 		Engine.time_scale = float(args["speed"])
 	if args.has("autostart"):
@@ -575,6 +600,8 @@ func _catch(line: String) -> void:
 		get_tree().create_timer(5.0).timeout.connect(_debug_next_use)
 	hero.get_caught()
 	rules.caught()
+	if qa_rec:
+		qa_rec.note_catch()
 	hud.show_toast("Поймал! (%d / 3)" % rules.catches, false)
 	neighbor.catch_hero(hero.position, line, func():
 		hero.say("Ай! Да за что?!", 1.4)
@@ -852,9 +879,7 @@ func center_on_hero() -> void:
 	_manual_cam = false
 
 func _args() -> Dictionary:
-	var out := {}
-	for a in OS.get_cmdline_user_args():
-		if a.begins_with("--"):
-			var kv := a.substr(2).split("=", true, 1)
-			out[kv[0]] = kv[1] if kv.size() > 1 else "true"
+	var out := Settings.debug_args()
+	if out.has("qa"):              # автотест в браузере: без вступления
+		out["autostart"] = "true"
 	return out

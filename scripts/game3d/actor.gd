@@ -120,8 +120,10 @@ func say(text: String, seconds := 2.5) -> float:
 	speech_t = maxf(dur + 0.25, minf(bubble_time, 1.6)) if text != "" else 0.0
 	return dur
 
+## Звучит ли реплика: по таймеру и по самому звуку (он идёт в реальном времени — при ускорении игры
+## таймер в игровом времени кончается раньше, чем звук).
 func is_speaking() -> bool:
-	return speech_t > 0.0
+	return speech_t > 0.0 or Settings.voice_playing("n" if kind == "neighbor" else "h")
 
 func shut_up() -> void:
 	bubble = ""
@@ -164,7 +166,7 @@ func _process(delta: float) -> void:
 		if bubble_time <= 0.0:
 			bubble = ""
 	if speech_t > 0.0:
-		speech_t -= delta
+		speech_t -= delta / maxf(0.01, Engine.time_scale)     # реальные секунды, как у звука
 	if _queued != "":
 		_queued_wait -= delta
 		if partner == null or not partner.is_speaking():

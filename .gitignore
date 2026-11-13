@@ -4,7 +4,10 @@ screenshots/
 
 # Локальные настройки Claude Code и MCP (пути к Godot на этом ПК)
 .mcp.json
-.claude/
+.claude/*
+!.claude/agents/
+!.claude/commands/
+!.claude/settings.json
 
 # Фото реальных людей-прототипов — только локально
 assets/raw/ref/

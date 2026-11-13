@@ -7,7 +7,8 @@
 - **Коммитить и пушить самостоятельно**, без вопросов и подтверждений, после каждого заметного шага.
 - Пушить в `origin main` → https://github.com/pulsestepdev-cpu/sosed_web
 - Не ждать пользователя, если пуш долгий: запустить в фоне и продолжать работу.
-- В репозиторий не попадают: `.mcp.json`, `.claude/`, `screenshots/`, `assets/raw/ref/` (фото реальных людей).
+- В репозиторий не попадают: `.mcp.json`, `.claude/` (кроме `.claude/agents/`, `.claude/commands/`, `.claude/settings.json`),
+  `screenshots/`, `build/`, `assets/raw/ref/` (фото реальных людей).
 
 ## Godot
 - Движок: `C:\Users\belya\Desktop\projects\Godot\Godot.exe` (4.7.2). Godot MCP подключён через `.mcp.json`.
@@ -34,6 +35,16 @@
 - В вебе нет системных шрифтов: в текстах только кириллица/латиница и « » — … · • (стрелки, эмодзи — квадратики).
 - Выкладка: push в `main` → GitHub Actions (`.github/workflows/web.yml`) собирает и деплоит в CapRover (`deploy/`: Dockerfile
   с nginx, gzip, no-cache). Секреты репозитория: `CAPROVER_SERVER` и `CAPROVER_APP_TOKEN` или `CAPROVER_PASSWORD` (пароль панели); переменная `CAPROVER_APP` (по умолч. sosed).
+
+## Автотесты и агенты
+- Бот-игрок `scripts/debug/qa_bot.gd` (`--bot=careful|normal|reckless`), отчёт `scripts/debug/qa_recorder.gd`
+  (`--report=файл.json --quit-on-end --max-real=сек`, `--perf` — FPS в лог). В браузере те же параметры — в адресе: `?qa=1&bot=normal&perf=1`.
+- Обёртки (`tools/qa/`, результаты в `screenshots/qa/`):
+  `run_level.py` — прогоны ботом и сводка; `record.py --preset trap|finale|…` — запись кадров + листы раскадровки;
+  `web_check.py` — браузеры/устройства, загрузка, ошибки, звук, FPS; `build_web.py [--serve]` — веб-сборка и сервер.
+- Агенты `.claude/agents/`: level-runner (прохождение), balance (сложность), anim-review (анимация), perf-audio (FPS и звук),
+  web-qa (веб), release (выкладка). Команда `/qa [all|quick|level|balance|anim|perf|web]` — проверка и сводный отчёт.
+- Разрешения инструментов — `.claude/settings.json` (запрещены force-push, reset --hard, git clean).
 
 ## Blender
 - `C:\Program Files\Blender Foundation\Blender 5.2\blender.exe` (5.2.3 LTS). Управлять скриптами в фоне:
