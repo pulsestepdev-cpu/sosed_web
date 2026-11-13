@@ -19,6 +19,7 @@ extends Node
 ##   --trap=a,b        ловушки на полу        --salad          салат на столе
 ##   --hero-at=X,F     герой в точке X на этаже F (-1..2)   --goto=X,F  герой идёт туда (лестницы, двери)
 ##   --zoom            начать с приближения   --use=a,sel:item,b  герой по очереди использует точки
+##   --catch           сосед сразу ловит героя  --catches=N    уже поймали N раз (2 — следующая поимка — вертушка)
 ## Автотесты (scripts/debug/, обёртки в tools/qa/):
 ##   --bot=careful|normal|reckless   бот сам проходит уровень
 ##   --report=путь.json  отчёт (события, задания, поимки, наложения голосов, FPS)
@@ -287,6 +288,8 @@ func _apply_debug(args: Dictionary) -> void:
 		hero.hide_in(hs)
 	if args.has("finale"):  # сразу довести до 100
 		get_tree().create_timer(0.5).timeout.connect(func(): rules.add_drunk(100.0, true))
+	if args.has("catches"): # уже поймали N раз: --catches=2 --catch — третья поимка (вертушка)
+		rules.catches = int(args["catches"])
 	if args.has("catch"):   # сосед ловит героя
 		get_tree().create_timer(0.8).timeout.connect(func(): _catch("А ну пошёл отсюда!"))
 	_ghost = args.has("ghost")
@@ -757,25 +760,132 @@ func open_prop(s: Spot3D, seconds: float) -> void:
 
 ## Финал: за сколько секунд клипа fall_forward голова опускается к салату и на сколько сдвинуть соседа,
 ## чтобы она попала точно в миску. Возвращает [время, сдвиг].
+## Финал: когда (с) в клипе faceplant лицо падает в миску и на сколько сдвинуть соседа, чтобы голова попала
+## точно в салат. Возвращает [время удара, сдвиг XZ, высота центра головы над салатом].
 func fit_fall_to_salad(n: Actor) -> Array:
-	var salad: Vector3 = _bounds(_props["salad_table"]).get_center()
+	var bb := _bounds(_props["salad_table"])
+	var salad := bb.get_center()
+	var hit: float = n.ap.get_animation("faceplant").length * Neighbor3D.FACEPLANT_HIT
+	var head := bone_world(n, "faceplant", hit, "Head", 0.14)
+	return [hit, Vector3(salad.x - head.x, 0.0, salad.z - head.z), head.y - bb.end.y]
+
+## Мировая точка кости в момент t клипа (offset — вдоль кости: 0.14 у головы — её центр). Поза потом возвращается.
+func bone_world(a: Actor, clip: String, t: float, bone: String, offset := 0.0) -> Vector3:
+	var sk := a.model.find_children("*", "Skeleton3D", true, false)[0] as Skeleton3D
+	var prev := a.ap.current_animation
+	var prev_t := a.ap.current_animation_position if prev != "" else 0.0
+	a.ap.play(clip, 0.0)
+	a.ap.seek(t, true)
+	var gp := sk.get_bone_global_pose(sk.find_bone(bone))
+	var w := sk.to_global(gp.origin + gp.basis.y.normalized() * offset)
+	if prev != "":
+		a.ap.play(prev, 0.0)
+		a.ap.seek(prev_t, true)
+	return w
+
+## Поимка: на каком расстоянии встать соседу, чтобы руки сомкнулись на шее героя («grab») или стопа
+## вертушки пришла в голову («kick»). Считается по клипам один раз (персонажи — лицом друг к другу).
+var _catch_d := {}
+func catch_distance(kind: String) -> float:
+	if _catch_d.has(kind):
+		return _catch_d[kind]
+	var d := 0.6
+	if kind == "grab":
+		var l := neighbor.to_local(bone_world(neighbor, "grab_shake", 0.0, "LeftHandGrip"))
+		var r := neighbor.to_local(bone_world(neighbor, "grab_shake", 0.0, "RightHandGrip"))
+		var neck := hero.to_local(bone_world(hero, "choked", 0.0, "Neck"))
+		d = (l.z + r.z) * 0.5 + neck.z
+	else:
+		var hit: float = neighbor.ap.get_animation("spin_kick").length * Neighbor3D.KICK_HIT
+		var foot := neighbor.to_local(bone_world(neighbor, "spin_kick", hit, "RightFoot", 0.12))
+		var head := hero.to_local(bone_world(hero, "caught", hero.ap.get_animation("caught").length, "Head", 0.14))
+		d = foot.z + head.z
+	_catch_d[kind] = clampf(d, 0.35, 1.4)
+	return _catch_d[kind]
+
+## Замедление: время в f раз медленнее на real_sec реальных секунд.
+func slowmo(f: float, real_sec: float) -> void:
+	Engine.time_scale *= f
+	get_tree().create_timer(real_sec, true, false, true).timeout.connect(func(): Engine.time_scale /= f)
+
+## Лицом в салат: брызги салата, миска сплющилась, крошки по столу, лист на макушке, «ПЛЮХ!» (Overlay3D).
+var splash_at := Vector3.INF
+var splash_ms := 0
+func salad_splash(n: Actor) -> void:
+	var bowl := _props["salad_table"] as Node3D
+	var bb := _bounds(bowl)
+	var top := Vector3(bb.get_center().x, bb.end.y, bb.get_center().z)
+	Settings.sfx("splash", 1.0)
+	Settings.sfx("thud", 0.5)
+	shake(0.7)
+	var s0 := bowl.scale
+	var tw := create_tween()
+	tw.tween_property(bowl, "scale", s0 * Vector3(1.2, 0.6, 1.2), 0.05)
+	tw.tween_property(bowl, "scale", s0, 0.6).set_trans(Tween.TRANS_ELASTIC).set_ease(Tween.EASE_OUT)
+	var g := Gradient.new()
+	g.interpolation_mode = Gradient.GRADIENT_INTERPOLATE_CONSTANT
+	g.offsets = PackedFloat32Array([0.0, 0.3, 0.5, 0.65, 0.8, 0.9])
+	g.colors = PackedColorArray([Color("5fae3c"), Color("9ed36a"), Color("f08a2c"), Color("f4d34a"), Color("f7f2e2"), Color("d9473f")])
+	var mat := StandardMaterial3D.new()
+	mat.vertex_color_use_as_albedo = true
+	mat.roughness = 0.6
+	var bits := BoxMesh.new()
+	bits.size = Vector3(0.04, 0.014, 0.034)
+	bits.material = mat
+	var pr := CPUParticles3D.new()
+	pr.mesh = bits
+	pr.amount = 80
+	pr.one_shot = true
+	pr.explosiveness = 0.95
+	pr.lifetime = 1.4
+	pr.emission_shape = CPUParticles3D.EMISSION_SHAPE_SPHERE
+	pr.emission_sphere_radius = 0.1
+	pr.direction = Vector3(0, 1, 0.35)
+	pr.spread = 70.0
+	pr.initial_velocity_min = 1.6
+	pr.initial_velocity_max = 3.6
+	pr.angular_velocity_min = -540.0
+	pr.angular_velocity_max = 540.0
+	pr.scale_amount_min = 0.6
+	pr.scale_amount_max = 1.5
+	pr.color_initial_ramp = g
+	level.add_child(pr)
+	pr.global_position = top
+	pr.emitting = true
+	get_tree().create_timer(2.5, false).timeout.connect(pr.queue_free)
+	# крошки по столу вокруг миски
+	var table := _bounds(furn.get_node("table") as Node3D)
+	for i in 18:
+		var m := MeshInstance3D.new()
+		m.mesh = bits
+		var mm := StandardMaterial3D.new()
+		mm.albedo_color = g.colors[randi() % g.colors.size()]
+		m.material_override = mm
+		level.add_child(m)
+		var ang := randf() * TAU
+		var r := randf_range(0.16, 0.42)
+		m.global_position = Vector3(top.x + cos(ang) * r, table.end.y + 0.008,
+			clampf(top.z + sin(ang) * r * 0.6, table.position.z + 0.05, table.end.z - 0.05))
+		m.rotation.y = randf() * TAU
+	# лист салата на макушке
 	var sk := n.model.find_children("*", "Skeleton3D", true, false)[0] as Skeleton3D
-	var hb := sk.find_bone("Head")
-	n.ap.play("fall_forward", 0.0)
-	var length := n.ap.current_animation_length
-	var t := length * 0.6
-	var head := Vector3.ZERO
-	var step := 0.02
-	var x := 0.0
-	while x < length:
-		n.ap.seek(x, true)
-		head = sk.to_global(sk.get_bone_global_pose(hb).origin)
-		if head.y <= salad.y + 0.16:
-			t = x
-			break
-		x += step
-	n.ap.seek(0.0, true)
-	return [t, Vector3(salad.x - head.x, 0.0, salad.z - head.z)]
+	var att := BoneAttachment3D.new()
+	att.bone_name = "Head"
+	sk.add_child(att)
+	var leaf := MeshInstance3D.new()
+	var sm := SphereMesh.new()
+	sm.radius = 0.045
+	sm.height = 0.02
+	leaf.mesh = sm
+	var lm := StandardMaterial3D.new()
+	lm.albedo_color = Color("7cc24a")
+	leaf.material_override = lm
+	att.add_child(leaf)
+	leaf.position = Vector3(0.05, 0.31, -0.03)
+	leaf.rotation_degrees = Vector3(20, 30, -15)
+	leaf.scale = Vector3(1.5, 1.0, 0.75)
+	splash_at = top + Vector3(0, 0.3, 0.15)
+	splash_ms = Time.get_ticks_msec()
 
 func show_prop(name: String, vis: bool) -> void:
 	if _props.has(name):
@@ -942,10 +1052,11 @@ func _catch(line: String) -> void:
 	if qa_rec:
 		qa_rec.note_catch()
 	hud.show_toast("Поймал! (%d / 3)" % rules.catches, false)
-	neighbor.catch_hero(hero.position, line, func():
-		hero.say(["Ай! Да за что?!", "Ой, я за солью!", "Ошибся дверью, бывает!", "Ай-ай, больно же, ветродуйка!"].pick_random(), 1.4)
+	neighbor.catch_hero(hero.position, line, func(final: bool):
+		if final:               # вертушка — нокаут, итоги
+			get_tree().create_timer(1.0, false).timeout.connect(rules.fail_caught)
+			return
 		var tw := create_tween()
-		tw.tween_interval(0.5)
 		tw.tween_callback(func():
 			Settings.sfx("whoosh", 0.7)
 			hero.visible = false)

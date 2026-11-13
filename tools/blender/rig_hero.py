@@ -505,6 +505,68 @@ def a_hide_hood(t):
     p.add("Head", rz=25 * S(keys(t, [(0.86, 0), (1, 1)], ease=lambda f: f)))   # выглядывает
     return p
 
+# ---------------------------------------------------------------- поймали
+# Сосед стоит лицом к герою (rig_neighbor.py: grab_shake, spin_kick). Такт тряски — как у grab_shake (24 кадра,
+# два рывка): когда сосед толкает руки вперёд, героя относит назад.
+CHOKE = {"Arm": [-60.0, -20.0, -40.0], "ForeArm": [0.0, 0.0, -90.0], "Hand": [0.0, 0.0, 0.0]}   # вцепился в руки соседа
+
+@anim("choked", 24)
+def a_choked(t):
+    """Держат за шею и трясут: приподнят на носки, вцепился в руки соседа, болтает ногами, голова мотается."""
+    p = stand(0, 0.0)
+    s = S(t * 2)
+    p.move(z=0.08, y=0.035 * s)
+    arm_pose(p, "L", CHOKE); arm_pose(p, "R", CHOKE)
+    k = S(t * 4)
+    p.side("L", "UpLeg", rx=-22 * k - 8); p.side("R", "UpLeg", rx=22 * k - 8)
+    p.side("L", "Leg", rx=30 + 25 * max(0.0, k)); p.side("R", "Leg", rx=30 + 25 * max(0.0, -k))
+    p.both("Foot", rx=45)
+    p.add("Spine", rx=-8 - 3 * s); p.add("Spine2", rx=-6)
+    p.add("Head", rx=-24 - 6 * s, rz=7 * S(t * 4 + 0.2))   # голова запрокинута — подальше от соседа
+    return p
+
+@anim("thrown", 36, loop=False)
+def a_thrown(t):
+    """Отшвырнули: полетел назад, руки врозь, приземлился на пятую точку, сидит, мотает головой."""
+    p = stand(0, 0.0)
+    fly = keys(t, [(0, 0), (0.35, 1)], ease=lambda f: 1 - (1 - f) ** 2)
+    p.move(y=0.65 * fly, z=0.12 * keys(t, [(0, 0), (0.15, 1), (0.35, 0)]) - 0.5 * keys(t, [(0.25, 0), (0.4, 1)], ease=bounce))
+    sit = keys(t, [(0.2, 0), (0.4, 1)])
+    p.add("Hips", rx=-25 * sit)
+    p.both("UpLeg", rx=-75 * sit)                 # сидит, ноги вперёд
+    p.both("Leg", rx=20 * sit)
+    p.both("Foot", rx=-15 * sit)
+    p.add("Spine", rx=18 * sit)
+    flail = keys(t, [(0, 0), (0.1, 1), (0.4, 1), (0.55, 0)])
+    p.both("Arm", ry=-70 * flail, rx=-20 * flail)
+    p.both("Arm", rx=30 * sit * (1 - flail), ry=-10 * sit)  # руки упёрлись в пол сзади
+    dizzy = keys(t, [(0.45, 0), (0.6, 1)])
+    p.add("Head", rz=18 * S(t * 3) * dizzy, rx=-8 * flail + 10 * dizzy)
+    return p
+
+@anim("knocked_out", 48, loop=False)
+def a_knocked_out(t):
+    """Вертушка в голову: голова отлетела, тело крутануло, два заплетающихся шага — и плашмя на спину."""
+    p = stand(0, 0.0)
+    snap = keys(t, [(0, 0), (0.06, 1), (0.3, 0.6)])
+    p.add("Head", rz=-45 * snap, ry=20 * snap, rx=-10 * snap)
+    p.add("Spine2", rz=-20 * snap)
+    spin = keys(t, [(0, 0), (0.35, -200)], ease=lambda f: 1 - (1 - f) ** 2)
+    p.add("Hips", rz=spin)
+    stagger = keys(t, [(0.08, 0), (0.45, 1)])
+    p.move(x=-0.25 * stagger, y=0.35 * stagger)
+    w = S(t * 4) * keys(t, [(0.1, 1), (0.45, 1), (0.5, 0)])
+    p.side("L", "UpLeg", rx=-25 * w); p.side("R", "UpLeg", rx=25 * w)
+    p.both("Leg", rx=20 * abs(w))
+    p.both("Arm", ry=-50 * keys(t, [(0, 0), (0.1, 1), (0.5, 0.6)]), rx=10)
+    fall = keys(t, [(0.42, 0), (0.7, 1)], ease=bounce)
+    p.add("Hips", rx=-88 * fall)                  # на спину
+    p.move(y=0.3 * fall, z=-0.6 * fall)
+    p.both("UpLeg", rx=6 * fall, ry=-8 * fall)
+    p.both("Arm", ry=-40 * fall, rx=-20 * fall)   # руки раскинуты
+    p.add("Head", rz=25 * fall)
+    return p
+
 # ---------------------------------------------------------------- победный танец
 def moonwalk(p, ph, amp=1.0):
     """Лунная походка: колено согнуто и пятка поднята у одной ноги, другая прямая скользит назад; ph — фаза двух шагов."""
@@ -633,6 +695,15 @@ def h_hide_hood(p, t):
     hand(p, "B", "flat", keys(t, [(0.2, 0), (0.3, 1), (0.62, 1), (0.72, 0)]))
     hand(p, "B", "fist", keys(t, [(0.8, 0), (0.95, 0.6)]))
 
+def h_choked(p, t):
+    hand(p, "B", "handle")
+
+def h_thrown(p, t):
+    hand(p, "B", "spread", keys(t, [(0, 0), (0.1, 1), (0.45, 1), (0.6, 0.3)]))
+
+def h_knocked_out(p, t):
+    hand(p, "B", "spread", keys(t, [(0, 0), (0.08, 1), (0.5, 0.6), (0.8, 0.2)]))
+
 def point_finger(p, s, k):
     """Кулак с вытянутым указательным."""
     hand(p, s, "fist", k)
@@ -649,7 +720,8 @@ HAND_LAYER = {"sneak": h_sneak, "search_low": h_search, "search_mid": h_search, 
               "swap": h_swap, "success": h_success, "laugh": h_laugh, "caught": h_caught,
               "hide_table": h_hide_table, "hide_sofa": h_hide_hug, "hide_wardrobe": h_hide_door,
               "hide_curtain": h_hide_curtain, "hide_bed": h_hide_bed, "hide_skis": h_hide_skis,
-              "hide_over": h_hide_over, "hide_climb": h_hide_climb, "hide_hood": h_hide_hood, "dance": h_dance}
+              "hide_over": h_hide_over, "hide_climb": h_hide_climb, "hide_hood": h_hide_hood, "dance": h_dance,
+              "choked": h_choked, "thrown": h_thrown, "knocked_out": h_knocked_out}
 
 # ---------------------------------------------------------------- решатель: руки к целям
 def grip_cost(side, target, palm=None, axis=None, wp=200, wa=200):
@@ -691,6 +763,9 @@ solve_starts("up", HOLD_UP, at(a_success, None, 0.6),
 solve_starts("mouthL", MOUTH_L, at(a_laugh, None, 0.0), mouth_cost, ARM_STARTS)
 solve_starts("door", DOOR, at(a_hide_wardrobe, None, 0.12),
              grip_cost("Right", (-0.20, -0.48, 1.0), palm=(1, 0, 0), wp=100), ARM_STARTS)
+
+solve_starts("choke", CHOKE, at(a_choked, h_choked, 0.0),
+             grip_cost("Left", (0.085, -0.2, 1.38), palm=(-0.3, -1, 0.2), wp=60), ARM_STARTS)   # кулаки у своей шеи — на руках соседа
 
 def brim_cost():
     """Пальцы правой — на козырьке (голова в позе наклонена, поэтому точка — от позы головы)."""

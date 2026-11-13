@@ -433,8 +433,15 @@ func _next_step() -> void:
 		game.shake(s["shake"])
 	if s.get("climb", false):
 		climb_ladder(maxf(0.2, _seq_t - 0.05))
-	if s.get("fall", false) or s.get("down", false):
+	if s.get("fall", false):
 		_to_floor(0.45)
+	elif s.get("down", false) and on_ladder:     # слезает со стремянки шагами, потом — клип шага
+		var c: String = s.get("clip", "idle")
+		act("walk", -1.0, 0.1)
+		_to_floor(0.45)
+		get_tree().create_timer(0.45, false).timeout.connect(func():
+			if mode == "react" and clip() == "walk":
+				act(c, -1.0, 0.15))
 
 ## Стремянка с лампочкой — в прихожей, под люстрой у входной двери.
 const LADDER_STAND := 6.0                       # где стоит перед стремянкой (x на дорожке)
@@ -460,28 +467,55 @@ func _to_floor(t := 0.3) -> void:
 	tw.tween_property(self, "position", game.lane_point(LADDER_STAND, 0), t).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN)
 
 # ---------------------------------------------------------------- поимка
-## Подбежать к герою и выдать «люлей». on_hit — когда ударил.
-func catch_hero(hero_pos: Vector3, line: String, on_hit: Callable) -> void:
+## Поймал: подбежать к герою. 1-й и 2-й раз — схватить за шею, потрясти и отшвырнуть; 3-й — «пол жизни
+## кикбоксингом занимался» и вертушка в голову. Встаёт ровно на расстоянии контакта (Game3D.catch_distance:
+## руки — у шеи героя, стопа — у его головы). on_done(final) — сцена кончилась (герою — исчезнуть / итоги).
+const FACEPLANT_HIT := 0.6      # удар лицом в салат — доля клипа faceplant (как в rig_neighbor.py)
+const KICK_HIT := 0.55          # удар вертушки — доля клипа spin_kick
+
+func catch_hero(hero_pos: Vector3, line: String, on_done: Callable) -> void:
 	mode = "chase"
 	_clear_thought()
 	_use_timer = -1.0
 	_seq.clear()
 	_to_floor()
+	release()
+	hold_item("")
 	set_face("yell")
 	say(line, 2.2)
 	Settings.sfx("alert", 0.8)
-	var target := Vector3(hero_pos.x - signf(hero_pos.x - position.x) * 0.55, hero_pos.y, game.LANE)
-	if absf(hero_pos.x - position.x) > 0.7 and absf(hero_pos.y - position.y) < 0.5:
+	var final: bool = rules.catches >= 3
+	var h := partner as Hero3D
+	var side := signf(hero_pos.x - position.x)
+	if side == 0.0:
+		side = 1.0
+	var same_floor := absf(hero_pos.y - position.y) < 0.5
+	var target := Vector3(hero_pos.x - side * game.catch_distance("kick" if final else "grab"), hero_pos.y, game.LANE)
+	if same_floor and position.distance_to(target) > 0.05:
 		speed_mul = 1.9
 		walk_path(game.plan_path(position, target))
 		await arrived
+	if same_floor:
+		position = target              # точно на расстоянии контакта
 	face_x(hero_pos.x)
-	act("catch", -1.0, 0.1)
-	await get_tree().create_timer(0.55, false).timeout
-	Settings.sfx("punch", 1.0)
-	game.shake(0.4)
-	on_hit.call()
-	await get_tree().create_timer(1.3, false).timeout
+	rotation.y = target_yaw
+	if same_floor and h:
+		h.face_x(position.x)
+		h.rotation.y = h.target_yaw
+		if final:
+			await _kick_hero(h)
+		else:
+			await _shake_hero(h)
+	else:                              # с другого этажа (редко) — по-старому, без контакта
+		act("catch", -1.0, 0.1)
+		await get_tree().create_timer(0.55, false).timeout
+		Settings.sfx("punch", 1.0)
+		game.shake(0.4)
+	on_done.call(final)
+	if final:
+		return
+	game.finale_hero = false
+	await get_tree().create_timer(0.8, false).timeout
 	set_face("angry")
 	act("angry", -1.0)
 	await get_tree().create_timer(1.2, false).timeout
@@ -490,6 +524,50 @@ func catch_hero(hero_pos: Vector3, line: String, on_hit: Callable) -> void:
 		release()
 		set_face(rules.default_face())
 		_resume()
+
+## За шею: схватил, приподнял, трясёт и орёт; герой хрипит и болтает ногами; потом — отшвырнул.
+func _shake_hero(h: Hero3D) -> void:
+	game.finale_hero = true            # крупно: видно, как держит за шею
+	act("grab_shake", -1.0, 0.12)
+	h.choke()                          # клипы одной длины, стартуют в один кадр — тряска в такт
+	Settings.sfx("grab", 0.9)
+	game.shake(0.25)
+	set_face("yell")
+	say(Rules3D.GRAB_LINES.pick_random(), 2.4)
+	await get_tree().create_timer(0.8, false).timeout
+	h.say(Rules3D.CHOKE_LINES.pick_random(), 1.6)
+	await get_tree().create_timer(1.9, false).timeout
+	act("catch", -1.0, 0.1)           # бросок
+	await get_tree().create_timer(0.25, false).timeout
+	Settings.sfx("whoosh", 0.8)
+	h.thrown_away()
+	await get_tree().create_timer(0.45, false).timeout
+	Settings.sfx("thud", 0.7)
+	game.shake(0.3)
+	await get_tree().create_timer(0.7, false).timeout
+
+## Вертушка: стойка и «пол жизни спортом…», герой просит пощады — оборот, нога в голову, нокаут.
+func _kick_hero(h: Hero3D) -> void:
+	game.finale_hero = true            # камера крупно на героя (сосед рядом, тоже в кадре)
+	act("fight_stance", -1.0, 0.15)
+	set_face("angry")
+	var d := say(Rules3D.KICK_BOAST, 3.4)
+	await get_tree().create_timer(maxf(2.8, d + 0.2), false).timeout
+	h.say(Rules3D.KICK_PLEAD, 1.4)
+	await get_tree().create_timer(0.9, false).timeout
+	act("spin_kick", -1.0, 0.06)
+	Settings.sfx("whoosh", 1.0)
+	var hit := ap.current_animation_length * KICK_HIT
+	await get_tree().create_timer(hit, false).timeout
+	Settings.sfx("punch", 1.0)
+	Settings.sfx("thud", 0.6)
+	game.shake(0.9)
+	game.slowmo(0.35, 0.45)
+	h.knock_out()
+	await get_tree().create_timer(maxf(0.3, ap.current_animation_length - hit), false).timeout
+	act("fight_stance", -1.0, 0.2)
+	say(Rules3D.KO_LINES.pick_random(), 2.2)
+	await get_tree().create_timer(2.4, false).timeout
 
 # ---------------------------------------------------------------- финал
 func finale(salad: bool) -> void:
@@ -518,19 +596,22 @@ func finale(salad: bool) -> void:
 		rotation.y = 0.0
 		say("Я… ик… не пью…", 2.5)
 		await get_tree().create_timer(1.8, false).timeout
-		# когда голова опустится до стола и где она окажется — по кости головы в клипе падения
+		# лицом в салат: клип faceplant (ноги на полу, сгибается в поясе); куда сдвинуть, чтобы лицо попало
+		# в миску, — по кости головы в момент удара; удар — замедление, брызги салата, «ПЛЮХ!»
 		var fit: Array = game.fit_fall_to_salad(self)
 		var t: float = fit[0]
 		hold = true
-		ap.play("fall_forward", 0.15)
-		_clip = "fall_forward"
-		create_tween().tween_property(self, "position", position + fit[1], t * 0.8)
-		await get_tree().create_timer(t, false).timeout
-		ap.pause()
-		Settings.sfx("splash", 0.9)
-		game.shake(0.3)
+		_clip = "faceplant"
+		ap.play("faceplant", 0.2)
+		create_tween().tween_property(self, "position", position + fit[1], t * 0.85).set_trans(Tween.TRANS_SINE)
+		await get_tree().create_timer(maxf(0.0, t - 0.28), false).timeout
+		game.slowmo(0.3, 0.6)
+		await get_tree().create_timer(0.28, false).timeout
+		game.salad_splash(self)
 		set_face("sleep")
 		activity = "спит лицом в салате"
+		await get_tree().create_timer(maxf(0.2, ap.current_animation_length - t), false).timeout
+		act("faceplant_sleep", -1.0, 0.4)
 		finale_done.emit()
 	else:
 		activity = "уснул где стоял"

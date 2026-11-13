@@ -50,6 +50,10 @@
 ## Автотесты и агенты
 - Самопроверка `scripts/debug/selftest.gd` (`--day=N --autostart --selftest [--touch]` → `SELFTEST PASS`): клики у стола
   с салатом и правило «последней капли» — то, что бот не проверяет (он выбирает места напрямую, без мыши).
+- Автопроверка анимации `scripts/debug/anim_check.gd` (`--day=N --autostart --animcheck` → `ANIMCHECK PASS`): в каждое укрытие
+  дня герой лезет лицом к нему и не сквозь мебель/стены; контакт при поимке (руки на шее, вертушка в голову), лицо в миске
+  в финале, ноги не уходят в пол. `--animwatch` (с ботом) — «едет» без шагов и «пятится» → поле `anim` в отчёте.
+  Клипы — в Blender до игры: `tools/blender/anim_sheet.py` (`--box` — мебель-заглушка, `--ortho`, `--target`, `--t0/--t1`).
 - Бот-игрок `scripts/debug/qa_bot.gd` (`--bot=careful|normal|reckless`), отчёт `scripts/debug/qa_recorder.gd`
   (`--report=файл.json --quit-on-end --max-real=сек`, `--perf` — FPS в лог). В браузере те же параметры — в адресе: `?qa=1&bot=normal&perf=1`.
 - Обёртки (`tools/qa/`, результаты в `screenshots/qa/`):

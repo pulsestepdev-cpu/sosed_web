@@ -8,6 +8,8 @@ extends Node
 ##   2) за клип таз сдвигается к укрытию, а не от него;
 ##   3) таз, грудь, шея и голова не проходят сквозь мебель (у своей мебели укрытия — только сквозь «твёрдые» части:
 ##      столешницу, сиденье и спинку дивана, капот и крышу машины…), заднюю стену, перегородки комнат и пол.
+##   Контакт персонажей: поимка — кисти соседа на шее героя (в тряске тоже), вертушка — стопа в голове героя;
+##   финал — лицо в миске с салатом, ноги соседа не уходят в пол за всё падение.
 ##   Печатает «ANIMCHECK ok/FAIL …», в конце «ANIMCHECK PASS» или «ANIMCHECK FAILED n», код выхода 0/1.
 ##     Godot.exe --headless --path . res://scenes/game.tscn -- --day=N --autostart --animcheck
 ##
@@ -51,6 +53,7 @@ func _run() -> void:
 	print("ANIMCHECK день %d: укрытий %d" % [game.day_n, hides.size()])
 	for s in hides:
 		await _check_hide(s)
+	_check_contacts()
 	Engine.time_scale = 1.0
 	print("ANIMCHECK %s" % ("PASS" if fails == 0 else "FAILED %d" % fails))
 	get_tree().quit(0 if fails == 0 else 1)
@@ -171,6 +174,49 @@ func _check_hide(s: Spot3D) -> void:
 	_ok(bad.is_empty(), "%s: не проходит сквозь мебель и стены%s" % [tag, "" if bad.is_empty() else " — " + ", ".join(bad.map(func(k): return "%s ×%d" % [k, hits[k]]))])
 	h.leave_hiding()
 	await get_tree().process_frame
+
+# ---------------------------------------------------------------- контакт: поимка, вертушка, салат
+func _check_contacts() -> void:
+	var g = game
+	var n: Actor = g.neighbor
+	var h: Actor = g.hero
+	var fy: float = g.floor_y(0)
+	# поимка: сосед и герой лицом друг к другу на дорожке, расстояние — как в игре
+	var x := 5.0
+	h.position = g.lane_point(x, 0)
+	n.position = g.lane_point(x - g.catch_distance("grab"), 0)
+	n.rotation.y = PI / 2
+	h.rotation.y = -PI / 2
+	var worst := 0.0
+	for t in [0.0, 0.2, 0.4, 0.6]:
+		var neck: Vector3 = g.bone_world(h, "choked", t, "Neck")
+		for b in ["LeftHandGrip", "RightHandGrip"]:
+			worst = maxf(worst, (g.bone_world(n, "grab_shake", t, b) - neck).length())
+	_ok(worst < 0.14, "поимка: кисти соседа на шее героя (дальше всего %.2f м)" % worst)
+	n.position = g.lane_point(x - g.catch_distance("kick"), 0)
+	var hit: float = n.ap.get_animation("spin_kick").length * Neighbor3D.KICK_HIT
+	var head: Vector3 = g.bone_world(h, "caught", h.ap.get_animation("caught").length, "Head", 0.14)
+	var foot: Vector3 = g.bone_world(n, "spin_kick", hit, "RightFoot", 0.12)
+	_ok(foot.distance_to(head) < 0.3, "вертушка: стопа у головы героя (%.2f м; стопа на высоте %.2f, голова %.2f)" % [foot.distance_to(head), foot.y - fy, head.y - fy])
+	# финал: лицо в миске, ноги на полу
+	if not g._props.has("salad_table"):
+		return
+	n.position = Vector3(g.SALAD_SPOT.x, fy, g.SALAD_SPOT.z)
+	n.rotation.y = 0.0
+	var fit: Array = g.fit_fall_to_salad(n)
+	n.position += fit[1]
+	var bb: AABB = g._bounds(g._props["salad_table"])
+	var hc: Vector3 = g.bone_world(n, "faceplant", fit[0], "Head", 0.14)
+	var off := Vector2(hc.x - bb.get_center().x, hc.z - bb.get_center().z).length()
+	_ok(off < 0.06 and fit[2] > 0.06 and fit[2] < 0.18, "салат: голова над миской (сдвиг %.2f м, центр головы над салатом %.2f м)" % [off, fit[2]])
+	var low := 9.0
+	var length: float = n.ap.get_animation("faceplant").length
+	for i in 21:
+		for b in ["LeftFoot", "RightFoot", "LeftToeBase", "RightToeBase"]:
+			low = minf(low, g.bone_world(n, "faceplant", length * i / 20.0, b).y - fy)
+		for b in ["LeftFoot", "RightFoot"]:
+			low = minf(low, g.bone_world(n, "faceplant_sleep", 0.0, b).y - fy)
+	_ok(low > -0.03, "салат: ноги соседа не уходят в пол (ниже всего %.2f м)" % low)
 
 # ---------------------------------------------------------------- наблюдение во время игры
 func _process(delta: float) -> void:

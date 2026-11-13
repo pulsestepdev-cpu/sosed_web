@@ -91,6 +91,17 @@ func _draw() -> void:
 		var vr := Rect2(Vector2.ZERO, size)
 		if not vr.grow(-10).has_point(np) or cam.is_position_behind(nb.head_pos()):
 			_offscreen_arrow(np, vr, nb.thought)
+	# «ПЛЮХ!» — лицом в салат
+	var sp_t: float = (Time.get_ticks_msec() - int(game.splash_ms)) / 1000.0
+	if game.splash_at != Vector3.INF and sp_t < 1.6:
+		_splash_word(cam.unproject_position(game.splash_at), sp_t, k)
+	# нокаут — звёздочки над головой героя
+	var hh := game.hero as Hero3D
+	if hh.dizzy and hh.visible:
+		var hc := cam.unproject_position(hh.bone_pos("Head") + Vector3(0, 0.25, 0))
+		for i in 3:
+			var ang := _t * 4.0 + i * TAU / 3.0
+			_star(hc + Vector2(cos(ang) * 34.0, sin(ang) * 10.0) * k, 9.0 * k, Color("ffd23a"))
 	# реплики (облачка не налезают друг на друга и на панель «Задания»)
 	_bubbles.clear()
 	for a in [game.neighbor, game.hero]:
@@ -146,6 +157,29 @@ func _bubble(at: Vector2, text: String, is_neighbor: bool, k: float) -> void:
 	draw_colored_polygon(PackedVector2Array([tip + Vector2(-10, -2), tip + Vector2(10, -2), tip + Vector2(0, 16)]), bg)
 	draw_polyline(PackedVector2Array([tip + Vector2(-10, 0), tip + Vector2(0, 16), tip + Vector2(10, 0)]), Color("3a1b0c"), 3)
 	draw_string(_font, r.position + Vector2(pad.x, pad.y + fs * 0.92), text, HORIZONTAL_ALIGNMENT_LEFT, -1, fs, Color("2b1208"))
+
+## «ПЛЮХ!»: выскакивает с перебором масштаба, чуть наклонено, потом тает.
+func _splash_word(at: Vector2, t: float, k: float) -> void:
+	var pop := 1.0 + 0.7 * maxf(0.0, 1.0 - t / 0.18)
+	var a := clampf((1.6 - t) / 0.4, 0.0, 1.0)
+	var fs := int(64 * k * pop)
+	var text := "ПЛЮХ!"
+	var w := _font.get_string_size(text, HORIZONTAL_ALIGNMENT_LEFT, -1, fs).x
+	draw_set_transform(at, -0.12, Vector2.ONE)
+	draw_string_outline(_font, Vector2(-w * 0.5, 0), text, HORIZONTAL_ALIGNMENT_LEFT, -1, fs, int(14 * k), Color(0.17, 0.07, 0.03, a))
+	draw_string(_font, Vector2(-w * 0.5, 0), text, HORIZONTAL_ALIGNMENT_LEFT, -1, fs, Color(1.0, 0.85, 0.25, a))
+	draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
+
+## Пятиконечная звёздочка (нокаут).
+func _star(c: Vector2, r: float, col: Color) -> void:
+	var pts := PackedVector2Array()
+	for i in 10:
+		var rr := r if i % 2 == 0 else r * 0.45
+		var ang := -PI / 2 + i * PI / 5 + _t * 2.0
+		pts.append(c + Vector2(cos(ang), sin(ang)) * rr)
+	draw_colored_polygon(pts, col)
+	pts.append(pts[0])
+	draw_polyline(pts, Color("5a3008"), 2.0)
 
 ## Табличка над дверью-переходом: тёмная плашка с подписью и треугольником-стрелкой вниз.
 func _door_sign(at: Vector2, text: String, k: float, up: bool) -> void:

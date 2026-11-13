@@ -168,6 +168,12 @@ func model_yaw() -> float:
 func head_pos() -> Vector3:
 	return global_position + Vector3(0, head_h, 0)
 
+## Мировая точка кости модели (голова лежащего героя — для звёздочек).
+func bone_pos(bone: String) -> Vector3:
+	var sk := model.find_children("*", "Skeleton3D", true, false)[0] as Skeleton3D
+	var i := sk.find_bone(bone)
+	return sk.to_global(sk.get_bone_global_pose(i).origin) if i >= 0 else head_pos()
+
 func _process(delta: float) -> void:
 	if bubble_time > 0.0:
 		bubble_time -= delta

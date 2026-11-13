@@ -427,6 +427,127 @@ def a_fall_forward(t):
     p.both("Foot", rx=60 * k)
     return p
 
+# ---------------------------------------------------------------- финал: лицом в салат
+# Стоит за столом (столешница 0.77 м, миска с салатом — в ~0.6 м перед ним). Ноги стоят на полу, сгибается
+# в поясе, лицо падает в миску. Удар — в момент FACEPLANT_HIT (доля клипа); игра сдвигает соседа так, чтобы
+# голова попала в миску, и в этот момент — брызги салата, «ПЛЮХ!», замедление.
+FACEPLANT_HIT = 0.6
+FACEPLANT_BEND = 78.5     # на столько сгибается: лицо — в салат, а не над ним (проверяет --animcheck)
+
+def faceplant_pose(p, bend, settle=0.0):
+    """Согнулся в поясе на bend градусов: бёдра вертикально (стопы на полу), зад чуть назад."""
+    p.add("Hips", rx=bend * 0.55)
+    p.both("UpLeg", rx=-bend * 0.55 - 6 * settle)
+    p.both("Leg", rx=10 + 6 * settle)
+    p.both("Foot", rx=-4 - 2 * settle)
+    p.add("Spine", rx=bend * 0.2)
+    p.add("Spine1", rx=bend * 0.15)
+    p.add("Spine2", rx=bend * 0.1)
+    p.move(y=0.1 * bend / FACEPLANT_BEND, z=-0.03 * bend / FACEPLANT_BEND - 0.02 * settle)
+
+@anim("faceplant", 60, loop=False)
+def a_faceplant(t):
+    """Лицом в салат: качнулся, глаза в кучу, колени ватные — и плашмя лицом в миску. Отскок, обмяк."""
+    p = stand(0, breath=0.0)
+    sway = keys(t, [(0, 0), (0.12, 1), (0.25, -0.7), (0.36, 0.3), (0.42, 0)])
+    p.add("Spine", ry=10 * sway, rz=6 * sway)
+    p.add("Head", ry=-16 * sway, rz=-10 * sway, rx=8 * abs(sway))
+    p.both("Leg", rx=12 * keys(t, [(0.1, 0), (0.3, 1), (0.42, 0.4)]))
+    # падение: медленно клонится, потом быстрее (ease-in), удар, отскок, обмяк
+    f = keys(t, [(0.36, 0), (FACEPLANT_HIT, 1)], ease=lambda x: x * x)
+    bounce_ = keys(t, [(FACEPLANT_HIT, 0), (FACEPLANT_HIT + 0.06, -0.12), (FACEPLANT_HIT + 0.14, 0.04), (FACEPLANT_HIT + 0.22, 0)])
+    settle = keys(t, [(FACEPLANT_HIT, 0), (1, 1)])
+    faceplant_pose(p, FACEPLANT_BEND * (f + bounce_), settle)
+    p.add("Head", rx=14 * f)                                     # лицом, а не лбом
+    # руки: висят, при падении — вперёд, после удара шлёпаются на стол по бокам миски и свисают
+    fall_arm = keys(t, [(0.4, 0), (FACEPLANT_HIT, 1), (FACEPLANT_HIT + 0.12, 0.6), (1, 0.4)])
+    p.both("Arm", rx=-60 * fall_arm, ry=-12 * fall_arm, rz=8 * fall_arm)
+    p.both("ForeArm", rz=-10 * fall_arm)
+    flop = keys(t, [(FACEPLANT_HIT, 0), (FACEPLANT_HIT + 0.1, 1)])
+    p.both("Arm", ry=14 * flop)
+    p.belly = 0.6 - 0.8 * settle
+    return p
+
+@anim("faceplant_sleep", 120)
+def a_faceplant_sleep(t):
+    """Спит лицом в салате: спина поднимается от храпа, руки свисают со стола."""
+    p = stand(0, breath=0.0)
+    faceplant_pose(p, FACEPLANT_BEND, 1.0)
+    p.add("Head", rx=14)
+    p.both("Arm", rx=-24, ry=-12 + 14, rz=3)
+    p.both("ForeArm", rz=-4)
+    snore = keys(t, [(0, 0), (0.45, 1), (0.55, 1), (1, 0)])
+    p.add("Spine1", rx=-2.5 * snore)
+    p.add("Spine2", rx=-2 * snore)
+    p.both("Arm", rx=2 * snore)
+    p.belly = 0.2 * snore - 0.2
+    return p
+
+# ---------------------------------------------------------------- поимка: за шею и трясёт, вертушка
+# Герой стоит лицом к соседу; расстояние игра считает по клипу (руки — у шеи героя, стопа — у его головы).
+GRAB_NECK = (0.075, -0.6, 1.36)      # куда тянутся кисти (левая; правая — зеркально): шея героя, приподнятого на ~8 см
+KICK_HIT = 0.55                      # момент удара вертушки (доля клипа)
+GRAB = {"Arm": [-80.0, 10.0, -20.0], "ForeArm": [0.0, 0.0, -30.0], "Hand": [0.0, 0.0, 0.0]}
+
+def arm_pose(p, s, table, k=1.0):
+    for b in ("Arm", "ForeArm", "Hand"):
+        p.side(s, b, *[v * k for v in table[b]])
+
+@anim("grab_shake", 24)
+def a_grab_shake(t):
+    """Схватил за шею обеими руками, приподнял и трясёт (два рывка за цикл; такт — как у клипа героя choked)."""
+    p = stand(0, breath=0.0)
+    s = S(t * 2)
+    p.add("Spine", rx=5 + 3 * s)       # не наваливается: головы не сталкиваются
+    p.add("Spine1", rx=2)
+    arm_pose(p, "L", GRAB)
+    arm_pose(p, "R", GRAB)
+    p.both("Arm", rx=-7 * s)                     # толкает-тянет
+    p.both("ForeArm", rz=6 * s)
+    p.add("Head", rx=-8 + 4 * s, rz=4 * S(t * 4))
+    p.both("UpLeg", ry=-6, rx=-4); p.both("Leg", rx=12)
+    p.move(z=-0.03, y=0.01 * s)
+    p.belly = 0.6 + 0.4 * s
+    return p
+
+@anim("fight_stance", 30)
+def a_fight_stance(t):
+    """Стойка кикбоксера: кулаки у подбородка, пружинит на носках, правая нога сзади."""
+    p = stand(t, breath=0.0)
+    guard_fists(p)
+    hop = abs(S(t * 2))
+    p.move(z=0.025 * hop - 0.02, x=0.02 * S(t))
+    p.side("R", "UpLeg", rx=14); p.side("L", "UpLeg", rx=-10)
+    p.both("Foot", rx=8 * hop)
+    p.add("Hips", rz=-14); p.add("Spine1", rz=10)
+    p.add("Head", rx=4 + 2 * hop)
+    p.both("Arm", rx=-4 * S(t * 2))
+    p.belly = 0.5 + 0.5 * hop
+    return p
+
+@anim("spin_kick", 45, loop=False)
+def a_spin_kick(t):
+    """Вертушка в прыжке: шаг вперёд, оборот, правая нога на высоте головы — удар — приземлился в стойку."""
+    p = stand(t, breath=0.0)
+    guard_fists(p, keys(t, [(0, 1), (0.3, 0.6), (0.7, 0.6), (0.9, 1)]))
+    p.move(y=-0.38 * keys(t, [(0.05, 0), (KICK_HIT, 1)]))
+    spin = keys(t, [(0.1, 0), (KICK_HIT, -270), (0.8, -360)])
+    p.add("Hips", rz=spin)
+    hop = keys(t, [(0.3, 0), (KICK_HIT - 0.05, 1), (KICK_HIT + 0.12, 1), (0.82, 0)])
+    p.move(z=0.16 * hop)
+    leg = keys(t, [(0.25, 0), (KICK_HIT - 0.05, 1), (KICK_HIT + 0.12, 1), (0.85, 0)])
+    lean = keys(t, [(0.25, 0), (KICK_HIT - 0.05, 1), (KICK_HIT + 0.1, 1), (0.85, 0)])
+    p.add("Hips", ry=48 * lean)                  # корпус — от ноги
+    p.side("L", "UpLeg", ry=-44 * lean)          # опорная — отвесно
+    p.side("R", "UpLeg", ry=-92 * leg, rx=-10 * leg)
+    chamber = keys(t, [(0.25, 0), (0.38, 1), (KICK_HIT - 0.04, 0), (KICK_HIT + 0.12, 0), (0.85, 0.6), (1, 0)])
+    p.side("R", "Leg", rx=80 * chamber)
+    p.side("R", "Foot", rx=20 * leg)
+    p.add("Head", ry=-25 * lean)
+    p.both("Leg", rx=10 * keys(t, [(0.82, 0), (0.88, 1), (1, 0)]))   # приземление
+    p.belly = 0.5 + 0.5 * hop
+    return p
+
 @anim("lie_forward", 120)
 def a_lie_forward(t):
     p = stand(0, breath=0.0)
@@ -525,6 +646,16 @@ def h_fall_forward(p, t):
     hand(p, "B", "spread", keys(t, [(0.3, 0), (0.5, 1), (0.7, 1), (0.9, 0)]))
     hand(p, "B", "flat", keys(t, [(0.7, 0), (0.9, 1)]))
 
+def h_faceplant(p, t):
+    hand(p, "B", "spread", keys(t, [(0.4, 0), (0.55, 1), (0.68, 0.3)]))
+    hand(p, "B", "relax", 0.6, base="flat")
+
+def h_grab(p, t):
+    hand(p, "B", "handle")                   # сжал шею
+
+def h_fight(p, t):
+    hand(p, "B", "fist")
+
 def h_sleep(p, t):
     hand(p, "B", "relax", 0.5, base="flat")              # расслабленно, пальцы чуть сильнее согнуты
 
@@ -532,7 +663,8 @@ HAND_LAYER = {"drink": h_drink, "work": h_work, "bulb": h_bulb, "phone": h_phone
               "angry": h_angry, "suspicious": h_suspicious, "catch": h_catch, "oath": h_oath,
               "dance": h_dance, "walk_drunk": h_walk_drunk, "fall_back": h_fall_back,
               "get_up": h_get_up, "sleep": h_sleep, "lie_back": h_sleep, "lie_forward": h_lie_front,
-              "fall_forward": h_fall_forward}
+              "fall_forward": h_fall_forward, "faceplant": h_faceplant, "faceplant_sleep": h_faceplant,
+              "grab_shake": h_grab, "fight_stance": h_fight, "spin_kick": h_fight}
 
 # ---------------------------------------------------------------- решатель: предметы в руке
 # Точки лица в позе покоя — сняты рендером головы с метками высоты (губы ~1.43, глаза ~1.55).
@@ -594,6 +726,17 @@ solve_starts("phone", PHONE, at(a_phone, h_phone, 0.0), phone_cost, [
     {"Arm": [-40, 20, -30], "ForeArm": [-60, 0, -110], "Hand": [0, 0, 0]},
     {"Arm": [-55, 15, -20], "ForeArm": [80, 0, -90], "Hand": [0, 30, 20]},
     {"Arm": [-55, 15, -20], "ForeArm": [-80, 0, -90], "Hand": [0, -30, 20]},
+])
+
+def grab_cost():
+    """Левая кисть (центр хвата) — у шеи героя слева, ладонь к шее (внутрь, к -X)."""
+    g_head, _ = bone_rest("LeftHandGrip")
+    c = posed_point("LeftHandGrip", g_head)
+    return ((c - Vector(GRAB_NECK)).length * 100) ** 2 + 120 * (1 - posed_dir("LeftHand", (0, 0, -1)).dot(Vector((-1, 0, -0.2)).normalized()))
+solve_starts("grab", GRAB, at(a_grab_shake, h_grab, 0.0), grab_cost, [
+    {"Arm": [-70, 20, -30], "ForeArm": [40, 0, -40], "Hand": [0, 0, 0]},
+    {"Arm": [-90, 0, -10], "ForeArm": [-40, 0, -20], "Hand": [0, 30, 0]},
+    {"Arm": [-75, 25, -40], "ForeArm": [80, 0, -60], "Hand": [0, -20, 0]},
 ])
 
 record(HAND_LAYER)

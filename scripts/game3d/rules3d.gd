@@ -149,6 +149,21 @@ const CAR_HIDE := [
 	"Хоть посижу рядом с нормальной тачкой…",
 	"Пропил бы ты её — и прятаться было бы негде.",
 ]
+## Поймал (1-й и 2-й раз): держит за шею и трясёт (Neighbor3D._shake_hero).
+const GRAB_LINES := [
+	"Ну что, тля, допрыгался, бля?!",
+	"Попался, тля! Щас шею-то сверну!",
+	"Чё ты тут лазишь, а?! Чё лазишь, бля?!",
+	"Тля подъездная! Ещё раз увижу — урою!",
+	"Ну что, сучёныш, весело тебе, а?!",
+	"Я тебя, тля, научу по чужим квартирам шастать!",
+]
+## Герой, пока его душат.
+const CHOKE_LINES := ["Кх-х… пусти, дядя…", "Хр-р… я за солью зашёл…", "Кхе… шея… шея!", "А-а… задушишь, ветродуйка!"]
+## Третий раз — вертушка (Neighbor3D._kick_hero).
+const KICK_BOAST := "Я пол жизни занимался спортом! Кикбоксинг, фул-контакт!"
+const KICK_PLEAD := "Дядь… может, договоримся?"
+const KO_LINES := ["Нокаут. Чисто.", "Фул-контакт, сынок!", "Вот так, тля. Вертушечка!"]
 
 const STAGES := ["Трезвый", "Чуть-чуть", "Весёлый", "Тренер", "В стельку", "Уснул"]
 const STAGE_FROM := [0, 15, 35, 60, 85, 100]
@@ -632,10 +647,16 @@ func _finale() -> void:
 func caught() -> void:
 	catches += 1
 	score = maxi(0, score - 100)
-	if catches >= 3:
+	if catches >= 3:          # итоги — после вертушки (Game3D._catch); страховка — если сцена не доиграла
 		over = true
-		get_tree().create_timer(2.5, false).timeout.connect(func():
-			finished.emit(false, "Сосед поймал тебя три раза"))
+		get_tree().create_timer(16.0, false).timeout.connect(fail_caught)
+
+var _fail_sent := false
+func fail_caught() -> void:
+	if _fail_sent:
+		return
+	_fail_sent = true
+	finished.emit(false, "Сосед поймал тебя три раза")
 
 func time_up() -> void:
 	if over:

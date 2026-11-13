@@ -30,6 +30,7 @@ var in_hiding := false
 var hide_spot: Spot3D
 var busy := 0.0
 var frozen := false          # пойман — стоит в ужасе
+var dizzy := false           # нокаут: звёздочки над головой (Overlay3D)
 var hide_stage := 0          # 1 — бежит к укрытию, 2 — залезает (клип), 3 — сидит (скрыт)
 var _hide_token := 0         # отменяет отложенные шаги пряток, если вылез раньше
 var _gloat_cd := 0.0
@@ -189,8 +190,22 @@ func get_caught() -> void:
 	set_face("scared")
 	act("caught")
 
+## Держат за шею и трясут (клип choked идёт в такт с grab_shake соседа).
+func choke() -> void:
+	act("choked", -1.0, 0.12)
+	set_face("scared")
+
+func thrown_away() -> void:
+	act("thrown", -1.0, 0.08)
+
+func knock_out() -> void:
+	act("knocked_out", -1.0, 0.04)
+	set_face("scared")
+	dizzy = true
+
 func respawn(at: Vector3) -> void:
 	frozen = false
+	dizzy = false
 	release()
 	position = at
 	target_yaw = PI / 2

@@ -6,7 +6,7 @@ argument-hint: "[all|quick|week|level|balance|anim|perf|web]"
 
 Агенты (файлы в `.claude/agents/`): level-runner, balance, anim-review, perf-audio, web-qa.
 
-- **quick** — только level-runner (стратегии careful,normal по 1 прогону, дни 1, 4 и 7). Для проверки после мелких правок.
+- **quick** — только level-runner (стратегии careful,normal по 1 прогону, дни 1, 4 и 7, плюс `--selftest` и `--animcheck`). Для проверки после мелких правок.
 - **week** — level-runner и balance по всей неделе (`--day all`), общая таблица по дням: победы, поимки, время финала,
   выполненные задания; кривая сложности Пн → Вс должна расти за счёт заданий и дома, а не за счёт «злого» соседа.
 - **level / balance / anim / perf / web** — один соответствующий агент.
