@@ -40,6 +40,11 @@ func _draw() -> void:
 			var rr := (7.0 + sin(_t * 4.0 + top.x * 0.01) * 1.8) * k
 			draw_circle(top, rr + 3.0 * k, Color(0, 0, 0, 0.35))
 			draw_circle(top, rr, Color(col, 0.95))
+		if sp.active and not sp.done and game.wants_item(sp):
+			# сюда можно применить вещь из сумки: расходящееся зелёное кольцо
+			var ph := fmod(_t * 1.2, 1.0)
+			draw_arc(top, (12.0 + 16.0 * ph) * k, 0.0, TAU, 32, Color(0.55, 1.0, 0.45, 0.9 * (1.0 - ph)), 3.0 * k)
+			draw_arc(top, 11.0 * k, 0.0, TAU, 32, Color(0.55, 1.0, 0.45, 0.95), 2.5 * k)
 	# двери-переходы: пульсирующая рамка вокруг проёма и табличка «куда» со стрелкой вверх/вниз
 	if not game.rules.over:
 		var mp := get_viewport().get_mouse_position()

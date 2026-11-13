@@ -169,6 +169,7 @@ var salad_on_table := false
 var over := false
 var _scored := {}
 var _taunt_i := 0
+var _last_drop := false
 
 func setup(g: Node) -> void:
 	game = g
@@ -229,7 +230,39 @@ func _award(key: String, points: int, text: String) -> bool:
 	log_done.append(text)
 	toast.emit("%s  +%d" % [text, points], true)
 	Settings.sfx("prank", 0.7)
+	_check_all_done.call_deferred()
 	return true
+
+## Все задания дня, кроме салата, засчитаны (сосед попался на каждую подставу).
+func tasks_done() -> bool:
+	for id in game.day["tasks"]:
+		if id != "salad" and not _scored.has(Days.TASKS[id][1]):
+			return false
+	return true
+
+## «Последняя капля»: выполнил всё — финал не ждёт, пока сосед ещё раз дойдёт до холодильника.
+## Салат на столе — сосед дотрепывает реакцию, добирает до 100 % и идёт к салату. Салата ещё нет —
+## сосед «в стельку» и ждёт: как только салат на столе, финал.
+func _check_all_done() -> void:
+	if over or _last_drop or not tasks_done():
+		return
+	if not salad_on_table:
+		if drunk < STAGE_FROM[4]:
+			add_drunk(STAGE_FROM[4] - drunk, true)
+			toast.emit("Сосед готовенький — ставь салат на стол!", true)
+			get_tree().create_timer(1.5, false).timeout.connect(func():
+				if not over and not salad_on_table:
+					hero.say("Готовенький! Теперь салатик ему на стол.", 2.4))
+		return
+	_last_drop = true
+	var wait := 0.0
+	while wait < 14.0 and neighbor.mode == "react":     # дать доругаться / допить
+		await get_tree().create_timer(0.25, false).timeout
+		wait += 0.25
+	if over:
+		return
+	toast.emit("Последняя капля! Сосед готов", true)
+	add_drunk(100.0, true)
 
 ## Герой злорадствует, пока сосед бушует: смеётся молча (говорит в это время сосед).
 func gloat(delay := 1.2) -> void:
@@ -260,19 +293,19 @@ func describe(s: Spot3D) -> String:
 		"take":
 			return "%s — утащить" % s.title
 		"hide":
-			if s.id == "table" and selected == "salad":
+			if s.id == "table" and inventory.has("salad"):
 				return "Стол — поставить салат"
 			return "%s — спрятаться" % s.title
 		"swap":
 			if swapped.has(s.id):
 				return "%s — уже подменено" % s.title
-			if selected == s.item:
+			if inventory.has(s.item):
 				return "%s — подложить: %s" % [s.title, item_title(s.item)]
 			return "%s — нужно: %s" % [s.title, item_title(s.item)]
 		"trap":
 			if traps.has(s.id):
 				return "%s — ловушка готова" % s.title
-			if selected == s.item:
+			if inventory.has(s.item):
 				return "%s — подложить: %s" % [s.title, item_title(s.item)]
 			return "%s — сюда бы %s" % [s.title, item_title(s.item).to_lower()]
 	return s.title
@@ -311,18 +344,22 @@ func hero_use(s: Spot3D) -> void:
 				if s.node:
 					s.node.visible = false)
 		"hide":
-			if s.id == "table" and selected == "salad":
+			if s.id == "table" and inventory.has("salad"):
+				selected = "salad"
 				hero.busy_act("swap", 1.0)
 				_use_selected()
 				salad_on_table = true
 				game.place_salad()
 				toast.emit("Салат на столе. Ждём финала…", true)
 				setup_line("salad")
+				_check_all_done()
 				return
 			hero.hide_in(s)
 		"swap":
 			if swapped.has(s.id):
 				return
+			if selected != s.item and inventory.has(s.item):
+				selected = s.item
 			if selected != s.item:
 				toast.emit("Нужно: %s" % item_title(s.item), false)
 				hero.say("Сюда бы… %s." % item_title(s.item).to_lower(), 2.0)
@@ -341,6 +378,8 @@ func hero_use(s: Spot3D) -> void:
 		"trap":
 			if traps.has(s.id):
 				return
+			if selected != s.item and inventory.has(s.item):
+				selected = s.item
 			if selected != s.item:
 				toast.emit("Нужно: %s" % item_title(s.item), false)
 				return

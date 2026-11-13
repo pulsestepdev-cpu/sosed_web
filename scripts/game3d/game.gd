@@ -23,6 +23,7 @@ extends Node
 ##   --bot=careful|normal|reckless   бот сам проходит уровень
 ##   --report=путь.json  отчёт (события, задания, поимки, наложения голосов, FPS)
 ##   --quit-on-end       закрыть после итогов   --max-real=сек   страховка по реальному времени
+##   --selftest          самопроверка кликов у стола и «последней капли» (scripts/debug/selftest.gd)
 ##   --save-progress     записать пройденный день и в автотесте (обычно прогресс пишет только игра без --autostart/бота)
 ##   --perf              печатать FPS раз в 5 с      --quality=low|high|auto  графика
 
@@ -308,6 +309,10 @@ func _apply_debug(args: Dictionary) -> void:
 		qa_rec = QaRecorder.new()
 		add_child(qa_rec)
 		qa_rec.setup(self, args["report"], args.has("quit-on-end"), float(args.get("max-real", "0")))
+	if args.has("selftest"):     # самопроверка кликов у стола и «последней капли»: scripts/debug/selftest.gd
+		var st := QaSelfTest.new()
+		add_child(st)
+		st.setup(self)
 	if args.has("bot"):
 		qa_bot = QaBot.new()
 		add_child(qa_bot)
@@ -1014,18 +1019,39 @@ func hit_rect(s: Spot3D) -> Rect2:
 	return r.merge(Rect2(mk - Vector2(m, m) * 0.4, Vector2(m, m) * 0.8))
 
 ## Нужен ли этому месту предмет, который сейчас в руке (салат — на стол, водка — в холодильник...).
-func _wants_selected(s: Spot3D) -> bool:
-	if rules.selected == "":
+## Сюда можно применить вещь из сумки (любую, не только выбранную): стол — салат, подмена/ловушка — свой предмет.
+func wants_item(s: Spot3D) -> bool:
+	if not s.active or rules.inventory.is_empty():
 		return false
 	if s.id == "table":
-		return rules.selected == "salad"
-	return s.kind in ["swap", "trap"] and s.item == rules.selected and not s.done
+		return rules.inventory.has("salad")
+	return s.kind in ["swap", "trap"] and not s.done and rules.inventory.has(s.item)
 
 func _spot_at(mp: Vector2) -> Spot3D:
 	var k := clampf(_home_fov / cam.fov, 1.0, 2.2)
-	# 1) ткнул прямо в кружок-метку — это место, что бы ни стояло рядом
+	var touch := TOUCH_HIT if Settings.is_touch() else 1.0
+	# 0) есть вещь, которую можно сюда применить, — это место первым: клик по нему или рядом с его кружком
+	#    (стол с салатом: на столе кружка и ваза, их кружки в двух шагах — иначе салат ставится через раз).
+	#    Чужое место перебивает, только если ткнуть точно в его кружок.
 	var best: Spot3D = null
-	var best_d := 26.0 * k * (TOUCH_HIT if Settings.is_touch() else 1.0)
+	var best_d := INF
+	var other: Spot3D = null
+	var other_d := 10.0 * k
+	for s in spots.values():
+		if not s.active:
+			continue
+		var d := mp.distance_to(cam.unproject_position(s.marker_pos()))
+		if wants_item(s):
+			if (d < 44.0 * k * touch or hit_rect(s).has_point(mp)) and d < best_d:
+				best_d = d
+				best = s
+		elif d < other_d:
+			other_d = d
+			other = s
+	if best:
+		return other if other and other_d < best_d * 0.5 else best
+	# 1) ткнул прямо в кружок-метку — это место, что бы ни стояло рядом
+	best_d = 26.0 * k * touch
 	for s in spots.values():
 		if s.active:
 			var d := mp.distance_to(cam.unproject_position(s.marker_pos()))
@@ -1049,7 +1075,7 @@ func _spot_at(mp: Vector2) -> Spot3D:
 		var exact := r.has_point(mp)
 		var tier := (0 if exact else 1) + (2 if s.kind == "hide" else 0)
 		var score := tier * 1e7 + (r.get_area() if exact else minf(mp.distance_to(r.get_center()), mp.distance_to(mk)))
-		if _wants_selected(s):
+		if wants_item(s):
 			score -= 1e8       # с нужной вещью в руке — сначала туда, куда её можно применить
 		if score < best_score:
 			best_score = score

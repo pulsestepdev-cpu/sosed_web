@@ -48,6 +48,8 @@
   с nginx, gzip, no-cache). Секреты репозитория: `CAPROVER_SERVER` и `CAPROVER_APP_TOKEN` или `CAPROVER_PASSWORD` (пароль панели); переменная `CAPROVER_APP` (по умолч. sosed).
 
 ## Автотесты и агенты
+- Самопроверка `scripts/debug/selftest.gd` (`--day=N --autostart --selftest [--touch]` → `SELFTEST PASS`): клики у стола
+  с салатом и правило «последней капли» — то, что бот не проверяет (он выбирает места напрямую, без мыши).
 - Бот-игрок `scripts/debug/qa_bot.gd` (`--bot=careful|normal|reckless`), отчёт `scripts/debug/qa_recorder.gd`
   (`--report=файл.json --quit-on-end --max-real=сек`, `--perf` — FPS в лог). В браузере те же параметры — в адресе: `?qa=1&bot=normal&perf=1`.
 - Обёртки (`tools/qa/`, результаты в `screenshots/qa/`):

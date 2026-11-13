@@ -26,6 +26,9 @@ model: sonnet
   `--day 4` / `--day 1,7`; сводка — по каждому дню и стратегии.
   (свои условия: `--extra "--start=11 --drunk=30"`). Печатает сводку; JSON и логи — в `screenshots/qa/runs/<время>/`.
 - Один прогон руками с логом: `"/c/Users/belya/Desktop/projects/Godot/Godot.exe" --headless --path . res://scenes/game.tscn -- --day=4 --autostart --log --speed=8 --bot=normal --report=screenshots/qa/x.json --quit-on-end --max-real=300`
+- Самопроверка кликов и финала (бот кликов мышью не делает — эти баги он не видит): для каждого дня
+  `"/c/Users/belya/Desktop/projects/Godot/Godot.exe" --path . res://scenes/game.tscn -- --day=N --autostart --selftest`
+  (и с `--touch`) → в конце `SELFTEST PASS`; строки `SELFTEST FAIL` — баги (стол с салатом, «последняя капля»).
 - В логе: `BOT` — решения бота, `TOAST` — события, `N` — дела соседа, `SAY`/`HERO` — реплики, `THINK` — мысли, `FINISHED` — итог.
 - Отладочные аргументы игры — в шапке `scripts/game3d/game.gd` (`--start`, `--give`, `--use`, `--trap`, `--salad`, `--finale` …).
 - Godot без окна иногда печатает при выходе «RID leaked» / «BUG: Unreferenced static string» — это шум, не ошибка.
@@ -39,6 +42,8 @@ model: sonnet
 4. `voice_overlaps` = 0 (сосед и герой не должны говорить одновременно).
 5. Нет зависаний: сосед не стоит на одном деле дольше ~30 с игрового времени без причины (смотри строки `N`).
 6. Мысли соседа показываются (`thoughts_shown` > 0).
+7. Финал не заставляет ждать: выполнил все задания дня и поставил салат — сосед сразу идёт к салату
+   («Последняя капля» в TOAST). Самопроверка `--selftest` проходит во всех днях.
 
 ## Отчёт
 Сохрани `screenshots/qa/reports/level-runner-<ГГГГММДД-ЧЧММ>.md` и верни краткое содержание:
