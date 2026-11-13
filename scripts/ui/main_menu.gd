@@ -51,12 +51,6 @@ func _ready() -> void:
 	quit.visible = not OS.has_feature("web")     # в браузере закрыть игру нельзя — вкладку закрывают сами
 	_buttons.add_child(quit)
 
-	var ver := UiStyle.label("Уровень 1 · «Понедельник. Больше не пью»", 24, Color("ffe6b0"), 8)
-	ver.set_anchors_preset(Control.PRESET_BOTTOM_LEFT)
-	ver.position = Vector2(24, -50)
-	ver.grow_vertical = Control.GROW_DIRECTION_BEGIN
-	add_child(ver)
-
 	_loading = UiStyle.label("Загрузка…", 48, UiStyle.C_TITLE, 12)
 	_loading.set_anchors_preset(Control.PRESET_CENTER_BOTTOM)
 	_loading.grow_horizontal = Control.GROW_DIRECTION_BOTH
