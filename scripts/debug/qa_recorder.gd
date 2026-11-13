@@ -111,8 +111,9 @@ func _write() -> void:
 		"real_seconds": snappedf((Time.get_ticks_usec() - _start_us) / 1e6, 0.1),
 		"events": _events,
 	}
-	if OS.has_feature("web"):      # в браузере файла нет — отчёт одной строкой в консоль (забирает web_check.py)
-		print("[QA-REPORT] " + JSON.stringify(rep))
+	if OS.has_feature("web"):      # в браузере файла нет — отчёт в window.__qa.report (забирает web_check.py)
+		rep.erase("events")
+		Settings.qa_mark("report", rep)
 		return
 	var abs_path := path if path.is_absolute_path() else ProjectSettings.globalize_path("res://" + path)
 	DirAccess.make_dir_recursive_absolute(abs_path.get_base_dir())

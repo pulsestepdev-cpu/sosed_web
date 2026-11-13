@@ -44,7 +44,15 @@ AUDIO_HOOK = """
   }, 250);
 })();
 """
-DEVICES = {"desktop": None, "iphone": "iPhone 13", "android": "Pixel 7", "ipad": "iPad (gen 7) landscape"}
+DEVICES = {"desktop": None, "iphone": "iPhone 13 landscape", "android": "Pixel 7 landscape", "ipad": "iPad (gen 7) landscape",
+           "iphone-portrait": "iPhone 13", "android-portrait": "Pixel 7"}   # вертикально — экран «поверни телефон»
+
+
+def shot(page, path, res):
+    try:
+        page.screenshot(path=path, timeout=15000)
+    except Exception as e:
+        res.setdefault("hangs", []).append("скриншот не снялся (страница не отвечает?): %s" % str(e).splitlines()[0])
 
 
 def check(p, browser, device, url, a, d):
@@ -52,14 +60,17 @@ def check(p, browser, device, url, a, d):
     res = {"browser": browser, "device": device, "errors": [], "page_errors": [], "failed_requests": [],
            "perf": [], "bytes": 0}
     launch = {"headless": not a.headed}
+    # окно под другими окнами Chrome «усыпляет» (рисование и таймеры) — для замеров это отключаем
+    no_throttle = ["--disable-renderer-backgrounding", "--disable-background-timer-throttling",
+                   "--disable-backgrounding-occluded-windows", "--autoplay-policy=no-user-gesture-required"]
     if browser == "chrome":
         bt = p.chromium
         launch["channel"] = "chrome"
-        if not a.headed:
-            launch["args"] = ["--use-angle=swiftshader", "--enable-unsafe-swiftshader", "--ignore-gpu-blocklist"]
+        launch["args"] = no_throttle + ([] if a.headed else ["--use-angle=swiftshader", "--enable-unsafe-swiftshader", "--ignore-gpu-blocklist"])
     elif browser == "edge":
         bt = p.chromium
         launch["channel"] = "msedge"
+        launch["args"] = no_throttle
     elif browser == "firefox":
         bt = p.firefox
     else:
@@ -83,15 +94,6 @@ def check(p, browser, device, url, a, d):
         now = round(time.time() - t0, 2)
         if "Godot Engine v" in text and "engine" not in marks:
             marks["engine"] = now
-        if "[QA] menu ready" in text:
-            marks.setdefault("menu", now)
-        if "[QA] game ready" in text:
-            marks.setdefault("game", now)
-        if text.startswith("[QA-REPORT] "):
-            try:
-                res["bot_report"] = json.loads(text[12:])
-            except Exception:
-                pass
         if "PERF fps=" in text:
             res["perf"].append(text.strip())
         if m.type == "error" and "[QA-REPORT]" not in text:
@@ -99,7 +101,13 @@ def check(p, browser, device, url, a, d):
 
     page.on("console", on_console)
     page.on("pageerror", lambda e: res["page_errors"].append(str(e)[:300]))
-    page.on("requestfailed", lambda r: res["failed_requests"].append("%s %s" % (r.url, r.failure)))
+    def on_failed(r):
+        # прерванные загрузки при переходе на совместимую сборку (compat/) — не ошибка
+        if "ERR_ABORTED" in str(r.failure) or "cancelled" in str(r.failure).lower():
+            return
+        res["failed_requests"].append("%s %s" % (r.url, r.failure))
+
+    page.on("requestfailed", on_failed)
 
     def on_response(r):
         try:
@@ -121,13 +129,44 @@ def check(p, browser, device, url, a, d):
     except Exception as e:
         res["fatal"] = "страница не открылась: %s" % e
     deadline = time.time() + a.load_timeout
+    def poll():
+        # отметки игры из window.__qa (время — от начала загрузки страницы, performance.now)
+        try:
+            q = page.evaluate("window.__qa || {}")
+        except Exception:
+            return
+        for k, v in q.items():
+            if k == "menu_ready":
+                marks.setdefault("menu", round(v["t"] / 1000, 2))
+            elif k == "game_ready":
+                marks.setdefault("game", round(v["t"] / 1000, 2))
+            elif k == "auto_quality":
+                res["auto_quality"] = v["v"]
+            elif k == "report":
+                res["bot_report"] = v["v"]
+
+    while "menu" not in marks and time.time() < deadline and "fatal" not in res:
+        page.wait_for_timeout(500)
+        poll()
+    shot(page, os.path.join(d, tag + "_menu.png"), res)
+    if "menu" in marks:
+        # жест пользователя (на телефоне — касание): меню с ?qa=1 стартует игру по нему, браузер включает звук
+        page.wait_for_timeout(800)
+        try:
+            x = ctx_args.get("viewport", {"width": 1600})["width"] // 2
+            if ctx_args.get("has_touch"):
+                page.touchscreen.tap(x, 200)
+            else:
+                page.mouse.click(x, 300)
+        except Exception:
+            pass
     while "game" not in marks and time.time() < deadline and "fatal" not in res:
         page.wait_for_timeout(500)
-    page.screenshot(path=os.path.join(d, tag + "_start.png"))
+        poll()
     if "game" in marks:
-        page.mouse.click(ctx_args.get("viewport", {"width": 1600})["width"] // 2, 300)   # жест пользователя — для звука
         page.wait_for_timeout(int(a.play * 1000))
-        page.screenshot(path=os.path.join(d, tag + "_play.png"))
+        poll()
+        shot(page, os.path.join(d, tag + "_play.png"), res)
     else:
         txt = ""
         try:
@@ -145,10 +184,18 @@ def check(p, browser, device, url, a, d):
         tail = lv[-int(a.play * 4):] if a.play else lv
         silent = sum(1 for v in tail if v < 0.001)
         res["audio"] = {"max": max(lv), "samples": len(tail), "silent_share": round(silent / max(1, len(tail)), 2)}
-    fps = [int(m.group(1)) for m in (re.search(r"fps=(\d+)", x) for x in res["perf"]) if m]
+    try:
+        fps = page.evaluate("window.__qaFps || []")
+    except Exception:
+        fps = []
+    if not fps:
+        fps = [int(m.group(1)) for m in (re.search(r"fps=(\d+)", x) for x in res["perf"]) if m]
     if fps:
         res["fps"] = {"min": min(fps), "avg": round(sum(fps) / len(fps), 1), "samples": len(fps)}
-    b.close()
+    try:
+        b.close()
+    except Exception:
+        pass
     return res
 
 
@@ -166,11 +213,17 @@ def main():
     a = ap.parse_args()
     d = out_dir("web")
     results = []
-    with sync_playwright() as p:
-        for br in a.browsers.split(","):
-            for dev in a.devices.split(","):
-                r = check(p, br.strip(), dev.strip(), a.url, a, d)
-                results.append(r)
+    for br in a.browsers.split(","):
+        for dev in a.devices.split(","):
+            # отдельный сеанс Playwright на каждую комбинацию: падение одного браузера не роняет остальные
+            try:
+                with sync_playwright() as p:
+                    r = check(p, br.strip(), dev.strip(), a.url, a, d)
+            except Exception as e:
+                r = {"browser": br.strip(), "device": dev.strip(), "fatal": "сбой проверки: %s" % str(e).splitlines()[0],
+                     "errors": [], "page_errors": [], "failed_requests": []}
+            results.append(r)
+            if True:
                 t = r.get("timings_sec", {})
                 print("\n== %s / %s" % (r["browser"], r["device"]))
                 if r.get("fatal"):
@@ -183,7 +236,7 @@ def main():
                     print("   звук: макс %.3f, доля тишины %.0f%%" % (r["audio"]["max"], r["audio"]["silent_share"] * 100))
                 if "fps" in r:
                     print("   FPS: мин %d, средн %.1f" % (r["fps"]["min"], r["fps"]["avg"]))
-                for e in (r["errors"] + r["page_errors"] + r["failed_requests"])[:8]:
+                for e in (r["errors"] + r["page_errors"] + r["failed_requests"] + r.get("hangs", []))[:8]:
                     print("   ОШИБКА:", e)
                 if r.get("bot_report"):
                     br_ = r["bot_report"]

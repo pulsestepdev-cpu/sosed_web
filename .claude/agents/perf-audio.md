@@ -22,6 +22,9 @@ model: sonnet
   Живой сайт — без `--url` (https://sosed.2.28.66.82.nip.io/).
   В отчёте: `audio.silent_share` (доля тишины), `fps.min/avg`, ошибки консоли.
 - Наложения голосов: `voice_overlaps` в отчётах run_level (должно быть 0).
+- Качество графики: `--quality=low|high|auto` (игра), в браузере авто-режим пишет `auto_quality` (медианный FPS, включил ли низкое).
+- Веб: многопоточная сборка (Chrome/Edge/Firefox) — звук в отдельном потоке, не рвётся при тормозах; совместимая (`compat/`, Safari) —
+  звук в основном потоке, при FPS < 10 рвётся. web_check сам отключает «усыпление» фоновых окон Chrome/Edge.
 - Настройки звука: `scripts/autoload/settings.gd` (шины Music/Sfx/Voice, музыка `TRACKS`), веб-аудио — `[audio]` в `project.godot`.
 
 ## Пороги

@@ -10,7 +10,11 @@ model: sonnet
 ## Где игра
 - Живой сайт: https://sosed.2.28.66.82.nip.io/ (CapRover, nginx из `deploy/`; выкладка — GitHub Actions `.github/workflows/web.yml`).
 - Локально: `python tools/qa/build_web.py` → `python tools/qa/build_web.py --serve-only` (фоновой задачей) → http://127.0.0.1:8060/
-- Параметры страницы для тестов: `?qa=1` (сразу в игру), `&bot=normal` (играет бот), `&perf=1` (FPS в консоль), `&speed=2`.
+- Две сборки: корень — многопоточная (Chrome/Edge/Firefox; нужны заголовки COOP/COEP — они в `deploy/nginx.conf`),
+  `compat/` — без потоков (Safari, iPhone, iPad; страница `web/shell.html` сама переадресует). Страница загрузки — тоже `web/shell.html`.
+- Параметры страницы для тестов: `?qa=1` (игра стартует по первому клику/касанию в меню — как у живого игрока, иначе браузер
+  не включит звук), `&bot=normal` (играет бот), `&perf=1` (FPS), `&speed=2`. Отметки игры — в `window.__qa` (menu_ready,
+  game_ready, auto_quality, report), FPS — `window.__qaFps`. Консоль многопоточной сборки приходит с задержкой — время по ней не мерить.
 
 ## Инструменты
 - `python tools/qa/web_check.py --browsers chrome,edge,firefox,webkit --devices desktop,iphone,android,ipad --play 25`
@@ -30,8 +34,11 @@ model: sonnet
 6. HTTPS обязателен (по http Godot не стартует) — проверь, что http перенаправляет на https.
 
 ## Ограничения
-WebKit в Playwright ≈ Safari, но не настоящий iPhone; эмуляция телефона не повторяет слабую видеокарту и память.
-Без `--headed` FPS не показателен.
+WebKit в Playwright ≈ Safari, но не настоящий iPhone; в Playwright-WebKit под Windows нет Web Audio (звук не меряется)
+и часто не снимаются скриншоты — это особенность инструмента, не игры. Эмуляция телефона не повторяет слабую видеокарту и память.
+Без `--headed` браузер рисует 3D программно (1–5 FPS): однопоточный звук в таком режиме «голодает» — тишину без `--headed`
+не считать багом. Телефоны эмулируются горизонтально (`iphone`, `android`); `iphone-portrait` / `android-portrait` должны показать
+экран «Поверни телефон».
 
 ## Отчёт
 `screenshots/qa/reports/web-qa-<ГГГГММДД-ЧЧММ>.md`: таблица браузер × устройство (старт, время, МБ, звук, FPS, ошибки),

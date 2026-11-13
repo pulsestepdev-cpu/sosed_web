@@ -13,22 +13,39 @@ from common import ROOT, godot, utf8_stdout
 
 
 def build():
-    os.makedirs(os.path.join(ROOT, "build", "web"), exist_ok=True)
-    code, out = godot(["--export-release", "Web", "build/web/index.html"], timeout=900)
-    pck = os.path.join(ROOT, "build", "web", "index.pck")
-    wasm = os.path.join(ROOT, "build", "web", "index.wasm")
-    ok = os.path.exists(pck) and os.path.getsize(pck) > 0
-    print("Сборка:", "OK" if ok else "ОШИБКА (код %s)" % code)
-    if ok:
-        print("  index.pck  %.1f МБ" % (os.path.getsize(pck) / 1e6))
-        print("  index.wasm %.1f МБ" % (os.path.getsize(wasm) / 1e6))
-    else:
-        print(out[-3000:])
-    return ok
+    """Две сборки: build/web — многопоточная (Chrome/Edge/Firefox), build/web/compat — без потоков (Safari, iPhone)."""
+    ok_all = True
+    os.makedirs(os.path.join(ROOT, "build"), exist_ok=True)
+    open(os.path.join(ROOT, "build", ".gdignore"), "w").close()     # Godot не импортирует содержимое build/
+    for preset, sub in (("Web", ""), ("Web-compat", "compat")):
+        d = os.path.join(ROOT, "build", "web", sub)
+        os.makedirs(d, exist_ok=True)
+        code, out = godot(["--export-release", preset, os.path.join("build", "web", sub, "index.html").replace("\\", "/")], timeout=900)
+        pck, wasm = os.path.join(d, "index.pck"), os.path.join(d, "index.wasm")
+        ok = os.path.exists(pck) and os.path.getsize(pck) > 0
+        ok_all = ok_all and ok
+        print("Сборка %-10s:" % preset, "OK" if ok else "ОШИБКА (код %s)" % code)
+        if ok:
+            print("  index.pck  %.1f МБ, index.wasm %.1f МБ" % (os.path.getsize(pck) / 1e6, os.path.getsize(wasm) / 1e6))
+        else:
+            print(out[-3000:])
+    return ok_all
+
+
+class Handler(http.server.SimpleHTTPRequestHandler):
+    """Как nginx на сервере: заголовки изоляции (нужны многопоточной сборке) и без кэша."""
+    def end_headers(self):
+        self.send_header("Cross-Origin-Opener-Policy", "same-origin")
+        self.send_header("Cross-Origin-Embedder-Policy", "require-corp")
+        self.send_header("Cache-Control", "no-cache")
+        super().end_headers()
+
+    def log_message(self, *a):
+        pass
 
 
 def serve(port):
-    h = functools.partial(http.server.SimpleHTTPRequestHandler, directory=os.path.join(ROOT, "build", "web"))
+    h = functools.partial(Handler, directory=os.path.join(ROOT, "build", "web"))
     print("Сервер: http://127.0.0.1:%d/" % port)
     http.server.ThreadingHTTPServer(("127.0.0.1", port), h).serve_forever()
 

@@ -32,6 +32,12 @@ func _ready() -> void:
 	_check(vb, "Полный экран", Settings.fullscreen, func(on):
 		Settings.fullscreen = on
 		Settings.apply())
+	_choice(vb, "Графика", [["auto", "Авто"], ["high", "Высокая"], ["low", "Низкая"]], Settings.quality, func(v):
+		Settings.quality = v
+		var g := get_tree().current_scene
+		if g is Game3D:
+			g.low_quality = false
+			g.apply_quality())
 	_check(vb, "Крупная камера (обзор — мышь к краю экрана)", Settings.camera_close, func(on):
 		Settings.camera_close = on
 		var g := get_tree().current_scene
@@ -47,6 +53,41 @@ func _ready() -> void:
 	back.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
 	back.pressed.connect(_close)
 	vb.add_child(back)
+
+## Выбор из нескольких вариантов: подпись и ряд кнопок, выбранная — оранжевая.
+func _choice(parent: Control, title: String, options: Array, value: String, on_pick: Callable) -> void:
+	var hb := HBoxContainer.new()
+	hb.add_theme_constant_override("separation", 14)
+	parent.add_child(hb)
+	var l := UiStyle.label(title, 32)
+	l.custom_minimum_size = Vector2(200, 0)
+	hb.add_child(l)
+	var btns: Array[Button] = []
+	for o in options:
+		var b := Button.new()
+		b.text = o[1]
+		b.focus_mode = Control.FOCUS_NONE
+		b.toggle_mode = true
+		b.custom_minimum_size = Vector2(170, 52)
+		b.add_theme_font_size_override("font_size", 28)
+		for st in ["normal", "hover", "pressed", "hover_pressed"]:
+			var sb := StyleBoxFlat.new()
+			sb.bg_color = Color("e07a2a") if st.contains("pressed") else Color(0.3, 0.17, 0.08, 0.9)
+			sb.border_color = Color("3a1b0c")
+			sb.set_border_width_all(3)
+			sb.set_corner_radius_all(12)
+			b.add_theme_stylebox_override(st, sb)
+		b.add_theme_color_override("font_color", UiStyle.C_TEXT)
+		b.add_theme_color_override("font_pressed_color", Color.WHITE)
+		b.button_pressed = o[0] == value
+		btns.append(b)
+		hb.add_child(b)
+	for i in btns.size():
+		var key: String = options[i][0]
+		btns[i].pressed.connect(func():
+			for j in btns.size():
+				btns[j].set_pressed_no_signal(j == i)
+			on_pick.call(key))
 
 func _check(parent: Control, title: String, value: bool, on_toggle: Callable) -> void:
 	var cb := CheckButton.new()

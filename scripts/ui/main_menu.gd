@@ -5,6 +5,7 @@ const GAME := "res://scenes/game.tscn"
 
 var _buttons: VBoxContainer
 var _loading: Label
+var _qa_wait := false
 
 func _ready() -> void:
 	set_anchors_preset(Control.PRESET_FULL_RECT)
@@ -68,10 +69,18 @@ func _ready() -> void:
 	# появление кнопок
 	_buttons.modulate.a = 0.0
 	create_tween().tween_property(_buttons, "modulate:a", 1.0, 0.6).set_delay(0.2)
-	print("[QA] menu ready")
+	Settings.qa_mark("menu_ready")
 	var dbg := Settings.debug_args()
-	if dbg.has("play") or dbg.has("qa"):
+	if dbg.has("play"):
 		_play.call_deferred()
+	elif dbg.has("qa"):            # автотест в браузере: старт по первому клику/касанию — как у живого игрока
+		_qa_wait = true            # (браузер включает звук только после жеста пользователя)
+		print("[QA] waiting for gesture")
+
+func _input(ev: InputEvent) -> void:
+	if _qa_wait and ((ev is InputEventMouseButton and ev.pressed) or (ev is InputEventScreenTouch and ev.pressed)):
+		_qa_wait = false
+		_play()
 
 func _play() -> void:
 	_buttons.visible = false

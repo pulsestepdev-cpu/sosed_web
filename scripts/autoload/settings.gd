@@ -13,6 +13,7 @@ var voice_volume := 1.0
 var fullscreen := false
 var camera_close := false       # true — крупная камера на героя с прокруткой у краёв экрана
 var show_tasks := true          # список заданий в игре (Tab)
+var quality := "auto"           # графика: auto (по FPS в начале игры) | high | low
 
 var _music: AudioStreamPlayer
 var _music_name := ""
@@ -52,6 +53,7 @@ func _load() -> void:
 	fullscreen = c.get_value("video", "fullscreen", fullscreen)
 	camera_close = c.get_value("game", "camera_close", camera_close)
 	show_tasks = c.get_value("game", "show_tasks", show_tasks)
+	quality = c.get_value("video", "quality", quality)
 
 func save() -> void:
 	var c := ConfigFile.new()
@@ -61,6 +63,7 @@ func save() -> void:
 	c.set_value("video", "fullscreen", fullscreen)
 	c.set_value("game", "camera_close", camera_close)
 	c.set_value("game", "show_tasks", show_tasks)
+	c.set_value("video", "quality", quality)
 	c.save(PATH)
 
 func apply() -> void:
@@ -141,6 +144,14 @@ func debug_args() -> Dictionary:
 				var kv := (pair as String).split("=", true, 1)
 				out[kv[0].uri_decode()] = kv[1].uri_decode() if kv.size() > 1 else "true"
 	return out
+
+## Отметка для автотестов: печать в лог и, в браузере, в window.__qa (консоль многопоточной сборки приходит
+## с задержкой, а переменную страницы web_check.py читает сразу). value — любое значение для JSON.
+func qa_mark(key: String, value: Variant = true) -> void:
+	print("[QA] %s %s" % [key, str(value) if not (value is Dictionary or value is Array) else ""])
+	if OS.has_feature("web"):
+		var js := "window.__qa=window.__qa||{};window.__qa[%s]={t:performance.now(),v:%s};" % [JSON.stringify(key), JSON.stringify(value)]
+		JavaScriptBridge.eval(js, true)
 
 func has_voice(text: String) -> bool:
 	return _voice_index.has(text)

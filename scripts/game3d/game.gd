@@ -18,7 +18,7 @@ extends Node
 ##   --bot=careful|normal|reckless   бот сам проходит уровень
 ##   --report=путь.json  отчёт (события, задания, поимки, наложения голосов, FPS)
 ##   --quit-on-end       закрыть после итогов   --max-real=сек   страховка по реальному времени
-##   --perf              печатать FPS раз в 5 с
+##   --perf              печатать FPS раз в 5 с      --quality=low|high|auto  графика
 
 const LEVEL := "res://scenes/level1_3d.tscn"
 const PROPS := "res://assets/models/props/"
@@ -72,6 +72,10 @@ var _tv: MeshInstance3D
 var _tv_mat: ShaderMaterial
 var _tv_power := 0.0       # финал: камера крупно на танцующем герое
 var _focus_n := false
+var low_quality := false      # сейчас включена низкая графика
+var _q_samples: Array[float] = []   # авто-качество: FPS в первые секунды игры
+var _q_decided := false
+var _env_ambient := 0.28
 var qa_bot: QaBot
 var qa_rec: QaRecorder
 var _perf_t := 0.0          # отладка: камера крупно на соседе            # отладка: сосед не замечает героя
@@ -79,6 +83,8 @@ var _perf_t := 0.0          # отладка: камера крупно на с�
 func _ready() -> void:
 	var args := _args()
 	time_scale = float(args.get("timescale", "1"))
+	if args.has("quality"):        # --quality=low|high|auto (не сохраняется в настройках)
+		Settings.quality = args["quality"]
 	hour = float(args.get("start", str(START_HOUR)))
 	zoomed = args.has("zoom") or Settings.camera_close
 
@@ -152,7 +158,10 @@ func _ready() -> void:
 	if hour > Neighbor3D.WAKE_HOUR and neighbor.mode == "bed":   # старт с середины дня
 		neighbor.skip_to(hour)
 	_update_camera(true)
-	print("[QA] game ready")
+	var env := (level.get_node("Environment") as WorldEnvironment).environment
+	_env_ambient = env.ambient_light_energy
+	apply_quality()
+	Settings.qa_mark("game_ready")
 
 func _apply_debug(args: Dictionary) -> void:
 	if args.has("drunk"):
@@ -248,7 +257,9 @@ func _apply_debug(args: Dictionary) -> void:
 				_perf_t = 0.0
 				print("[%05.2f] PERF fps=%d  frame=%.1fms  objects=%d  draw_calls=%d" % [hour, Engine.get_frames_per_second(),
 					Performance.get_monitor(Performance.TIME_PROCESS) * 1000.0, Performance.get_monitor(Performance.OBJECT_COUNT),
-					Performance.get_monitor(Performance.RENDER_TOTAL_DRAW_CALLS_IN_FRAME)]))
+					Performance.get_monitor(Performance.RENDER_TOTAL_DRAW_CALLS_IN_FRAME)])
+				if OS.has_feature("web"):
+					JavaScriptBridge.eval("(window.__qaFps=window.__qaFps||[]).push(%d);" % Engine.get_frames_per_second(), true))
 	if args.has("speed"):
 		Engine.time_scale = float(args["speed"])
 	if args.has("autostart"):
@@ -530,6 +541,38 @@ func _process(delta: float) -> void:
 		hero_text, neighbor.suspicion, paused, Engine.time_scale > 1.0, delta)
 	_last_nx = neighbor.position.x
 	_update_tv(delta)
+	_auto_quality(delta)
+
+## Качество графики: high — тени, лампы в комнатах, полное разрешение; low — без теней и ламп (светлее общий свет),
+## 3D в 70% разрешения (интерфейс остаётся чётким). auto: стартует с high и в первые секунды игры меряет FPS.
+func apply_quality() -> void:
+	var low := Settings.quality == "low" or (Settings.quality == "auto" and low_quality)
+	low_quality = low
+	(level.get_node("Sun") as DirectionalLight3D).shadow_enabled = not low
+	for l in level.get_node("RoomLights").get_children():
+		(l as Light3D).visible = not low
+	var env := (level.get_node("Environment") as WorldEnvironment).environment
+	env.ambient_light_energy = _env_ambient * (2.4 if low else 1.0)
+	get_viewport().scaling_3d_scale = 0.7 if low else 1.0
+
+func _auto_quality(delta: float) -> void:
+	if _q_decided or Settings.quality != "auto" or not started or paused:
+		return
+	var real := delta / maxf(0.01, Engine.time_scale)
+	if real <= 0.0:
+		return
+	_q_samples.append(1.0 / real)
+	if _q_samples.size() < 150:          # ~3–5 секунд игры
+		return
+	_q_decided = true
+	var s := _q_samples.slice(30)        # первые кадры — разгон, не считаем
+	s.sort()
+	var median: float = s[s.size() / 2]
+	Settings.qa_mark("auto_quality", {"median_fps": snappedf(median, 0.1), "low": median < 40.0})
+	if median < 40.0 and not low_quality:
+		low_quality = true
+		apply_quality()
+		hud.show_toast("Графика упрощена для плавности (Настройки → Графика)", true)
 
 ## Телевизор включён, пока сосед на месте «играет в приставку»: экран «раскрывается» полоской и гаснет.
 func _update_tv(delta: float) -> void:

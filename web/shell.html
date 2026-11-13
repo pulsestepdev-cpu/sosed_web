@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="ru">
+	<head>
+		<meta charset="utf-8">
+		<meta name="viewport" content="width=device-width, height=device-height, user-scalable=no, initial-scale=1.0, viewport-fit=cover">
+		<meta name="mobile-web-app-capable" content="yes">
+		<meta name="apple-mobile-web-app-capable" content="yes">
+		<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+		<meta name="theme-color" content="#2a1408">
+		<title>Как набухать соседа</title>
+		<style>
+html, body, #canvas { margin: 0; padding: 0; border: 0; }
+html, body { width: 100%; height: 100%; }
+body {
+	color: #ffe9b8; background: #2a1408; overflow: hidden; touch-action: none;
+	font-family: 'Segoe UI', 'Noto Sans', 'Roboto', Arial, sans-serif;
+	-webkit-user-select: none; user-select: none; -webkit-touch-callout: none; -webkit-tap-highlight-color: transparent;
+}
+#canvas { display: block; width: 100%; height: 100%; }
+#canvas:focus { outline: none; }
+
+/* экран загрузки */
+#status {
+	position: fixed; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center;
+	background: radial-gradient(ellipse at 50% 35%, #6b3415 0%, #3a1b0c 55%, #1c0d05 100%);
+	padding: 24px; box-sizing: border-box; text-align: center; z-index: 5;
+}
+#title { font-size: clamp(34px, 7vw, 76px); font-weight: 800; color: #ffcf5a; letter-spacing: 1px;
+	text-shadow: 0 4px 0 #8a3b0e, 0 8px 18px rgba(0,0,0,.6); line-height: 1.05; }
+#subtitle { margin-top: 10px; font-size: clamp(15px, 2.4vw, 22px); color: #e2c697; }
+#bar { width: min(560px, 80vw); height: 22px; margin-top: 40px; border-radius: 12px; background: rgba(0,0,0,.45);
+	border: 3px solid #c98a3c; overflow: hidden; }
+#fill { height: 100%; width: 0%; background: linear-gradient(90deg, #e0662f, #ffb347); transition: width .2s; }
+#fill.indeterminate { width: 35%; animation: slide 1.2s ease-in-out infinite; }
+@keyframes slide { 0% { margin-left: -35%; } 100% { margin-left: 100%; } }
+#progress-text { margin-top: 12px; font-size: 18px; color: #ffe9b8; min-height: 24px; }
+#tip { margin-top: 18px; max-width: 640px; font-size: 15px; color: #c9a777; min-height: 20px; }
+#notice { display: none; max-width: 720px; margin-top: 28px; padding: 18px 22px; border-radius: 14px;
+	background: rgba(60, 18, 10, .92); border: 3px solid #c0503a; color: #ffe2d6; font-size: 17px; line-height: 1.45; text-align: left; }
+#notice b { color: #ffcf5a; }
+#notice ol { margin: 8px 0 0 20px; padding: 0; }
+#notice small { display: block; margin-top: 10px; color: #c9a777; font-size: 13px; white-space: pre-wrap; }
+
+/* телефон вертикально — просим повернуть */
+#rotate { display: none; position: fixed; inset: 0; z-index: 10; background: #2a1408; color: #ffe9b8;
+	align-items: center; justify-content: center; flex-direction: column; text-align: center; font-size: 22px; padding: 30px; }
+#rotate .phone { width: 70px; height: 120px; border: 6px solid #ffcf5a; border-radius: 14px; margin-bottom: 26px;
+	animation: turn 2s ease-in-out infinite; }
+@keyframes turn { 0%, 30% { transform: rotate(0); } 60%, 100% { transform: rotate(-90deg); } }
+@media (orientation: portrait) and (pointer: coarse) { #rotate { display: flex; } }
+		</style>
+		$GODOT_HEAD_INCLUDE
+	</head>
+	<body>
+		<canvas id="canvas">Браузер не поддерживает canvas.</canvas>
+		<noscript>Для игры нужен включённый JavaScript.</noscript>
+
+		<div id="status">
+			<div id="title">Как набухать соседа</div>
+			<div id="subtitle">Уровень 1 · «Понедельник. Больше не пью»</div>
+			<div id="bar"><div id="fill" class="indeterminate"></div></div>
+			<div id="progress-text">Загрузка…</div>
+			<div id="tip">Первая загрузка — около минуты, дальше браузер запомнит игру и откроет быстрее.</div>
+			<div id="notice"></div>
+		</div>
+		<div id="rotate"><div class="phone"></div>Поверни телефон горизонтально</div>
+
+		<script>
+// 1) Выбор сборки: многопоточная (звук не рвётся при тормозах) — Chrome/Edge/Firefox; Safari, iPhone/iPad и браузеры
+//    без изоляции страницы — совместимая из папки compat/.
+(function () {
+	if (!$GODOT_THREADS_ENABLED) return;
+	const ua = navigator.userAgent;
+	const ios = /iPad|iPhone|iPod/.test(ua) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+	const safari = /^((?!chrome|chromium|android|crios|fxios|edg|opr).)*safari/i.test(ua);
+	if (ios || safari || !window.crossOriginIsolated || typeof SharedArrayBuffer === 'undefined') {
+		window.__toCompat = true;
+		window.location.replace('compat/' + window.location.search + window.location.hash);
+	}
+})();
+		</script>
+		<script src="$GODOT_URL"></script>
+		<script>
+const GODOT_CONFIG = $GODOT_CONFIG;
+const GODOT_THREADS_ENABLED = $GODOT_THREADS_ENABLED;
+
+(function () {
+	if (window.__toCompat) return;
+	const status = document.getElementById('status');
+	const fill = document.getElementById('fill');
+	const text = document.getElementById('progress-text');
+	const tip = document.getElementById('tip');
+	const notice = document.getElementById('notice');
+	let done = false;
+
+	function fail(html, tech) {
+		document.getElementById('bar').style.display = 'none';
+		text.textContent = '';
+		tip.textContent = '';
+		notice.innerHTML = html + (tech ? '<small>' + String(tech).replace(/</g, '&lt;') + '</small>' : '');
+		notice.style.display = 'block';
+		done = true;
+	}
+
+	// 2) 3D в браузере (WebGL 2) — без него будет чёрный экран, лучше сразу объяснить, что делать
+	function hasWebGL2() {
+		try { const c = document.createElement('canvas'); return !!c.getContext('webgl2'); } catch (e) { return false; }
+	}
+	if (!hasWebGL2()) {
+		fail('<b>Браузер не дал игре 3D-графику (WebGL 2).</b> Обычно помогает:' +
+			'<ol><li>Chrome / Edge: Настройки → Система → включить «Использовать графическое ускорение» и перезапустить браузер.</li>' +
+			'<li>Firefox: в адресной строке about:preferences → Производительность → включить аппаратное ускорение.</li>' +
+			'<li>Обновить браузер и драйвер видеокарты.</li>' +
+			'<li>Открыть игру в другом браузере (лучше всего — свежий Chrome или Edge).</li></ol>',
+			navigator.userAgent);
+		return;
+	}
+
+	const missing = Engine.getMissingFeatures({ threads: GODOT_THREADS_ENABLED });
+	if (missing.length !== 0) {
+		fail('<b>Браузеру не хватает возможностей для игры.</b> Попробуй свежий Chrome или Edge; на iPhone — свежий Safari.',
+			missing.join('\n'));
+		return;
+	}
+
+	const t0 = Date.now();
+	const slowTip = setInterval(function () {
+		if (done) { clearInterval(slowTip); return; }
+		const s = (Date.now() - t0) / 1000;
+		if (s > 25) tip.textContent = 'Долго? Игра большая (~60 МБ). На медленном интернете это может занять пару минут — не закрывай вкладку.';
+		if (s > 90) tip.textContent = 'Всё ещё грузится… Если полоса не двигается — обнови страницу (Ctrl+F5) или попробуй другой браузер.';
+	}, 1000);
+
+	const engine = new Engine(GODOT_CONFIG);
+	engine.startGame({
+		onProgress: function (current, total) {
+			if (current > 0 && total > 0) {
+				fill.classList.remove('indeterminate');
+				fill.style.width = Math.min(100, current / total * 100).toFixed(1) + '%';
+				text.textContent = 'Загрузка: ' + (current / 1048576).toFixed(1) + ' из ' + (total / 1048576).toFixed(1) + ' МБ';
+				if (current >= total) text.textContent = 'Запуск…';
+			} else {
+				fill.classList.add('indeterminate');
+				text.textContent = 'Загрузка…';
+			}
+		},
+	}).then(function () {
+		done = true;
+		status.remove();
+	}, function (err) {
+		console.error(err);
+		fail('<b>Игра не запустилась.</b> Обнови страницу (Ctrl+F5). Если не помогает — открой в свежем Chrome или Edge ' +
+			'и проверь, что включено аппаратное ускорение (Настройки → Система).', err && err.message ? err.message : err);
+	});
+})();
+		</script>
+	</body>
+</html>

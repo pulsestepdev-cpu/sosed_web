@@ -29,10 +29,12 @@ jobs:
       - name: Импорт ресурсов и экспорт Web
         run: |
           ./godot --headless --path . --import || true
-          mkdir -p build/web
+          mkdir -p build/web/compat && touch build/.gdignore
           ./godot --headless --path . --export-release "Web" build/web/index.html
+          ./godot --headless --path . --export-release "Web-compat" build/web/compat/index.html
           test -s build/web/index.pck && test -s build/web/index.wasm
-          ls -la build/web
+          test -s build/web/compat/index.pck && test -s build/web/compat/index.wasm
+          ls -la build/web build/web/compat
 
       - name: Сборка — артефакт (можно скачать из вкладки Actions)
         uses: actions/upload-artifact@v4
