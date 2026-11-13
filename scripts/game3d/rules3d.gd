@@ -63,7 +63,7 @@ const SPOTS := [
 	["basement_jars", "stash", "cellar_shelf", 8.0, -1, "Закатки",               ""],
 	["sacks",     "hide",  "potato_sacks",    9.6, -1, "За мешками",             ""],
 	["workbench", "stash", "workbench",       11.1, -1, "Верстак",               ""],
-	["car",       "hide",  "car",             13.6, -1, "За машиной",            ""],
+	["car",       "hide",  "car",             14.9, -1, "За машиной",            ""],
 	["rods",      "take",  "fishing_rods",    16.4, -1, "Удочки",                "rods"],
 	["chest",     "stash", "old_chest",       4.3,  2, "Дедов сундук",           ""],
 	["boxes",     "hide",  "attic_boxes",     5.9,  2, "За коробками",           ""],
@@ -487,14 +487,15 @@ func neighbor_use(id: String) -> void:
 			elif id == "phone":
 				neighbor.say("Привет, откуда?", 2.0)
 		"ladder":
-			neighbor.climb_ladder()
+			# сначала шагами на стремянку лицом к ней (шаг climb), потом — лампочка
+			var climb := {"face": default_face(), "clip": "walk", "t": 0.6, "climb": true}
 			if swapped.has("ladder"):
 				swapped.erase("ladder")
 				game.spots["ladder"].done = false
 				_award("prank_bulb", 75, "Пакость: перегоревшая лампочка")
 				if stage() >= 2:
 					_award("chain_electric", 150, "Цепочка «Электрик»")
-					neighbor.react_seq([
+					neighbor.react_seq([climb,
 						{"face": "drunk", "clip": "bulb", "t": 1.8, "item": "light_bulb_burnt"},
 						{"face": "shock", "item": "", "clip": "fall_back", "t": 1.5, "fall": true, "sfx": "thud", "shake": 0.6, "line": "Уа-а-а!"},
 						{"face": "yell", "clip": "lie_back", "t": 2.2, "line": "Да как так нахуй?!"},
@@ -506,7 +507,7 @@ func neighbor_use(id: String) -> void:
 						_go_fridge())
 					gloat(3.0)
 				else:
-					neighbor.react_seq([
+					neighbor.react_seq([climb,
 						{"face": "normal", "clip": "bulb", "t": 1.6, "item": "light_bulb_burnt"},
 						{"face": "shock", "clip": "bulb", "t": 1.2, "sfx": "alert"},
 						{"face": "yell", "clip": "angry", "t": 2.2, "line": "Опять перегорела?", "down": true, "item": "", "shake": 0.2},
@@ -514,7 +515,7 @@ func neighbor_use(id: String) -> void:
 					])
 					gloat(2.0)
 			else:
-				neighbor.react_seq([{"face": default_face(), "clip": "bulb", "t": 1.6, "item": "light_bulb"},
+				neighbor.react_seq([climb, {"face": default_face(), "clip": "bulb", "t": 1.6, "item": "light_bulb"},
 					{"face": default_face(), "clip": "idle", "t": 0.4, "item": "", "down": true}])
 		"keys":
 			if taken.has("keys"):

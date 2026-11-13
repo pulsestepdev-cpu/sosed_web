@@ -62,7 +62,7 @@ func _draw() -> void:
 	# герой в укрытии — выглядывают глаза
 	var h := game.hero as Hero3D
 	if h.in_hiding and not h.visible and h.hide_spot:
-		var c := cam.unproject_position(h.hide_spot.aabb.get_center() + Vector3(0, h.hide_spot.aabb.size.y * 0.15, h.hide_spot.aabb.size.z * 0.5))
+		var c := cam.unproject_position(h.hide_eyes())
 		var blink := fmod(_t, 3.0) > 2.85
 		for sx in [-1.0, 1.0]:
 			var e: Vector2 = c + Vector2(sx * 9.0 * k, 0)

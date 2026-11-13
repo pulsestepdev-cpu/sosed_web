@@ -114,6 +114,9 @@ HOLD_CHEST = {"Arm": [-30.0, 0.0, -20.0], "ForeArm": [0.0, 0.0, -100.0], "Hand":
 HOLD_UP = {"Arm": [-20.0, -150.0, -10.0], "ForeArm": [0.0, 0.0, -10.0], "Hand": [0.0, 0.0, 0.0]}
 MOUTH_L = {"Arm": [-40.0, 10.0, -30.0], "ForeArm": [0.0, 0.0, -130.0], "Hand": [0.0, 0.0, 0.0]}
 DOOR = {"Arm": [-80.0, -10.0, 10.0], "ForeArm": [0.0, 0.0, -20.0], "Hand": [0.0, 0.0, 0.0]}
+BRIM = {"Arm": [-60.0, -40.0, -30.0], "ForeArm": [0.0, 0.0, -120.0], "Hand": [0.0, 0.0, 0.0]}   # пальцы на козырьке
+# козырёк кепки (поза покоя): кончик ~(0, -0.285, 1.60), у лба ~(0, -0.13, 1.49) — снято по рендеру сбоку
+BRIM_PT = (-0.05, -0.25, 1.575)
 
 # ---------------------------------------------------------------- анимации: ходьба
 @anim("idle", 90)
@@ -276,21 +279,37 @@ def a_caught(t):
     return p
 
 # ---------------------------------------------------------------- анимации: прятки
-@anim("hide_table", 45, loop=False)
+# Все клипы пряток начинаются лицом к укрытию (игра ставит героя в точку подхода и разворачивает),
+# корневое смещение (Hips, -Y — вперёд) ведёт его внутрь / под / за укрытие. Расстояния — под мебель
+# из tools/build_level_3d.gd (точки подхода — Hero3D.HIDES).
+
+def on_fours(p, k):
+    """На четвереньках с силой k: таз опущен и наклонён, бёдра вертикально, голени по полу, руки в пол."""
+    p.move(z=-0.36 * k)
+    p.add("Hips", rx=80 * k)
+    p.both("UpLeg", rx=-80 * k)                      # бёдра вниз, к полу
+    p.both("Leg", rx=92 * k)                         # голени лежат на полу
+    p.both("Foot", rx=50 * k)
+    p.add("Spine", rx=4 * k); p.add("Spine1", rx=4 * k)   # грудь ниже — кепка проходит под столешницу (0.72 м)
+    p.add("Head", rx=-26 * k)                        # смотрит вперёд-вниз
+    p.both("Arm", rx=-70 * k, ry=4 * k)              # руки к полу, локти согнуты
+    p.both("ForeArm", rz=-40 * k)
+
+@anim("hide_table", 54, loop=False)
 def a_hide_table(t):
-    """Под стол: присел, пригнул голову и гусиным шагом пролез вперёд, сжался в комок."""
+    """Под стол на четвереньках: опустился на колени, упёрся руками и прополз под столешницу, оглянулся."""
     p = stand(0, 0.0)
-    down = keys(t, [(0, 0), (0.3, 1)])
-    crouch(p, 0.40 * down, lean=45 * down)
-    p.add("Head", rx=30 * down)                      # голову под столешницу
-    go = keys(t, [(0.25, 0), (0.85, 1)])
-    p.move(y=-0.45 * go, z=0.015 * abs(S(t * 3)) * (1 if 0.25 < t < 0.85 else 0))
-    if 0.25 < t < 0.85:                              # мелкие шажки на корточках
-        w = S((t - 0.25) / 0.6 * 3)
-        p.side("L", "UpLeg", rx=-6 * w); p.side("R", "UpLeg", rx=6 * w)
-    hug = keys(t, [(0.75, 0), (1, 1)])
-    p.both("Arm", rx=-45 * down - 15 * hug, ry=-6, rz=-18 * hug)
-    p.both("ForeArm", rz=-20 * down - 70 * hug)
+    on_fours(p, keys(t, [(0, 0), (0.28, 1)]))
+    go = keys(t, [(0.3, 0), (0.82, 1)], ease=lambda f: f)
+    p.move(y=-0.55 * go)
+    if 0.3 < t < 0.82:                               # ползёт: левая рука с правым коленом, потом наоборот
+        w = S((t - 0.3) / 0.52 * 2)
+        p.side("L", "Arm", rx=-16 * w); p.side("R", "Arm", rx=16 * w)
+        p.side("R", "UpLeg", rx=-14 * w); p.side("L", "UpLeg", rx=14 * w)
+        p.add("Hips", rz=5 * w); p.add("Spine1", rz=-4 * w)
+        p.move(z=0.012 * abs(w))
+    look = keys(t, [(0.84, 0), (0.95, 1)])
+    p.add("Head", rz=35 * look, ry=-10 * look)      # оглянулся: не видит ли сосед
     return p
 
 @anim("hide_wardrobe", 60, loop=False)
@@ -310,27 +329,29 @@ def a_hide_wardrobe(t):
     p.side("L", "Arm", rz=-40 * close)
     return p
 
-@anim("hide_curtain", 60, loop=False)
+@anim("hide_curtain", 66, loop=False)
 def a_hide_curtain(t):
-    """В ванну за шторку: отдёрнул шторку, перешагнул бортик, задёрнул шторку."""
+    """В ванну за шторку: лицом к ванне отдёрнул шторку, перешагнул бортик, развернулся к зрителю и задёрнул."""
     p = stand(0, 0.0)
-    grab = keys(t, [(0, 0), (0.12, 1), (0.35, 1), (0.45, 0)])
-    aside = keys(t, [(0.12, 0), (0.32, 1)])
+    grab = keys(t, [(0, 0), (0.12, 1), (0.3, 1), (0.4, 0)])
+    aside = keys(t, [(0.12, 0), (0.28, 1)])
     arm_pose(p, "L", DOOR, grab)
     p.side("L", "Arm", rz=-70 * aside * grab, ry=-10 * aside * grab)    # отводит шторку в сторону
-    # перешагивает бортик ванны (~45 см): сначала правая, потом левая
-    r = keys(t, [(0.3, 0), (0.42, 1), (0.52, 0)])
-    l = keys(t, [(0.5, 0), (0.62, 1), (0.72, 0)])
-    p.side("R", "UpLeg", rx=-85 * r); p.side("R", "Leg", rx=95 * r); p.side("R", "Foot", rx=-10 * r)
-    p.side("L", "UpLeg", rx=-85 * l); p.side("L", "Leg", rx=95 * l); p.side("L", "Foot", rx=-10 * l)
-    p.move(y=-0.40 * keys(t, [(0.32, 0), (0.7, 1)]), z=0.03 * (r + l))
+    # перешагивает бортик ванны: сначала правая, потом левая
+    r = keys(t, [(0.28, 0), (0.37, 1), (0.46, 0)])
+    l = keys(t, [(0.42, 0), (0.51, 1), (0.6, 0)])
+    p.side("R", "UpLeg", rx=-88 * r); p.side("R", "Leg", rx=100 * r); p.side("R", "Foot", rx=-10 * r)
+    p.side("L", "UpLeg", rx=-88 * l); p.side("L", "Leg", rx=100 * l); p.side("L", "Foot", rx=-10 * l)
+    p.move(y=-0.62 * keys(t, [(0.3, 0), (0.58, 1)]), z=0.04 * (r + l) + 0.06 * keys(t, [(0.38, 0), (0.55, 1)]))
     p.add("Spine", rx=6 * (r + l))
     p.both("Arm", ry=-10 * (r + l))                  # балансирует
-    close = keys(t, [(0.72, 0), (0.85, 1), (0.95, 1), (1, 0.4)])
-    sweep = keys(t, [(0.78, 0), (0.95, 1)])
+    turn = keys(t, [(0.58, 0), (0.74, 1)])
+    p.add("Hips", rz=180 * turn)                     # развернулся лицом к зрителю
+    close = keys(t, [(0.72, 0), (0.82, 1), (0.94, 1), (1, 0.4)])
+    sweep = keys(t, [(0.76, 0), (0.94, 1)])
     arm_pose(p, "R", DOOR, close)
     p.side("R", "Arm", rz=50 * (1 - sweep) * close)  # тянет шторку поперёк
-    p.add("Head", rz=-25 * keys(t, [(0.72, 0), (0.85, 1), (1, 1)]))
+    p.add("Head", rz=-25 * keys(t, [(0.8, 0), (0.9, 1), (1, 1)]))
     return p
 
 @anim("hide_bed", 45, loop=False)
@@ -381,6 +402,180 @@ def a_hide_skis(t):
     p.add("Head", rx=-10 * flat, rz=-30 * keys(t, [(0.7, 0), (0.85, 1), (1, 1)]))  # косится наружу
     return p
 
+def foot_at(p, s, hy, hz, fy, fh, flat=1.0):
+    """Стопа s на опоре: таз сдвинут вперёд на hy и вверх на hz, стопа — вперёд на fy, на высоте fh (м)."""
+    leg_ik(p, s, fh - hz, fy - hy, flat)
+
+def tuck(p, k):
+    """Ноги поджаты (перемахнуть препятствие)."""
+    p.both("UpLeg", rx=-78 * k)
+    p.both("Leg", rx=105 * k)
+    p.both("Foot", rx=20 * k)
+
+@anim("hide_over", 54, loop=False)
+def a_hide_over(t):
+    """За диван: лицом к дивану — нога на сиденье, руки на спинку, перемахнул через спинку,
+    присел за ней и развернулся к зрителю. Сиденье 0.45 м в 0.43 м впереди, спинка 0.9 м, приземление — 1.5 м."""
+    p = stand(0, 0.0)
+    hy = keys(t, [(0, 0), (0.18, 0.32), (0.4, 0.72), (0.6, 1.2), (0.68, 1.4)])
+    hz = keys(t, [(0, 0), (0.1, -0.04), (0.2, 0.1), (0.4, 0.44), (0.5, 0.56), (0.6, 0.46), (0.68, 0.28), (0.78, -0.4)])
+    p.move(y=-hy, z=hz)
+    over = keys(t, [(0.38, 0), (0.46, 1), (0.62, 1), (0.7, 0)])
+    land = keys(t, [(0.62, 0), (0.78, 1)])
+    if t < 0.46:                                     # шагает на сиденье: правая, за ней левая
+        foot_at(p, "R", hy, hz, keys(t, [(0.04, 0), (0.18, 0.68)]), keys(t, [(0.04, 0), (0.12, 0.55), (0.18, 0.45)]))
+        foot_at(p, "L", hy, hz, keys(t, [(0.2, 0), (0.36, 0.78)]), keys(t, [(0.2, 0), (0.3, 0.6), (0.36, 0.45)]))
+        k = 1 - over
+        for s in ("L", "R"):                         # ноги — по ИК, плавно переходят в «поджал»
+            for b in ("UpLeg", "Leg", "Foot"):
+                r = p.r[("Left" if s == "L" else "Right") + b]
+                r[0] *= k
+        tuck(p, over)
+    elif t < 0.66:
+        tuck(p, over)
+    else:
+        foot_at(p, "L", hy, hz, hy + 0.05, 0.0)       # приземлился: ноги на пол, присел
+        foot_at(p, "R", hy, hz, hy + 0.05, 0.0)
+        tuck(p, 1 - keys(t, [(0.66, 0), (0.78, 1)]))
+    lean = keys(t, [(0.15, 0), (0.4, 1), (0.6, 1), (0.74, 0.1)])
+    p.add("Spine", rx=18 * lean); p.add("Spine1", rx=12 * lean); p.add("Head", rx=-14 * lean)
+    reach = keys(t, [(0.25, 0), (0.4, 1), (0.6, 1), (0.7, 0)])
+    p.both("Arm", rx=-70 * reach, ry=-10 * reach)    # руки на спинку
+    p.both("ForeArm", rz=-20 * reach)
+    p.both("Arm", rx=-40 * land, rz=-25 * land)      # присел, обхватил колени
+    p.both("ForeArm", rz=-70 * land)
+    p.add("Hips", rz=180 * keys(t, [(0.8, 0), (0.94, 1)]))   # за спинкой — лицом к зрителю
+    p.add("Head", rx=6 * land)
+    return p
+
+@anim("hide_climb", 60, loop=False)
+def a_hide_climb(t):
+    """За мешки / коробки (1.1–1.3 м): лицом к ним — руки наверх, подтянулся, лёг животом
+    и перевалился кувырком на ту сторону, ноги мелькнули в воздухе. Передняя грань — 0.43 м, задняя — 1.0 м."""
+    p = stand(0, 0.0)
+    # таз переваливается через задний край, голова сразу вниз: за мешками всего 0.5 м до стены
+    hy = keys(t, [(0, 0), (0.14, 0.2), (0.34, 0.5), (0.5, 0.7), (0.62, 0.85), (0.75, 1.02), (0.85, 1.06)])
+    hz = keys(t, [(0, 0), (0.1, -0.08), (0.2, 0.3), (0.34, 0.6), (0.5, 0.7), (0.62, 0.68), (0.75, 0.56), (0.85, 0.25)])
+    p.move(y=-hy, z=hz)
+    pitch = keys(t, [(0.14, 0), (0.34, 55), (0.5, 80), (0.62, 135), (0.75, 165), (0.85, 175)])
+    p.add("Hips", rx=pitch)
+    p.both("UpLeg", rx=-0.25 * pitch)                # ноги не по оси тела — болтаются
+    kick = keys(t, [(0.2, 0), (0.3, 1), (0.6, 1), (0.75, 0)])
+    w = S(t * 6)
+    p.side("L", "UpLeg", rx=-20 * kick * w); p.side("R", "UpLeg", rx=20 * kick * w)   # дрыгает ногами
+    p.both("Leg", rx=25 + 35 * kick * (0.5 + 0.5 * w))
+    p.both("Foot", rx=25 * kick)
+    up = keys(t, [(0, 0), (0.14, 1), (0.5, 1), (0.62, 0)])
+    p.both("Arm", rx=-150 * up, ry=-20 * up)         # руки вверх — на мешки
+    p.both("ForeArm", rz=-15 * up)
+    roll = keys(t, [(0.55, 0), (0.7, 1)])
+    p.both("Arm", rx=-80 * roll, ry=10 * roll)       # руки вперёд — встречает пол
+    p.add("Head", rx=-35 * keys(t, [(0.1, 0), (0.3, 1), (0.6, 0)]) + 20 * roll)
+    return p
+
+@anim("hide_hood", 48, loop=False)
+def a_hide_hood(t):
+    """За машину: разбег и «прыжок через капот» как в боевике — сел бедром на капот (0.88 м),
+    проехал поперёк (1.9 м), спрыгнул за машину лицом к зрителю и присел. Капот — в 0.34 м впереди."""
+    p = stand(0, 0.0)
+    hy = keys(t, [(0, 0), (0.16, 0.2), (0.3, 0.6), (0.6, 2.05), (0.76, 2.62)])
+    hz = keys(t, [(0, 0), (0.12, -0.1), (0.2, 0.02), (0.28, 0.32), (0.6, 0.3), (0.7, 0.12), (0.76, 0.0), (0.86, -0.42)])
+    p.move(y=-hy, z=hz)
+    run = keys(t, [(0, 1), (0.16, 1), (0.22, 0)])
+    if t < 0.22:                                      # два быстрых шага
+        p.side("L", "UpLeg", rx=-30 * S(t / 0.22) * run); p.side("R", "UpLeg", rx=30 * S(t / 0.22) * run)
+        p.side("L", "Leg", rx=30 * max(0.0, C(t / 0.22)) * run); p.side("R", "Leg", rx=30 * max(0.0, -C(t / 0.22)) * run)
+    sit = keys(t, [(0.2, 0), (0.3, 1), (0.6, 1), (0.72, 0)])
+    p.both("UpLeg", rx=-82 * sit)                    # сидит на капоте, ноги вперёд
+    p.both("Leg", rx=18 * sit)
+    p.both("Foot", rx=-10 * sit)
+    p.add("Spine", rx=-10 * sit)                     # откинулся назад
+    turn = keys(t, [(0.18, 0), (0.32, -90), (0.6, -110), (0.76, -180)])
+    p.add("Hips", rz=turn)
+    p.side("R", "Arm", rx=30 * sit, ry=20 * sit)     # правая — опора на капот
+    p.side("L", "Arm", ry=-60 * sit, rx=-20 * sit)   # левая — в сторону, для равновесия
+    p.side("L", "ForeArm", rz=-30 * sit)
+    land = keys(t, [(0.72, 0), (0.86, 1)])
+    if t > 0.7:
+        for s in ("L", "R"):
+            foot_at(p, s, 0.0, hz, 0.03, 0.0)
+    p.add("Spine", rx=30 * land); p.add("Head", rx=-10 * land)
+    p.both("Arm", rx=-35 * land, rz=-25 * land)
+    p.both("ForeArm", rz=-65 * land)
+    p.add("Head", rz=25 * S(keys(t, [(0.86, 0), (1, 1)], ease=lambda f: f)))   # выглядывает
+    return p
+
+# ---------------------------------------------------------------- победный танец
+def moonwalk(p, ph, amp=1.0):
+    """Лунная походка: колено согнуто и пятка поднята у одной ноги, другая прямая скользит назад; ph — фаза двух шагов."""
+    for s, sh in (("L", 0.0), ("R", 0.5)):
+        q = (ph + sh) % 1.0
+        bent = keys(q, [(0, 0), (0.06, 1), (0.44, 1), (0.5, 0)], ease=smooth) if q < 0.5 else 0.0
+        if q < 0.5:                                   # на носке: относительно тела едет вперёд
+            th = lerp(16, -10, q / 0.5)
+        else:                                         # прямая: скользит назад
+            th = lerp(-10, 16, (q - 0.5) / 0.5)
+        kn = 42 * bent
+        p.side(s, "UpLeg", rx=th * amp - 8 * bent)
+        p.side(s, "Leg", rx=kn + 2)
+        p.side(s, "Foot", rx=(-th * amp - kn) * (1 - bent) + (36 - th * amp - kn + 8) * bent)
+    p.move(z=-0.02)
+
+@anim("dance", 210)
+def a_dance(t):
+    """Победный танец в духе поп-короля 80-х (7 с, по кругу): поза «рука на козырьке», лунная походка
+    в профиль, оборот на носке, стойка на носках, мах ногой с рукой вверх, скользящий шаг вбок обратно."""
+    p = stand(t * 7, 0.3)
+    x0 = 0.45                                         # центр: уходит влево и возвращается
+    # --- путь и разворот
+    mw = keys(t, [(0.12, 0), (0.45, 1)], ease=lambda f: f)
+    glide = keys(t, [(0.74, 0), (0.92, 1)], ease=lambda f: f)
+    p.move(x=x0 - 0.9 * mw + 0.9 * glide)
+    rz = keys(t, [(0.07, 0), (0.12, 90), (0.45, 90), (0.54, 360), (1.0, 360)])
+    p.add("Hips", rz=rz)
+    # --- поза «рука на козырьке» (начало и конец цикла)
+    hat = keys(t, [(0, 1), (0.08, 1), (0.12, 0), (0.55, 0), (0.6, 1), (0.66, 1), (0.7, 0), (0.92, 0), (0.97, 1), (1, 1)])
+    arm_pose(p, "R", BRIM, hat)
+    p.add("Head", rx=16 * hat, rz=-10 * hat)
+    p.side("L", "Arm", ry=-20 * hat, rx=-10 * hat)   # левая чуть в сторону
+    pop = keys(t, [(0.0, 0), (0.04, 1), (0.08, 0)])  # «щелчок» коленом
+    p.side("R", "UpLeg", rx=-12 * pop, ry=8 * pop); p.side("R", "Leg", rx=24 * pop); p.side("R", "Foot", rx=20 * pop)
+    # --- лунная походка
+    if 0.12 <= t < 0.45:
+        moonwalk(p, (t - 0.12) / 0.33 * 2.0)
+        p.add("Spine", rx=6); p.add("Head", rx=-4)
+        sw = S((t - 0.12) / 0.33 * 2.0)
+        p.both("Arm", rx=-10, ry=-6); p.both("ForeArm", rz=-40)
+        p.side("L", "Arm", rx=10 * sw); p.side("R", "Arm", rx=-10 * sw)
+    # --- оборот на носке
+    spin = keys(t, [(0.45, 0), (0.47, 1), (0.53, 1), (0.55, 0)])
+    p.side("R", "Arm", ry=-110 * spin, rx=-20 * spin)
+    p.side("L", "Arm", rx=-40 * spin, rz=-40 * spin); p.side("L", "ForeArm", rz=-90 * spin)
+    p.side("L", "UpLeg", rx=-35 * spin); p.side("L", "Leg", rx=60 * spin)      # левая нога поджата
+    p.side("R", "Foot", rx=25 * spin); p.move(z=0.03 * spin)
+    # --- стойка на носках
+    toe = keys(t, [(0.55, 0), (0.58, 1), (0.63, 1), (0.66, 0)])
+    p.both("Foot", rx=48 * toe); p.both("Leg", rx=22 * toe); p.both("UpLeg", rx=-12 * toe, ry=4 * toe)
+    p.move(z=0.06 * toe); p.add("Spine", rx=8 * toe)
+    # --- мах ногой и рука вверх
+    kick = keys(t, [(0.66, 0), (0.69, 1), (0.71, 0.3), (0.73, 1), (0.76, 0)])
+    point = keys(t, [(0.66, 0), (0.69, 1), (0.74, 1), (0.78, 0)])
+    p.side("R", "UpLeg", rx=-55 * kick, ry=-12 * kick); p.side("R", "Leg", rx=55 * (1 - kick) * point)
+    p.side("R", "Arm", ry=-140 * point, rx=-30 * point)
+    p.side("L", "Arm", ry=-30 * point, rx=-30 * point); p.side("L", "ForeArm", rz=-100 * point)
+    p.add("Head", rx=-18 * point, rz=12 * point)     # «и-хи!»
+    p.add("Spine2", rx=-8 * point)
+    # --- скользящий шаг вбок, обратно на середину
+    if 0.74 <= t < 0.92:
+        g = (t - 0.74) / 0.18 * 3.0
+        for s, sh in (("L", 0.0), ("R", 0.5)):
+            u = max(0.0, S(g + sh))
+            p.side(s, "Leg", rx=30 * u); p.side(s, "UpLeg", rx=-12 * u); p.side(s, "Foot", rx=28 * u)
+        p.add("Hips", ry=4 * S(g)); p.add("Head", rz=-8 * S(g * 0.5))
+        p.both("Arm", rx=-8, ry=-4); p.both("ForeArm", rz=-55)
+        p.both("Shoulder", ry=-4 * abs(S(g)))
+    return p
+
 # ---------------------------------------------------------------- кисти по клипам
 def h_sneak(p, t):
     hand(p, "B", "claw")
@@ -424,10 +619,37 @@ def h_hide_bed(p, t):
 def h_hide_skis(p, t):
     hand(p, "B", "flat", keys(t, [(0.4, 0), (0.7, 1)]))
 
+def h_hide_table(p, t):
+    hand(p, "B", "flat", keys(t, [(0.12, 0), (0.28, 1)]))
+
+def h_hide_over(p, t):
+    hand(p, "B", "handle", keys(t, [(0.3, 0), (0.4, 1), (0.6, 1), (0.68, 0)]))
+    hand(p, "B", "fist", keys(t, [(0.72, 0), (0.9, 0.6)]))
+
+def h_hide_climb(p, t):
+    hand(p, "B", "spread", keys(t, [(0.05, 0), (0.15, 1), (0.6, 1), (0.7, 0.5)]))
+
+def h_hide_hood(p, t):
+    hand(p, "B", "flat", keys(t, [(0.2, 0), (0.3, 1), (0.62, 1), (0.72, 0)]))
+    hand(p, "B", "fist", keys(t, [(0.8, 0), (0.95, 0.6)]))
+
+def point_finger(p, s, k):
+    """Кулак с вытянутым указательным."""
+    hand(p, s, "fist", k)
+    p.side(s, "HandIndex1", ry=-76 * k); p.side(s, "HandIndex2", ry=-82 * k); p.side(s, "HandIndex3", ry=-60 * k)
+
+def h_dance(p, t):
+    hat = keys(t, [(0, 1), (0.08, 1), (0.12, 0), (0.55, 0), (0.6, 1), (0.66, 1), (0.7, 0), (0.92, 0), (0.97, 1), (1, 1)])
+    hand(p, "R", "handle", hat)
+    point_finger(p, "R", keys(t, [(0.66, 0), (0.69, 1), (0.74, 1), (0.78, 0)]))
+    hand(p, "L", "spread", keys(t, [(0.45, 0), (0.48, 1), (0.53, 1), (0.56, 0)]))
+    hand(p, "L", "fist", 0.5 * keys(t, [(0.12, 0), (0.16, 1), (0.42, 1), (0.45, 0)]))
+
 HAND_LAYER = {"sneak": h_sneak, "search_low": h_search, "search_mid": h_search, "take": h_take,
               "swap": h_swap, "success": h_success, "laugh": h_laugh, "caught": h_caught,
-              "hide_table": h_hide_hug, "hide_sofa": h_hide_hug, "hide_wardrobe": h_hide_door,
-              "hide_curtain": h_hide_curtain, "hide_bed": h_hide_bed, "hide_skis": h_hide_skis}
+              "hide_table": h_hide_table, "hide_sofa": h_hide_hug, "hide_wardrobe": h_hide_door,
+              "hide_curtain": h_hide_curtain, "hide_bed": h_hide_bed, "hide_skis": h_hide_skis,
+              "hide_over": h_hide_over, "hide_climb": h_hide_climb, "hide_hood": h_hide_hood, "dance": h_dance}
 
 # ---------------------------------------------------------------- решатель: руки к целям
 def grip_cost(side, target, palm=None, axis=None, wp=200, wa=200):
@@ -469,6 +691,14 @@ solve_starts("up", HOLD_UP, at(a_success, None, 0.6),
 solve_starts("mouthL", MOUTH_L, at(a_laugh, None, 0.0), mouth_cost, ARM_STARTS)
 solve_starts("door", DOOR, at(a_hide_wardrobe, None, 0.12),
              grip_cost("Right", (-0.20, -0.48, 1.0), palm=(1, 0, 0), wp=100), ARM_STARTS)
+
+def brim_cost():
+    """Пальцы правой — на козырьке (голова в позе наклонена, поэтому точка — от позы головы)."""
+    head, _ = bone_rest("RightHandGrip")
+    c = posed_point("RightHandGrip", head)
+    return ((c - posed_point("Head", BRIM_PT)).length * 100) ** 2 + 60 * (1 - posed_dir("RightHand", (0, 0, -1)).dot(Vector((0, 0.3, -1)).normalized()))
+solve_starts("brim", BRIM, at(a_dance, h_dance, 0.02), brim_cost, ARM_STARTS + [
+    {"Arm": [-90, -60, -40], "ForeArm": [0, 0, -130], "Hand": [0, 0, 0]}])
 
 record(HAND_LAYER)
 export(DST, BLEND)

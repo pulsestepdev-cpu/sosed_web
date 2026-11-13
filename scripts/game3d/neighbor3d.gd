@@ -431,6 +431,8 @@ func _next_step() -> void:
 		Settings.sfx(s["sfx"], 0.8)
 	if s.has("shake"):
 		game.shake(s["shake"])
+	if s.get("climb", false):
+		climb_ladder(maxf(0.2, _seq_t - 0.05))
 	if s.get("fall", false) or s.get("down", false):
 		_to_floor(0.45)
 
@@ -438,12 +440,17 @@ func _next_step() -> void:
 const LADDER_STAND := 6.0                       # где стоит перед стремянкой (x на дорожке)
 const LADDER_TOP := Vector3(6.25, 0.62, -2.05)  # куда встаёт на стремянке
 
-func climb_ladder() -> void:
+## Влезть на стремянку: лицом к ней, шагами (клип walk в шаге «climb»), наверху — вполоборота к зрителю.
+func climb_ladder(t := 0.55) -> void:
 	if on_ladder:
 		return
 	on_ladder = true
+	face_dir(LADDER_TOP - position)
 	var tw := create_tween()
-	tw.tween_property(self, "position", LADDER_TOP, 0.5).set_trans(Tween.TRANS_QUAD)
+	tw.tween_property(self, "position", LADDER_TOP, t).set_trans(Tween.TRANS_QUAD)
+	tw.tween_callback(func():
+		if on_ladder:
+			target_yaw = 0.35)
 
 func _to_floor(t := 0.3) -> void:
 	if not on_ladder:

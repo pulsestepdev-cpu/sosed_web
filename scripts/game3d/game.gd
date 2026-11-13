@@ -24,6 +24,8 @@ extends Node
 ##   --report=путь.json  отчёт (события, задания, поимки, наложения голосов, FPS)
 ##   --quit-on-end       закрыть после итогов   --max-real=сек   страховка по реальному времени
 ##   --selftest          самопроверка кликов у стола и «последней капли» (scripts/debug/selftest.gd)
+##   --animcheck         прятки дня без глаз: лицом к укрытию, не сквозь мебель (scripts/debug/anim_check.gd)
+##   --animwatch         следить за анимацией всю игру: «едет» без шагов, «пятится» (итог — в отчёт --report)
 ##   --save-progress     записать пройденный день и в автотесте (обычно прогресс пишет только игра без --autostart/бота)
 ##   --perf              печатать FPS раз в 5 с      --quality=low|high|auto  графика
 
@@ -103,6 +105,7 @@ var _q_samples: Array[float] = []   # авто-качество: FPS в перв
 var _q_decided := false
 var _env_ambient := 0.28
 var qa_bot: QaBot
+var anim_watch: QaAnimCheck      # --animcheck / --animwatch
 var qa_rec: QaRecorder
 var _perf_t := 0.0          # отладка: камера крупно на соседе            # отладка: сосед не замечает героя
 
@@ -152,7 +155,6 @@ func _ready() -> void:
 	hero.game = self
 	level.add_child(hero)
 	hero.setup("res://assets/models/characters/hero.glb", "hero")
-	hero.borrow_clip("res://assets/models/characters/neighbor.glb", "dance", "dance")
 	hero.position = HERO_START
 	hero.rotation.y = PI / 2
 	hero.target_yaw = PI / 2
@@ -313,6 +315,10 @@ func _apply_debug(args: Dictionary) -> void:
 		var st := QaSelfTest.new()
 		add_child(st)
 		st.setup(self)
+	if args.has("animcheck") or args.has("animwatch"):
+		anim_watch = QaAnimCheck.new()
+		add_child(anim_watch)
+		anim_watch.setup(self, args.has("animcheck"))
 	if args.has("bot"):
 		qa_bot = QaBot.new()
 		add_child(qa_bot)
@@ -858,7 +864,8 @@ func _auto_quality(delta: float) -> void:
 	if median < 40.0 and not low_quality:
 		low_quality = true
 		apply_quality()
-		hud.show_toast("Графика упрощена для плавности (Настройки → Графика)", true)
+		if not rules.over:          # в финале надпись перекрывала танец героя — упрощаем молча
+			hud.show_toast("Графика упрощена для плавности (Настройки → Графика)", true)
 
 ## Телевизор включён, пока сосед на месте «играет в приставку»: экран «раскрывается» полоской и гаснет.
 func _update_tv(delta: float) -> void:

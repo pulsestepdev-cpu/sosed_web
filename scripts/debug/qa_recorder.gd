@@ -111,6 +111,8 @@ func _write() -> void:
 		"real_seconds": snappedf((Time.get_ticks_usec() - _start_us) / 1e6, 0.1),
 		"events": _events,
 	}
+	if game.anim_watch:            # --animwatch: «едет» без шагов, «пятится»
+		rep["anim"] = game.anim_watch.summary()
 	if OS.has_feature("web"):      # в браузере файла нет — отчёт в window.__qa.report (забирает web_check.py)
 		rep.erase("events")
 		Settings.qa_mark("report", rep)
