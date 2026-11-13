@@ -99,7 +99,7 @@ func _bubble(at: Vector2, text: String, is_neighbor: bool, k: float) -> void:
 	var pad := Vector2(18, 10)
 	var size := Vector2(w, fs * 1.15) + pad * 2
 	var r := Rect2(at - Vector2(size.x * 0.5, size.y + 22), size)
-	r.position.x = clampf(r.position.x, 8, 1912 - r.size.x)
+	r.position.x = clampf(r.position.x, 8, size.x - 8 - r.size.x)
 	r.position.y = maxf(r.position.y, 150)
 	var bg := Color("fffaf0") if is_neighbor else Color("e9f6ff")
 	var sb := StyleBoxFlat.new()
@@ -138,7 +138,7 @@ func _thought(head: Vector2, text: String, k: float) -> void:
 	var w2 := _font.get_string_size(rest, HORIZONTAL_ALIGNMENT_LEFT, -1, fs).x
 	var size := Vector2(w1 + w2 + 44, fs * 1.15 + 26)
 	var r := Rect2(head - Vector2(size.x * 0.5, size.y + 64), size)
-	r.position.x = clampf(r.position.x, 12, 1908 - r.size.x)
+	r.position.x = clampf(r.position.x, 12, size.x - 12 - r.size.x)
 	r.position.y = maxf(r.position.y, 150)
 	var bg := Color("f4f7ff")
 	var line := Color("3a1b0c")

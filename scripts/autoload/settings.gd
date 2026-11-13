@@ -31,6 +31,7 @@ func _ready() -> void:
 			AudioServer.set_bus_send(AudioServer.bus_count - 1, "Master")
 	_load()
 	apply()
+	_apply_ui_scale()
 	_music = AudioStreamPlayer.new()
 	_music.bus = "Music"
 	add_child(_music)
@@ -42,6 +43,36 @@ func _ready() -> void:
 	var f := FileAccess.open(VOICE_DIR + "index.json", FileAccess.READ)
 	if f:
 		_voice_index = JSON.parse_string(f.get_as_text())
+
+var _touch := -1
+
+## Сенсорное устройство (телефон, планшет): основной указатель — палец. Ноутбук с сенсорным экраном и мышью — не считается.
+func is_touch() -> bool:
+	if _touch < 0:
+		_touch = 0
+		if OS.has_feature("web"):
+			var r = JavaScriptBridge.eval("((window.matchMedia && window.matchMedia('(pointer: coarse)').matches) || " +
+				"((navigator.maxTouchPoints || 0) > 0 && /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent)) || " +
+				"(navigator.platform === 'MacIntel' && (navigator.maxTouchPoints || 0) > 1)) ? 1 : 0", true)
+			_touch = 1 if str(r) in ["1", "true", "1.0"] else 0
+		elif OS.has_feature("mobile"):
+			_touch = 1
+		if Settings.debug_args().has("touch"):     # отладка: --touch (интерфейс телефона на ПК)
+			_touch = 1
+	return _touch == 1
+
+## Интерфейс крупнее на маленьких экранах: телефон ×1,6, планшет ×1,3 (по короткой стороне экрана в CSS-пикселях).
+func _apply_ui_scale() -> void:
+	if not is_touch():
+		return
+	qa_mark("touch", true)
+	var short := 400.0
+	if OS.has_feature("web"):
+		var v = JavaScriptBridge.eval("Math.min(screen.width, screen.height)", true)
+		if v is float or v is int:
+			short = float(v)
+	var k := 1.6 if short < 520.0 else (1.3 if short < 900.0 else 1.1)
+	get_tree().root.content_scale_factor = k
 
 func _load() -> void:
 	var c := ConfigFile.new()

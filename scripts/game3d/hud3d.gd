@@ -24,11 +24,20 @@ var overlay: Control
 var suspicion_bar: ProgressBar
 var tasks: Control
 var _task_t := 0.0
+var _left: PanelContainer
+var _right: PanelContainer
+var _inv_panel: PanelContainer
+var _hint: Label
+var _tip_t := 0.0             # подсказка после тапа (на телефоне нет наведения мыши)
+var touch_bar: Control        # экранные кнопки (телефон/планшет)
+var _sneak_btn: Button
+signal touch_action(what: String)
 var _drunk_shown := 0.0
 
 func _ready() -> void:
 	layer = 10
 	var left := _panel(Vector2(20, 14))
+	_left = left
 	var hb := HBoxContainer.new()
 	hb.add_theme_constant_override("separation", 26)
 	left.add_child(hb)
@@ -38,6 +47,7 @@ func _ready() -> void:
 	hb.add_child(status)
 
 	var right := _panel(Vector2(1290, 14))
+	_right = right
 	right.custom_minimum_size = Vector2(610, 0)
 	var vb := VBoxContainer.new()
 	right.add_child(vb)
@@ -55,13 +65,14 @@ func _ready() -> void:
 	add_child(suspicion_bar)
 
 	var inv_panel := _panel(Vector2(510, 940))
+	_inv_panel = inv_panel
 	inv_panel.custom_minimum_size = Vector2(900, 104)
 	inv_panel.mouse_filter = Control.MOUSE_FILTER_STOP
 	inv_box = HBoxContainer.new()
 	inv_box.add_theme_constant_override("separation", 10)
 	inv_box.alignment = BoxContainer.ALIGNMENT_CENTER
 	inv_panel.add_child(inv_box)
-	inv_panel.resized.connect(func(): inv_panel.position.x = (1920 - inv_panel.size.x) * 0.5)
+	inv_panel.resized.connect(_layout)
 
 	var hint := _label(18, Color("c9a777"))
 	hint.text = "ЛКМ — идти / взять / подложить  ·  ПКМ/Shift — крадучись  ·  колесо или Z — крупно (мышь к краю — обзор, C — к герою)  ·  Tab — задания  ·  Пробел — пауза  ·  F — ускорить  ·  Esc — меню"
@@ -69,6 +80,7 @@ func _ready() -> void:
 	hint.add_theme_color_override("font_outline_color", Color(0.1, 0.05, 0.02))
 	hint.add_theme_constant_override("outline_size", 6)
 	add_child(hint)
+	_hint = hint
 
 	toasts = VBoxContainer.new()
 	toasts.position = Vector2(560, 700)
@@ -83,6 +95,111 @@ func _ready() -> void:
 	tooltip.add_theme_constant_override("outline_size", 10)
 	tooltip.visible = false
 	add_child(tooltip)
+	if Settings.is_touch():
+		_build_touch_bar()
+		Settings.show_tasks = false      # на телефоне список заданий — по кнопке
+	get_viewport().size_changed.connect(_layout)
+	_layout()
+
+## Раскладка от реального размера экрана (на телефонах он шире 16:9, а интерфейс крупнее — см. Settings.ui_scale).
+func _layout() -> void:
+	var vs := get_viewport().get_visible_rect().size
+	if touch_bar:     # на телефоне сумка — между колонками экранных кнопок
+		_inv_panel.custom_minimum_size.x = minf(900.0, vs.x - 2.0 * 230.0)
+	# узкий экран (телефон 16:9 с крупным интерфейсом): правая панель уже, строка статуса обрезается, а не наезжает
+	var narrow := vs.x < 1450.0
+	_right.custom_minimum_size.x = 470.0 if narrow else 610.0
+	drunk_label.add_theme_font_size_override("font_size", 23 if narrow else 27)
+	status.clip_text = true
+	status.custom_minimum_size.x = clampf(vs.x - _right.custom_minimum_size.x - 330.0, 200.0, 640.0)
+	_right.size = Vector2.ZERO
+	_left.size = Vector2.ZERO
+	_left.position = Vector2(20, 14)
+	_right.position = Vector2(vs.x - _right.custom_minimum_size.x - 64, 14)
+	suspicion_bar.position = Vector2(vs.x * 0.5 - 200, 150)
+	_inv_panel.position = Vector2((vs.x - _inv_panel.size.x) * 0.5, vs.y - _inv_panel.size.y - 36)
+	_hint.position = Vector2(24, vs.y - 30)
+	_hint.visible = not Settings.is_touch()
+	toasts.position = Vector2(vs.x * 0.5 - 400, vs.y * 0.62)
+	if tasks:
+		tasks.position = Vector2(vs.x - TASK_RECT.size.x - (232.0 if touch_bar else 10.0), 146 if not touch_bar else 176)
+	if touch_bar:
+		touch_bar.size = vs
+	if overlay:
+		overlay.size = vs
+		for c in overlay.get_children():
+			(c as Control).size = vs
+
+## Экранные кнопки для телефона: справа — крадучись, задания, камера, к герою; слева — пауза, на весь экран.
+func _build_touch_bar() -> void:
+	touch_bar = Control.new()
+	touch_bar.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	add_child(touch_bar)
+	var right_col := VBoxContainer.new()
+	right_col.add_theme_constant_override("separation", 12)
+	right_col.set_anchors_and_offsets_preset(Control.PRESET_BOTTOM_RIGHT)
+	right_col.grow_horizontal = Control.GROW_DIRECTION_BEGIN
+	right_col.grow_vertical = Control.GROW_DIRECTION_BEGIN
+	right_col.offset_right = -16
+	right_col.offset_bottom = -16
+	touch_bar.add_child(right_col)
+	_sneak_btn = _touch_btn(right_col, "Крадучись", "sneak")
+	_sneak_btn.toggle_mode = true
+	_touch_btn(right_col, "Задания", "tasks")
+	_touch_btn(right_col, "Камера", "camera")
+	_touch_btn(right_col, "К герою", "center")
+	var left_col := VBoxContainer.new()
+	left_col.add_theme_constant_override("separation", 12)
+	left_col.set_anchors_and_offsets_preset(Control.PRESET_BOTTOM_LEFT)
+	left_col.grow_vertical = Control.GROW_DIRECTION_BEGIN
+	left_col.offset_left = 16
+	left_col.offset_bottom = -16
+	touch_bar.add_child(left_col)
+	_touch_btn(left_col, "Пауза", "pause")
+	if OS.has_feature("web"):
+		_touch_btn(left_col, "Весь экран", "fullscreen")
+
+func _touch_btn(parent: Control, text: String, what: String) -> Button:
+	var b := Button.new()
+	b.text = text
+	b.focus_mode = Control.FOCUS_NONE
+	b.custom_minimum_size = Vector2(190, 74)
+	b.add_theme_font_size_override("font_size", 28)
+	for st in ["normal", "hover", "pressed", "hover_pressed"]:
+		var sb := StyleBoxFlat.new()
+		sb.bg_color = Color("e07a2a", 0.95) if st.contains("pressed") else Color(0.17, 0.09, 0.04, 0.82)
+		sb.border_color = Color("c98a3c")
+		sb.set_border_width_all(3)
+		sb.set_corner_radius_all(18)
+		b.add_theme_stylebox_override(st, sb)
+	b.add_theme_color_override("font_color", C_TEXT)
+	b.add_theme_color_override("font_pressed_color", Color.WHITE)
+	b.pressed.connect(func():
+		Settings.sfx("click", 0.5)
+		touch_action.emit(what))
+	parent.add_child(b)
+	return b
+
+## Есть ли под точкой элемент интерфейса, который сам обрабатывает касание (кнопки, сумка, окна, настройки).
+func ui_at(p: Vector2) -> bool:
+	if overlay or get_children().any(func(c): return c is SettingsPanel):
+		return true
+	if _inv_panel.get_global_rect().has_point(p):
+		return true
+	if touch_bar:
+		for b in touch_bar.find_children("*", "Button", true, false):
+			if (b as Control).is_visible_in_tree() and (b as Control).get_global_rect().has_point(p):
+				return true
+	return false
+
+func set_sneak_button(on: bool) -> void:
+	if _sneak_btn:
+		_sneak_btn.set_pressed_no_signal(on)
+
+## Подсказка у места после тапа (на телефоне нет наведения мыши) — на 1,8 с.
+func flash_tooltip(text: String, at: Vector2) -> void:
+	set_tooltip(text, at)
+	_tip_t = 1.8
 
 func bind(r: Rules3D) -> void:
 	rules = r
@@ -102,12 +219,16 @@ func update_view(hour: float, neighbor_text: String, hero_text: String, suspicio
 	suspicion_bar.visible = suspicion > 0.01
 	suspicion_bar.value = suspicion * 100.0
 	_update_tasks_fade(delta)
+	if _tip_t > 0.0:
+		_tip_t -= delta
+		if _tip_t <= 0.0:
+			tooltip.visible = false
 
 func set_tooltip(text: String, at: Vector2) -> void:
 	tooltip.visible = text != ""
 	tooltip.text = text
 	tooltip.position = at + Vector2(24, 18)
-	tooltip.position.x = minf(tooltip.position.x, 1920 - tooltip.size.x - 10)
+	tooltip.position.x = minf(tooltip.position.x, get_viewport().get_visible_rect().size.x - tooltip.size.x - 10)
 
 func show_toast(text: String, good: bool) -> void:
 	var l := _label(32, Color("c8ff9e") if good else Color("ffb0a0"))
@@ -307,12 +428,12 @@ func _overlay(title: String, body: String, buttons: Array) -> void:
 	close_overlay()
 	overlay = ColorRect.new()
 	(overlay as ColorRect).color = Color(0.08, 0.04, 0.02, 0.78)
-	overlay.size = Vector2(1920, 1080)
+	overlay.size = get_viewport().get_visible_rect().size
 	overlay.mouse_filter = Control.MOUSE_FILTER_STOP
 	overlay.process_mode = Node.PROCESS_MODE_ALWAYS
 	add_child(overlay)
 	var center := CenterContainer.new()
-	center.size = Vector2(1920, 1080)
+	center.size = get_viewport().get_visible_rect().size
 	overlay.add_child(center)
 	var p := UiStyle.panel()
 	center.add_child(p)
@@ -323,10 +444,22 @@ func _overlay(title: String, body: String, buttons: Array) -> void:
 	t.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	vb.add_child(t)
 	if body != "":
+		var vs := get_viewport().get_visible_rect().size
+		var w := minf(1060.0, vs.x - 160.0)
 		var b := UiStyle.label(body, 29, C_TEXT, 6)
 		b.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-		b.custom_minimum_size = Vector2(1060, 0)
-		vb.add_child(b)
+		b.custom_minimum_size = Vector2(w, 0)
+		# длинный текст (итоги, вступление на телефоне) — с прокруткой, чтобы кнопки не уехали за экран
+		var est := (body.count("
+") + 1 + body.length() / (w / 15.0)) * 40.0
+		if est > vs.y - 330.0:
+			var sc := ScrollContainer.new()
+			sc.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+			sc.custom_minimum_size = Vector2(w + 20, maxf(160.0, vs.y - 330.0))
+			sc.add_child(b)
+			vb.add_child(sc)
+		else:
+			vb.add_child(b)
 	var row: BoxContainer = VBoxContainer.new() if buttons.size() > 2 else HBoxContainer.new()
 	row.add_theme_constant_override("separation", 18)
 	row.alignment = BoxContainer.ALIGNMENT_CENTER

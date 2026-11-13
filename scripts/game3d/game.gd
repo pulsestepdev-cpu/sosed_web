@@ -72,6 +72,12 @@ var _tv: MeshInstance3D
 var _tv_mat: ShaderMaterial
 var _tv_power := 0.0       # финал: камера крупно на танцующем герое
 var _focus_n := false
+var _touches := {}             # палец -> позиция (телефон)
+var _tap_from := Vector2.ZERO
+var _tap_t := 0
+var _dragged := false
+var _pinch0 := 0.0
+var _touch_on_ui := false
 var low_quality := false      # сейчас включена низкая графика
 var _q_samples: Array[float] = []   # авто-качество: FPS в первые секунды игры
 var _q_decided := false
@@ -86,7 +92,7 @@ func _ready() -> void:
 	if args.has("quality"):        # --quality=low|high|auto (не сохраняется в настройках)
 		Settings.quality = args["quality"]
 	hour = float(args.get("start", str(START_HOUR)))
-	zoomed = args.has("zoom") or Settings.camera_close
+	zoomed = args.has("zoom") or Settings.camera_close or Settings.is_touch()
 
 	level = (load(LEVEL) as PackedScene).instantiate() as Node3D
 	level.set_script(null)                 # в сцене — скрипт просмотрщика, в игре он не нужен
@@ -149,6 +155,7 @@ func _ready() -> void:
 		Engine.time_scale = 1.0
 		get_tree().change_scene_to_file("res://scenes/main_menu.tscn"))
 	hud.resume_pressed.connect(func(): _set_paused(false))
+	hud.touch_action.connect(_on_touch_action)
 	process_mode = Node.PROCESS_MODE_ALWAYS
 	level.process_mode = Node.PROCESS_MODE_PAUSABLE
 	rules.process_mode = Node.PROCESS_MODE_PAUSABLE
@@ -260,6 +267,9 @@ func _apply_debug(args: Dictionary) -> void:
 					Performance.get_monitor(Performance.RENDER_TOTAL_DRAW_CALLS_IN_FRAME)])
 				if OS.has_feature("web"):
 					JavaScriptBridge.eval("(window.__qaFps=window.__qaFps||[]).push(%d);" % Engine.get_frames_per_second(), true))
+	if args.has("qa") and OS.has_feature("web"):   # для web_check: последнее событие и где герой
+		rules.toast.connect(func(t, _g): Settings.qa_mark("last_toast", t))
+		get_tree().create_timer(1.0).timeout.connect(_qa_hero_tick)
 	if args.has("speed"):
 		Engine.time_scale = float(args["speed"])
 	if args.has("autostart"):
@@ -713,10 +723,11 @@ func screen_rect(b: AABB) -> Rect2:
 ## Зона клика места: сам предмет на экране, но не меньше HIT_MIN пикселей, плюс кружок-метка над ним —
 ## мелочь (телефон, кружка, геймпад) берётся, если ткнуть рядом, без точного прицеливания.
 const HIT_MIN := 86.0
+const TOUCH_HIT := 1.5          # на телефоне зоны касания крупнее (палец толще курсора)
 
 func hit_rect(s: Spot3D) -> Rect2:
 	var r := screen_rect(s.aabb)
-	var m := HIT_MIN * clampf(_home_fov / cam.fov, 1.0, 2.2)
+	var m := HIT_MIN * clampf(_home_fov / cam.fov, 1.0, 2.2) * (TOUCH_HIT if Settings.is_touch() else 1.0)
 	var sz := Vector2(maxf(r.size.x + 12.0, m), maxf(r.size.y + 12.0, m))
 	r = Rect2(r.get_center() - sz * 0.5, sz)
 	var mk := cam.unproject_position(s.marker_pos())
@@ -734,7 +745,7 @@ func _spot_at(mp: Vector2) -> Spot3D:
 	var k := clampf(_home_fov / cam.fov, 1.0, 2.2)
 	# 1) ткнул прямо в кружок-метку — это место, что бы ни стояло рядом
 	var best: Spot3D = null
-	var best_d := 26.0 * k
+	var best_d := 26.0 * k * (TOUCH_HIT if Settings.is_touch() else 1.0)
 	for s in spots.values():
 		if s.active:
 			var d := mp.distance_to(cam.unproject_position(s.marker_pos()))
@@ -766,6 +777,11 @@ func _spot_at(mp: Vector2) -> Spot3D:
 	return best
 
 func _update_hover() -> void:
+	if Settings.is_touch():           # на телефоне наведения нет — подсказка показывается после тапа
+		if _hovered:
+			_hovered.hovered = false
+			_hovered = null
+		return
 	var mp := get_viewport().get_mouse_position()
 	var s: Spot3D = null if hud.has_overlay() else _spot_at(mp)
 	if _hovered and _hovered != s:
@@ -792,6 +808,23 @@ func _floor_point(mp: Vector2) -> Variant:
 	var f := 1 if p.y > F2 - 0.2 else 0
 	return lane_point(clampf(p.x, ROOM_MIN, ROOM_MAX), f)
 
+## Касания ловим раньше интерфейса (иначе часть событий забирают его элементы); если палец на кнопке, сумке
+## или окне — касание оставляем интерфейсу.
+func _input(ev: InputEvent) -> void:
+	if not (ev is InputEventScreenTouch or ev is InputEventScreenDrag):
+		return
+	if ev is InputEventScreenTouch and OS.has_feature("web") and Settings.debug_args().has("qa"):
+		Settings.qa_mark("input_touch", {"pressed": ev.pressed, "x": ev.position.x, "y": ev.position.y, "ui": hud.ui_at(ev.position),
+			"vs": [get_viewport().get_visible_rect().size.x, get_viewport().get_visible_rect().size.y]})
+	if ev is InputEventScreenTouch and (ev as InputEventScreenTouch).pressed and hud.ui_at(ev.position):
+		_touch_on_ui = true
+		return
+	if _touch_on_ui:
+		if ev is InputEventScreenTouch and not (ev as InputEventScreenTouch).pressed:
+			_touch_on_ui = false
+		return
+	_touch_input(ev)
+
 func _unhandled_input(ev: InputEvent) -> void:
 	if ev is InputEventKey and ev.pressed and not ev.echo:
 		match ev.physical_keycode:     # физические клавиши — работают и в русской раскладке
@@ -817,6 +850,8 @@ func _unhandled_input(ev: InputEvent) -> void:
 		return
 	if not (ev is InputEventMouseButton and ev.pressed):
 		return
+	if ev.device == InputEvent.DEVICE_ID_EMULATION:   # клик, «эмулированный» из касания, — касания обрабатываем сами
+		return
 	match ev.button_index:
 		MOUSE_BUTTON_WHEEL_UP:
 			if not zoomed:
@@ -833,16 +868,98 @@ func _unhandled_input(ev: InputEvent) -> void:
 		MOUSE_BUTTON_LEFT:
 			if not started or rules.over or paused or hero.frozen:
 				return
-			var s := _spot_at(ev.position)
-			if s:
-				_manual_cam = false
-				_go_spot(s)
-				return
-			var p: Variant = _floor_point(ev.position)
-			if p != null:
-				_manual_cam = false
-				_pending = null
-				hero.go(plan_path(hero.position, p))
+			_click(ev.position)
+
+## Клик или тап: место под точкой — идти и сделать, иначе — идти по полу.
+func _click(pos: Vector2) -> void:
+	var s := _spot_at(pos)
+	if s:
+		_manual_cam = false
+		if Settings.is_touch():
+			hud.flash_tooltip(rules.describe(s), pos)
+		_go_spot(s)
+		return
+	var p: Variant = _floor_point(pos)
+	if p != null:
+		_manual_cam = false
+		_pending = null
+		hero.go(plan_path(hero.position, p))
+
+## Касания: тап (отпустил, почти не сдвинув) — как клик; один палец тащит — обзор камерой; два пальца — щипок.
+func _touch_input(ev: InputEvent) -> void:
+	if ev is InputEventScreenTouch:
+		var t := ev as InputEventScreenTouch
+		if OS.has_feature("web") and Settings.debug_args().has("qa"):
+			Settings.qa_mark("touch_ev", {"pressed": t.pressed, "index": t.index, "n": _touches.size(), "dragged": _dragged,
+				"dt": Time.get_ticks_msec() - _tap_t, "canceled": t.canceled})
+		if t.pressed:
+			if t.index == 0:          # первый палец — значит, других на экране нет (сброс «зависших» касаний)
+				_touches.clear()
+			_touches[t.index] = t.position
+			if _touches.size() == 1:
+				_tap_from = t.position
+				_tap_t = Time.get_ticks_msec()
+				_dragged = false
+			elif _touches.size() == 2:
+				var v: Array = _touches.values()
+				_pinch0 = (v[0] as Vector2).distance_to(v[1])
+				_dragged = true
+		else:
+			_touches.erase(t.index)
+			if _touches.is_empty() and not _dragged and Time.get_ticks_msec() - _tap_t < 1000:
+				if started and not rules.over and not paused and not hero.frozen:
+					if OS.has_feature("web"):
+						Settings.qa_mark("tap", {"x": t.position.x, "y": t.position.y})
+					_click(t.position)
+		return
+	var d := ev as InputEventScreenDrag
+	_touches[d.index] = d.position
+	if _touches.size() >= 2:
+		var v: Array = _touches.values()
+		var dist := (v[0] as Vector2).distance_to(v[1])
+		if _pinch0 > 0.0 and dist > _pinch0 * 1.2:
+			zoomed = true
+			_pinch0 = dist
+		elif _pinch0 > 0.0 and dist < _pinch0 * 0.83:
+			zoomed = false
+			_manual_cam = false
+			_pinch0 = dist
+		return
+	if d.position.distance_to(_tap_from) > 18.0:
+		_dragged = true
+	if _dragged and zoomed:
+		# сдвиг обзора: пиксели экрана → метры на уровне квартиры
+		var vs := get_viewport().get_visible_rect().size
+		var m_per_px := 2.0 * (cam.position.z - LANE) * tan(deg_to_rad(cam.fov * 0.5)) / vs.y
+		if not _manual_cam:
+			_pan = Vector2(_cam_x, _cam_y)
+		_manual_cam = true
+		_pan += Vector2(-d.relative.x, d.relative.y) * m_per_px
+
+func _qa_hero_tick() -> void:
+	Settings.qa_mark("hero", {"x": snappedf(hero.position.x, 0.01), "floor": floor_of(hero.position), "zoomed": zoomed,
+		"manual_cam": _manual_cam, "cam_x": snappedf(_cam_x, 0.01)})
+	get_tree().create_timer(0.5).timeout.connect(_qa_hero_tick)
+
+func _on_touch_action(what: String) -> void:
+	match what:
+		"sneak":
+			hero.toggle_sneak()
+			hud.set_sneak_button(hero.sneaking)
+		"tasks":
+			hud.toggle_tasks()
+		"camera":
+			zoomed = not zoomed
+			_manual_cam = false
+		"center":
+			zoomed = true
+			center_on_hero()
+		"pause":
+			if started and not rules.over:
+				_set_paused(not paused)
+		"fullscreen":
+			var fs := DisplayServer.window_get_mode() == DisplayServer.WINDOW_MODE_FULLSCREEN
+			DisplayServer.window_set_mode(DisplayServer.WINDOW_MODE_WINDOWED if fs else DisplayServer.WINDOW_MODE_FULLSCREEN)
 
 func _set_paused(on: bool) -> void:
 	paused = on
@@ -894,7 +1011,7 @@ func _close_cam(instant: bool, delta: float) -> void:
 	if started and not paused and not hud.has_overlay():
 		var vs := get_viewport().get_visible_rect().size
 		var mp := get_viewport().get_mouse_position()
-		if Rect2(Vector2.ZERO, vs).has_point(mp) and DisplayServer.window_is_focused():
+		if not Settings.is_touch() and Rect2(Vector2.ZERO, vs).has_point(mp) and DisplayServer.window_is_focused():
 			dir.x = -1.0 if mp.x < EDGE else (1.0 if mp.x > vs.x - EDGE else 0.0)
 			dir.y = 1.0 if mp.y < EDGE else (-1.0 if mp.y > vs.y - EDGE else 0.0)
 		if Input.is_physical_key_pressed(KEY_LEFT) or Input.is_physical_key_pressed(KEY_A):

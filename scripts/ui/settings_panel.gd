@@ -20,7 +20,16 @@ func _ready() -> void:
 	center.add_child(p)
 	var vb := VBoxContainer.new()
 	vb.add_theme_constant_override("separation", 22)
-	p.add_child(vb)
+	# на низком экране (телефон) — с прокруткой
+	var vs := get_viewport().get_visible_rect().size
+	if vs.y < 860.0:
+		var sc := ScrollContainer.new()
+		sc.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+		sc.custom_minimum_size = Vector2(minf(980.0, vs.x - 80.0), vs.y - 90.0)
+		sc.add_child(vb)
+		p.add_child(sc)
+	else:
+		p.add_child(vb)
 	var t := UiStyle.label("Настройки", 64, UiStyle.C_TITLE, 14)
 	t.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	vb.add_child(t)

@@ -32,6 +32,13 @@
 - Локально: `Godot.exe --headless --path . --export-release "Web" build/web/index.html`, затем
   `python -m http.server 8060` в `build/web` → http://127.0.0.1:8060. Шаблоны: `python tools/fetch_web_templates.py
   "%APPDATA%/Godot/export_templates/4.7.2.stable"`.
+- Две веб-сборки: «Web» (многопоточная, корень) и «Web-compat» (`compat/`, для Safari/iPhone/iPad); выбор — в `web/shell.html`
+  (там же страница загрузки: прогресс, проверка WebGL 2, ошибки по-русски). Многопоточной нужны заголовки COOP/COEP (`deploy/nginx.conf`).
+- Текстуры — WebP с потерями (качество 0.8): новые картинки импортировать так же (`compress/mode=1` в `.import`).
+- Графика: `Settings.quality` auto/high/low (`apply_quality()` в game.gd; авто — по FPS первых секунд игры).
+- Телефон/планшет (`Settings.is_touch()`; на ПК — отладочный `--touch`): интерфейс крупнее (`content_scale_factor`), экранные кнопки
+  (`Hud3D._build_touch_bar`), тап — на отпускании, перетаскивание — обзор, щипок — приближение (`_input`/`_touch_input` в game.gd),
+  раскладка HUD считается от размера экрана (`Hud3D._layout`). Вертикально — экран «поверни телефон» в `web/shell.html`.
 - В вебе нет системных шрифтов: в текстах только кириллица/латиница и « » — … · • (стрелки, эмодзи — квадратики).
 - Выкладка: push в `main` → GitHub Actions (`.github/workflows/web.yml`) собирает и деплоит в CapRover (`deploy/`: Dockerfile
   с nginx, gzip, no-cache). Секреты репозитория: `CAPROVER_SERVER` и `CAPROVER_APP_TOKEN` или `CAPROVER_PASSWORD` (пароль панели); переменная `CAPROVER_APP` (по умолч. sosed).
