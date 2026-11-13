@@ -40,7 +40,7 @@ var in_portal := false          # прямо сейчас «за дверью» 
 var _portal_t := 0.0
 var _portal_stage := 0
 const PORTAL_TIME := 0.9        # сколько секунд персонажа не видно в двери
-const PORTAL_OPEN := 0.35       # дверь успевает открыться, прежде чем он войдёт / выйдет
+const PORTAL_OPEN := 0.4       # дверь успевает открыться, прежде чем он войдёт / выйдет
 
 func setup(glb_path: String, who: String) -> void:
 	kind = who

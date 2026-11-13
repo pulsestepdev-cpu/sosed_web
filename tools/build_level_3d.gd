@@ -391,12 +391,15 @@ func build_doors_windows() -> void:
 	put("door", 6.4, F1, "wall", 0, 0, doors, "door_entrance")
 	if has_garage:
 		put("door", 10.4, FB, LANE, 90, 0, doors, "door_basement_garage")
-	if has_base:   # двери-переходы: под левой лестницей — в подвал
-		put("door", 1.75, F1, "wall", 0, 0, doors, "door_cellar_a")
-		put("door", 1.75, FB, "wall", 0, 0, doors, "door_cellar_b")
+	# двери-переходы: своя модель (тёмно-зелёная, с табличкой) и бра сбоку — заметны среди обычных дверей
+	var portal_doors := []
+	if has_base:   # под левой лестницей — в подвал
+		portal_doors.append_array([["cellar_a", 1.75, F1], ["cellar_b", 1.75, FB]])
 	if has_attic:  # с площадки правой лестницы — на чердак
-		put("door", 15.5, F2, "wall", 0, 0, doors, "door_attic_a")
-		put("door", 15.5, FA, "wall", 0, 0, doors, "door_attic_b")
+		portal_doors.append_array([["attic_a", 15.5, F2], ["attic_b", 15.5, FA]])
+	for pd in portal_doors:
+		put("door_portal", pd[1], pd[2], "wall", 0, 0, doors, "door_" + pd[0])
+		put("wall_lamp", pd[1] + 0.78, pd[2] + 1.7, "wall", 0, 0, doors, "lamp_" + pd[0])
 	var wins := _own(Node3D.new(), _furn) as Node3D
 	wins.name = "Windows"
 	var ws := [[8.4, F2 + 1.25], [1.5, F2 + 0.6]]
@@ -563,13 +566,20 @@ func build_lights_camera() -> void:
 		cool.append_array([[12.2, FB + 1.9], [15.6, FB + 1.9]])
 	if has_attic:
 		ls.append_array([[6.2, FA + 1.9], [11.2, FA + 1.9], [15.3, FA + 1.9]])
+	if has_base:
+		ls.append_array([[1.75, F1 + 1.6, -3.1], [1.75, FB + 1.6, -3.1]])
+	if has_attic:
+		ls.append_array([[15.5, F2 + 1.6, -3.1], [15.5, FA + 1.6, -3.1]])
 	for l in ls + cool:
 		var o := OmniLight3D.new()
 		o.name = "lamp_%d_%d" % [int(l[0] * 10), int(l[1] * 10)]
 		o.light_color = Color("ffd59a") if l in ls else Color("ffe6c2")
 		o.light_energy = 0.55
 		o.omni_range = 4.2
-		o.position = Vector3(l[0], l[1], -1.6)
+		o.position = Vector3(l[0], l[1], l[2] if l.size() > 2 else -1.6)
+		if l.size() > 2:          # подсветка двери-перехода
+			o.light_energy = 0.9
+			o.omni_range = 2.4
 		_own(o, lights)
 	# камера: весь дом в кадре (ширина 16:9 или высота с запасом под верхнюю и нижнюю панели интерфейса)
 	var cam := Camera3D.new()

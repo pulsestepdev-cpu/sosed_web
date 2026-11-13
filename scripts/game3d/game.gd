@@ -562,10 +562,10 @@ func _on_portal_used(at: Vector3) -> void:
 	for ap in (_door_nodes[id] as Node).find_children("*", "AnimationPlayer", true, false):
 		var p := ap as AnimationPlayer
 		if p.has_animation("open"):
-			p.play("open")
+			p.play("open", -1, 2.2)            # распахивается быстро — успевает до шага в проём
 			Settings.sfx("creak", 0.45, randf_range(0.85, 1.1))
-			get_tree().create_timer(0.9, false).timeout.connect(func():
-				p.play_backwards("open")
+			get_tree().create_timer(1.0, false).timeout.connect(func():
+				p.play("open", -1, -2.2, true)
 				Settings.sfx("thud", 0.18, 1.4))
 			return
 

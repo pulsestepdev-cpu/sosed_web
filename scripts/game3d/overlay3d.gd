@@ -40,12 +40,20 @@ func _draw() -> void:
 			var rr := (7.0 + sin(_t * 4.0 + top.x * 0.01) * 1.8) * k
 			draw_circle(top, rr + 3.0 * k, Color(0, 0, 0, 0.35))
 			draw_circle(top, rr, Color(col, 0.95))
-	# таблички над дверями-переходами: куда ведёт
+	# двери-переходы: пульсирующая рамка вокруг проёма и табличка «куда» со стрелкой вверх/вниз
 	if not game.rules.over:
+		var mp := get_viewport().get_mouse_position()
 		for pd in game.portals:
 			for side in ["a", "b"]:
 				var dp: Vector3 = pd["door_" + side]
-				_door_sign(cam.unproject_position(dp + Vector3(0, 2.32, 0.15)), pd["title_" + side], k)
+				var r: Rect2 = game.screen_rect(AABB(Vector3(dp.x - 0.5, dp.y, dp.z), Vector3(1.0, 2.15, 0.1)))
+				var hot := r.grow(6).has_point(mp) and not Settings.is_touch()
+				var pulse := 0.55 + 0.45 * sin(_t * 3.0 + dp.x)
+				var col := Color("9fe3ff")
+				draw_rect(r.grow(3), Color(0.1, 0.06, 0.03, 0.5), false, 5.0 * k)
+				draw_rect(r, Color(col, 1.0 if hot else 0.35 + 0.45 * pulse), false, (4.0 if hot else 2.5) * k)
+				var up: bool = (pd["b"] if side == "a" else pd["a"]) > (pd["a"] if side == "a" else pd["b"])
+				_door_sign(cam.unproject_position(dp + Vector3(0, 2.32, 0.15)), pd["title_" + side], k, up)
 	# герой в укрытии — выглядывают глаза
 	var h := game.hero as Hero3D
 	if h.in_hiding and not h.visible and h.hide_spot:
@@ -120,9 +128,9 @@ func _bubble(at: Vector2, text: String, is_neighbor: bool, k: float) -> void:
 	draw_string(_font, r.position + Vector2(pad.x, pad.y + fs * 0.92), text, HORIZONTAL_ALIGNMENT_LEFT, -1, fs, Color("2b1208"))
 
 ## Табличка над дверью-переходом: тёмная плашка с подписью и треугольником-стрелкой вниз.
-func _door_sign(at: Vector2, text: String, k: float) -> void:
+func _door_sign(at: Vector2, text: String, k: float, up: bool) -> void:
 	var fs := int(20 * clampf(k, 0.9, 1.5))
-	var w := _font.get_string_size(text, HORIZONTAL_ALIGNMENT_LEFT, -1, fs).x
+	var w := _font.get_string_size(text, HORIZONTAL_ALIGNMENT_LEFT, -1, fs).x + fs * 0.9   # место под стрелку
 	var r := Rect2(at - Vector2(w * 0.5 + 12, fs + 10), Vector2(w + 24, fs + 12))
 	var sb := StyleBoxFlat.new()
 	sb.bg_color = Color(0.16, 0.09, 0.05, 0.9)
@@ -131,7 +139,12 @@ func _door_sign(at: Vector2, text: String, k: float) -> void:
 	sb.set_corner_radius_all(8)
 	draw_style_box(sb, r)
 	draw_colored_polygon(PackedVector2Array([Vector2(at.x - 7, r.end.y), Vector2(at.x + 7, r.end.y), Vector2(at.x, r.end.y + 8)]), Color("9fe3ff"))
-	draw_string(_font, Vector2(r.position.x + 12, r.end.y - 8), text, HORIZONTAL_ALIGNMENT_LEFT, -1, fs, Color("e9f6ff"))
+	# стрелка: куда ведёт дверь (вверх / вниз) — фигурой, в вебе нет шрифта со стрелками
+	var a := Vector2(r.position.x + 10 + fs * 0.35, r.get_center().y)
+	var h := fs * 0.32
+	var tri := PackedVector2Array([a + Vector2(-h, h * 0.6), a + Vector2(h, h * 0.6), a + Vector2(0, -h * 0.9)]) if up 		else PackedVector2Array([a + Vector2(-h, -h * 0.6), a + Vector2(h, -h * 0.6), a + Vector2(0, h * 0.9)])
+	draw_colored_polygon(tri, Color("ffd27a"))
+	draw_string(_font, Vector2(r.position.x + 12 + fs * 0.9, r.end.y - 8), text, HORIZONTAL_ALIGNMENT_LEFT, -1, fs, Color("e9f6ff"))
 
 ## Метка цели соседа на полу: пульсирующее кольцо и стрелка вниз.
 func _goal_mark(at: Vector2, k: float) -> void:
