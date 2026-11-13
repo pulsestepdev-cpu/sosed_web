@@ -89,6 +89,9 @@ func _run() -> void:
 	await _wait(0.5)
 	_ok(not r.over, "все задания без салата: финала ещё нет (ждёт салат)")
 	_ok(r.drunk >= Rules3D.STAGE_FROM[4], "все задания без салата: сосед «в стельку» (%d %%)" % int(r.drunk))
+	r.add_drunk(60.0)        # ещё рюмка по дороге — не уснул, держится до салата
+	await _wait(0.2)
+	_ok(not r.over and r.drunk <= 99.0, "все задания без салата, ещё рюмка: не уснул без салата (%d %%)" % int(r.drunk))
 	r.inventory.assign(["salad"])
 	r.selected = "salad"
 	r.hero_use(game.spots["table"])

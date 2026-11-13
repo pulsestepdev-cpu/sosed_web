@@ -170,6 +170,7 @@ var over := false
 var _scored := {}
 var _taunt_i := 0
 var _last_drop := false
+var _wait_salad := false        # все задания сделаны, ждём салат на столе
 
 func setup(g: Node) -> void:
 	game = g
@@ -215,7 +216,10 @@ func default_face() -> String:
 ## raw — без поправки дня (отладка: --finale).
 func add_drunk(v: float, raw := false) -> void:
 	var before := stage()
-	drunk = minf(drunk + v * (1.0 if raw else float(game.day["drink_k"])), 100.0)
+	# всё сделано, салата ещё нет — сосед держится на ногах, пока салат не на столе (иначе одна рюмка
+	# по дороге — и он уснёт где стоял, а салат так и не поставить)
+	var top := 99.0 if _wait_salad and not salad_on_table else 100.0
+	drunk = minf(drunk + v * (1.0 if raw else float(game.day["drink_k"])), top)
 	if stage() != before:
 		toast.emit("Сосед теперь: «%s»" % stage_name(), true)
 		Settings.sfx("stage", 0.6)
@@ -247,6 +251,7 @@ func _check_all_done() -> void:
 	if over or _last_drop or not tasks_done():
 		return
 	if not salad_on_table:
+		_wait_salad = true
 		if drunk < STAGE_FROM[4]:
 			add_drunk(STAGE_FROM[4] - drunk, true)
 			toast.emit("Сосед готовенький — ставь салат на стол!", true)
@@ -633,6 +638,9 @@ func caught() -> void:
 
 func time_up() -> void:
 	if over:
+		return
+	if _wait_salad:          # всё сделал, салат не поставил — сосед засыпает к вечеру (победа без салата)
+		_finale()
 		return
 	over = true
 	finished.emit(false, "Наступил вечер, а сосед всё ещё на ногах")
