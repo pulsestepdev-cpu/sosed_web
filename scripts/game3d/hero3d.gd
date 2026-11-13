@@ -15,7 +15,7 @@ const HIDES := {
 	"sofa":     ["hide_sofa", Vector3(11.6, 0.0, -3.82), false, 0.0],
 	"skis":     ["hide_skis", Vector3(13.25, 0.0, -3.55), false, 0.0],
 	"sacks":    ["hide_sofa", Vector3(9.6, 0.0, -3.74), false, 0.0],
-	"car":      ["hide_sofa", Vector3(13.6, 0.0, -3.5), false, 0.0],
+	"car":      ["hide_sofa", Vector3(13.6, 0.0, -3.56), false, 0.0],
 	"boxes":    ["hide_skis", Vector3(5.9, 0.0, -3.72), false, 0.0],
 }
 
@@ -119,6 +119,8 @@ func hide_in(s: Spot3D) -> void:
 		game.open_prop(s, 1.3)
 	target_yaw = h[3]
 	act(h[0])
+	if s.id == "car" and randf() < 0.5:
+		say(Rules3D.CAR_HIDE.pick_random(), 2.2)
 	# нырнул в укрытие и пропал — над укрытием только «глаза» (рисует Overlay3D)
 	var tw := create_tween()
 	tw.tween_property(self, "position", p, 0.4)

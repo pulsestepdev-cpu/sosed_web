@@ -77,6 +77,10 @@ var _caught_cd := 0.0
 var _warned := false
 var _props := {}               # доп. предметы: keys, salad, salad_table, peeltrap, soaptrap
 var _last_nx := 0.0
+var _car_lines: Array = []    # реплики героя про машину соседа, без повторов подряд
+var _car_seen := 0
+var _car_cd := 0.0
+var _in_garage := false
 var _debug_uses: Array = []
 var _ghost := false
 var _pan := Vector2(8.5, 3.0)  # крупная камера: куда смотрит (x, высота)
@@ -777,6 +781,25 @@ func shake(amount: float) -> void:
 	_shake = maxf(_shake, amount)
 
 # ---------------------------------------------------------------- цикл
+## Герой входит в гараж — ахает от машины соседа: в первый раз за день всегда, потом изредка (не чаще раза в 45 с).
+func _car_envy(delta: float) -> void:
+	_car_cd -= delta
+	var inside := room_strict(hero.position) == "garage" and hero.position.x > 11.0 and not hero.in_portal
+	var entered := inside and not _in_garage
+	_in_garage = inside
+	if not entered or hero.in_hiding or _car_cd > 0.0 or (_car_seen > 0 and randf() > 0.3):
+		return
+	if _car_lines.is_empty():
+		_car_lines = Rules3D.CAR_WOW.duplicate()
+		_car_lines.shuffle()
+	_car_seen += 1
+	_car_cd = 45.0
+	hero.say(_car_lines.pop_back(), 3.0)
+	hero.set_face("scared")
+	get_tree().create_timer(1.8, false).timeout.connect(func():
+		if hero.face_name == "scared" and not hero.frozen:
+			hero.set_face("sneaky" if hero.sneaking else "normal"))
+
 func _process(delta: float) -> void:
 	_update_camera(false, delta)
 	_update_hover()
@@ -787,6 +810,7 @@ func _process(delta: float) -> void:
 		neighbor.look_around(delta)
 		_check_traps()
 		_update_detection(delta)
+		_car_envy(delta)
 		if hour >= END_HOUR:
 			rules.time_up()
 	var hero_text: String = ROOM_NAMES[room_at(hero.position)]

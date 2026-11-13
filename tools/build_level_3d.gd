@@ -491,7 +491,8 @@ func build_furniture() -> void:
 		# гараж (x 10.4..17): верстак (тайник), машина (прятки), покрышки, удочки (утащить)
 		put("workbench", 11.1, FB)
 		put("garage_gate", 13.6, FB, "wall")
-		put("car", 13.6, FB, -2.4)
+		# машина — модель автора (tools/blender/import_car.py), передом к воротам справа; имя узла "car" — для места «За машиной»
+		put("car_w124", 13.65, FB, -2.3, 0, 0.02, null, "car")
 		put("tires", 16.0, FB)
 		put("fishing_rods", 16.6, FB).scale = Vector3.ONE * 1.35
 		put("antifreeze", 15.4, FB, "back", 0, 0.02, null, "garage_canister")
