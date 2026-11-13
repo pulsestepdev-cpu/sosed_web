@@ -23,7 +23,7 @@ extends Node
 ##   --bot=careful|normal|reckless   бот сам проходит уровень
 ##   --report=путь.json  отчёт (события, задания, поимки, наложения голосов, FPS)
 ##   --quit-on-end       закрыть после итогов   --max-real=сек   страховка по реальному времени
-##   --save-progress     бот тоже записывает пройденный день (проверка прогресса)
+##   --save-progress     записать пройденный день и в автотесте (обычно прогресс пишет только игра без --autostart/бота)
 ##   --perf              печатать FPS раз в 5 с      --quality=low|high|auto  графика
 
 const PROPS := "res://assets/models/props/"
@@ -347,6 +347,15 @@ func on_stairs(p: Vector3) -> bool:
 func room_open(id: String) -> bool:
 	return id in day["rooms"]
 
+## Открытая комната, внутри которой точка (без «ближайшей»): "" — вне открытых комнат.
+func room_strict(p: Vector3) -> String:
+	var f := floor_of(p)
+	for id in day["rooms"]:
+		var r: Array = Days.ROOMS[id]
+		if r[2] == f and p.x >= r[0] and p.x < r[1]:
+			return id
+	return ""
+
 func room_at(p: Vector3) -> String:
 	if on_stairs(p):
 		return "stairs"
@@ -652,7 +661,7 @@ func _build_spots() -> void:
 		var id: String = d[0]
 		var kind: String = d[1]
 		var walk := lane_point(d[3], d[4])
-		if not room_open(room_at(walk)):
+		if room_strict(walk) == "":
 			continue
 		match kind:
 			"stash":
@@ -945,7 +954,9 @@ func _go_spot(s: Spot3D) -> void:
 
 func _on_finished(win: bool, reason: String) -> void:
 	Engine.time_scale = 1.0
-	if win and (qa_bot == null or Settings.debug_args().has("save-progress")):   # прогоны бота прогресс не пишут
+	# прогресс пишет только обычная игра (не автотесты и не отладочный запуск с --autostart)
+	var dbg := _args()
+	if win and ((qa_bot == null and not dbg.has("autostart")) or dbg.has("save-progress")):
 		Progress.complete(day_n, rules.shame_percent(), rules.score, rules.catches)
 	await get_tree().create_timer(0.8).timeout
 	Settings.sfx("win" if win else "fail", 0.8)

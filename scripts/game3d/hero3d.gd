@@ -14,9 +14,9 @@ const HIDES := {
 	"table":    ["hide_table", Vector3(8.7, 0.0, -1.95), false, 0.0],
 	"sofa":     ["hide_sofa", Vector3(11.6, 0.0, -3.82), false, 0.0],
 	"skis":     ["hide_skis", Vector3(13.25, 0.0, -3.55), false, 0.0],
-	"sacks":    ["hide_sofa", Vector3(9.6, 0.0, -3.2), false, 0.0],
+	"sacks":    ["hide_sofa", Vector3(9.6, 0.0, -3.74), false, 0.0],
 	"car":      ["hide_sofa", Vector3(13.6, 0.0, -3.5), false, 0.0],
-	"boxes":    ["hide_skis", Vector3(5.9, 0.0, -3.3), false, 0.0],
+	"boxes":    ["hide_skis", Vector3(5.9, 0.0, -3.72), false, 0.0],
 }
 
 var game: Node

@@ -477,7 +477,7 @@ func build_furniture() -> void:
 		put("moonshine_still", 4.3, FB)
 		put("kvass_barrel", 6.2, FB)
 		put("cellar_shelf", 8.0, FB)
-		put("potato_sacks", 9.6, FB)
+		put("potato_sacks", 9.6, FB, "back", 0, 0.55)          # зазор у стены — там прячется герой
 		put("bare_bulb", 4.6, FB + H, -2.0, 0, 0.0, null, "bulb_basement_1")
 		put("bare_bulb", 8.4, FB + H, -2.0, 0, 0.0, null, "bulb_basement_2")
 		put("mop_bucket", 0.9, FB, "back", 0, 0.02, null, "basement_bucket")
@@ -490,14 +490,14 @@ func build_furniture() -> void:
 		put("garage_gate", 13.6, FB, "wall")
 		put("car", 13.6, FB, -2.4)
 		put("tires", 16.0, FB)
-		put("fishing_rods", 16.6, FB).scale = Vector3.ONE * 1.25
+		put("fishing_rods", 16.6, FB).scale = Vector3.ONE * 1.35
 		put("antifreeze", 15.4, FB, "back", 0, 0.02, null, "garage_canister")
 		put("bare_bulb", 12.2, FB + H, -2.0, 0, 0.0, null, "bulb_garage_1")
 		put("bare_bulb", 15.6, FB + H, -2.0, 0, 0.0, null, "bulb_garage_2")
 	if has_attic:
 		# чердак (x 3..17): сундук (тайник), коробки (прятки), банка рассола (подмена), голуби на окне
 		put("old_chest", 4.3, FA)
-		put("attic_boxes", 5.9, FA)
+		put("attic_boxes", 5.9, FA, "back", 0, 0.6)
 		put("armchair", 7.7, FA, "back", 15, 0.05, null, "attic_armchair")
 		put("pickle_jar", 9.0, FA)
 		put("books", 10.4, FA, "back", 0, 0.05, null, "attic_books")

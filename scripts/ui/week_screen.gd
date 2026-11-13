@@ -7,7 +7,7 @@ extends Control
 signal day_chosen(n: int)
 signal closed
 
-const CARD := Vector2(236, 330)
+const CARD := Vector2(236, 356)
 
 var _grid: HFlowContainer
 
@@ -106,7 +106,7 @@ func _card(n: int) -> Control:
 	# картинка дома этого дня (рендер сцены); если нет — просто тёмная плашка
 	var pic := TextureRect.new()
 	pic.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	pic.custom_minimum_size = Vector2(0, 126)
+	pic.custom_minimum_size = Vector2(0, 118)
 	pic.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 	pic.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
 	var img_path := "res://assets/ui/days/day_%d.jpg" % n

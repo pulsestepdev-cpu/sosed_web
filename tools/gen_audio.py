@@ -469,7 +469,7 @@ def gen_voice(only=None):
                     return True
             except Exception as e:
                 err = e
-            await asyncio.sleep(1.0 + attempt)
+            await asyncio.sleep(3.0 + attempt * 4.0)   # сервис ограничивает частоту — повторять реже
         if os.path.exists(path):
             os.remove(path)        # пустой/обрезанный файл не оставлять — иначе текст есть, а звука нет
         print("FAIL", key, text)
@@ -483,6 +483,7 @@ def gen_voice(only=None):
             elif only and key not in only:
                 continue
             await one(key, who, text)
+            await asyncio.sleep(float(os.environ.get("VOICE_PAUSE", "1.2")))   # пауза между репликами — без неё сервис отказывает
     def ok(key):
         f = os.path.join(d, key + ".mp3")
         return os.path.exists(f) and os.path.getsize(f) > 2000

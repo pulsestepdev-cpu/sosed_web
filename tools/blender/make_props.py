@@ -1323,7 +1323,7 @@ def p_tires():
 def p_rods():
     """Удочки у стены, ведро."""
     for i, (x, a) in enumerate(((-0.15, -8), (0.0, 2), (0.15, 10))):
-        cyl(0.012, 2.0, x=x, y=0.0, z=1.0, m=(WOOD_L, OLIVE_D, GRAPHITE)[i], rot=(0, rad(a), 0), r2=0.004, bev=0)
+        cyl(0.024, 2.0, x=x, y=0.0, z=1.0, m=(WOOD_L, OLIVE_D, RED)[i], rot=(0, rad(a), 0), r2=0.008, bev=0)
         cyl(0.04, 0.05, x=x - math.sin(rad(a)) * 0.6, y=-0.04, z=0.4, m=GRAPHITE, rot=(rad(90), 0, 0), bev=0.004)
     cyl(0.14, 0.26, x=0.35, y=-0.1, z=0.13, m=STEEL, r2=0.16, bev=0.01)
     tor(0.15, 0.008, x=0.35, y=-0.1, z=0.27, m=STEEL)
@@ -1331,17 +1331,17 @@ def p_rods():
 @prop("old_chest")
 def p_chest():
     """Дедов сундук: окованный, крышка откидывается (open) — внутри бутылка."""
-    b = box(0.9, 0.5, 0.42, z=0.21, m=WOOD_D, bev=0.015)
-    inner = box(0.84, 0.44, 0.42, z=0.27, m=WOOD_D, bev=0.005)
+    b = box(0.9, 0.5, 0.42, z=0.21, m=WOOD_L, bev=0.015)
+    inner = box(0.84, 0.44, 0.42, z=0.27, m=WOOD, bev=0.005)
     cut(b, inner)
     for x in (-0.36, 0.0, 0.36):
         box(0.05, 0.52, 0.44, x=x, z=0.21, m=GRAPHITE, bev=0.006)
     box(0.08, 0.02, 0.1, y=-0.26, z=0.36, m=BRASS, bev=0.01)
     vodka_parts(-0.1, 0.0, 0.03)
     base = finish("old_chest")
-    box(0.92, 0.52, 0.12, z=0.48, m=WOOD_D, bev=0.03)
+    box(0.92, 0.52, 0.12, z=0.48, m=WOOD_L, bev=0.03)
     for x in (-0.36, 0.0, 0.36):
-        box(0.05, 0.54, 0.13, x=x, z=0.48, m=GRAPHITE, bev=0.01)
+        box(0.05, 0.54, 0.13, x=x, z=0.48, m=BRASS, bev=0.01)
     lid = sub("lid", (0, 0.26, 0.42))
     swing(lid, 0, -100, 20)
     PARTS.append(base)

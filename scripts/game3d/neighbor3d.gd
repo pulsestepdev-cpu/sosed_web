@@ -27,6 +27,8 @@ const HAND := {
 	"jacket": ["chekushka", "chekushka"], "gamepad": ["gamepad", "gamepad"], "phone": ["smartphone", "smartphone"],
 	"ladder": ["light_bulb", "light_bulb_burnt"], "kvass": ["kvass_mug", "kvass_mug"], "brine": ["brine_jar", "brine_jar"],
 }
+## Сдвиг предмета в руке (в координатах кости хвата): короткие сосуды держат ближе ко дну.
+const HOLD_SHIFT := {"kvass_mug": Vector3(0, -0.07, 0), "brine_jar": Vector3(0, -0.09, 0)}
 const USE_DELAY := 1.2
 const SOBER_RANGE := 3.0
 const GRUMBLE := ["Бу-бу-бу… никто не ценит…", "Эх, жизнь…", "Хм-м… Ну и ладно.", "Трезвым жить — скучно, но надо…",
@@ -312,6 +314,8 @@ func hold_item(n: String) -> void:
 					inst.rotation_degrees.z = 90.0
 			b = game.local_bounds_xf(inst)
 		inst.position -= b.get_center()        # центр предмета — в точке хвата
+		if HOLD_SHIFT.has(n):                  # кружка, банка: хват ближе к донышку
+			inst.position += HOLD_SHIFT[n]
 		_hand_cache[n] = att
 	_hand = _hand_cache[n]
 	_hand.visible = true
@@ -480,6 +484,8 @@ func finale(salad: bool) -> void:
 	_use_timer = -1.0
 	_seq.clear()
 	_to_floor()
+	release()
+	hold_item("")
 	if salad:
 		activity = "идёт к салату…"
 		set_face("wasted")

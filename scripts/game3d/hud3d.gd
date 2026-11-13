@@ -406,7 +406,7 @@ func show_results(win: bool, reason: String) -> void:
 	buttons.append(["Ещё раз", restart_pressed])
 	if not (win and n == 7):
 		buttons.append(["К неделе", week_pressed])
-	var head := ("%s пройден!" % d["day_name"]) if win else "Провал"
+	var head: String = Days.DONE[n - 1] if win else "Провал"
 	_overlay(head,
 		"%s\n\nОчки: %d   ·   Позор: %d%% — «%s»\n\n%s" % [reason, rules.score, rules.shame_percent(), rules.shame_title(), lines],
 		buttons)

@@ -38,7 +38,9 @@ var _faces := {}
 var _clip := ""
 var in_portal := false          # прямо сейчас «за дверью» (переход между этажами)
 var _portal_t := 0.0
+var _portal_stage := 0
 const PORTAL_TIME := 0.9        # сколько секунд персонажа не видно в двери
+const PORTAL_OPEN := 0.35       # дверь успевает открыться, прежде чем он войдёт / выйдет
 
 func setup(glb_path: String, who: String) -> void:
 	kind = who
@@ -185,7 +187,7 @@ func _process(delta: float) -> void:
 	if in_portal:
 		_portal_t -= delta
 		if _portal_t <= 0.0:
-			_finish_portal()
+			_portal_step()
 		return
 	if path.is_empty():
 		if not hold:
@@ -220,30 +222,50 @@ func _process(delta: float) -> void:
 			_step_t = _step_period()
 			Settings.sfx("%s_%d" % [step_sfx, randi() % 4], step_vol, randf_range(0.9, 1.1))
 
+## Дверь-переход по шагам: 1 — дверь открывается, персонаж шагает в проём и пропадает; 2 — «за дверью»
+## (PORTAL_TIME); 3 — на другом этаже открывается парная дверь, и он выходит из проёма.
 func _start_portal() -> void:
 	in_portal = true
-	_portal_t = PORTAL_TIME
-	portal_used.emit(position)
-	var tw := create_tween()
-	tw.tween_property(model, "scale", Vector3(0.92, 0.92, 0.92), 0.15)
-	tw.tween_callback(func():
-		if in_portal:
-			model.visible = false
-			model.scale = Vector3.ONE)
+	_portal_stage = 1
+	_portal_t = PORTAL_OPEN
+	portal_used.emit(position)          # дверь открывается
 
-## Выйти из парной двери: следующая точка пути — порог двери на другом этаже.
+func _portal_step() -> void:
+	match _portal_stage:
+		1:
+			_portal_stage = 2
+			_portal_t = PORTAL_TIME
+			if hold:
+				release()
+			play(walk_clip, 0.15)
+			var into := Vector3(position.x, position.y, position.z - 0.3)
+			var tw := create_tween()
+			tw.tween_property(self, "position", into, 0.3)
+			tw.tween_callback(func():
+				if in_portal:
+					model.visible = false)
+		2:
+			_portal_stage = 3
+			_portal_t = PORTAL_OPEN
+			if not path.is_empty() and path[0].x > Days.TP * 0.5:
+				path.remove_at(0)
+			if not path.is_empty():       # встать в проёме парной двери (дальше — шаг из неё)
+				position = Vector3(path[0].x, path[0].y, path[0].z - 0.3)
+			portal_used.emit(position)    # парная дверь открывается
+		_:
+			_finish_portal()
+
+## Выйти из парной двери (или сразу закончить переход, если путь прервали).
 func _finish_portal() -> void:
+	if _portal_stage <= 2:
+		if not path.is_empty() and path[0].x > Days.TP * 0.5:
+			path.remove_at(0)
+		if not path.is_empty():
+			position = Vector3(path[0].x, path[0].y, path[0].z - 0.3)
 	in_portal = false
-	if not path.is_empty() and path[0].x > Days.TP * 0.5:
-		path.remove_at(0)
-	if not path.is_empty():
-		position = path[0]
-		path.remove_at(0)
+	_portal_stage = 0
 	model.visible = true
 	model.scale = Vector3.ONE
-	portal_used.emit(position)
-	if path.is_empty():
-		arrived.emit()
 
 func _walk_anim_k() -> float:
 	return 1.0
