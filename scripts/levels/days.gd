@@ -62,7 +62,7 @@ const TASKS := {
 
 ## Сколько пьянит одна порция в этот день: в поздние дни соседа «берёт» хуже — нужно больше подстав
 ## (сложность — через количество заданий, а не через скорость или зоркость соседа).
-const DRINK_K := [1.0, 1.0, 0.95, 0.85, 0.8, 0.75, 0.7]
+const DRINK_K := [1.0, 1.0, 0.95, 0.8, 0.7, 0.75, 0.7]
 
 const NAMES := ["Понедельник", "Вторник", "Среда", "Четверг", "Пятница", "Суббота", "Воскресенье"]
 const SHORT := ["Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Вс"]
@@ -146,7 +146,7 @@ const _DAYS := [
 	{   # Чт — +подвал (дверь под левой лестницей), 9 заданий
 		"title": "Ревизия погреба",
 		"rooms": ["hallway", "kitchen", "living", "bathroom", "bedroom", "balcony", "basement"], "w": 17.0,
-		"items": {"still": "samogon", "jars": "vodka", "boots": "chekushka", "sink": "tincture", "toolbox": "bulb",
+		"items": {"still": "samogon", "basement_jars": "vodka", "jars": "chekushka", "sink": "tincture", "toolbox": "bulb",
 			"soapdish": "soap", "toilet": "beer", "salad": "salad"},
 		"tasks": ["coffee", "fridge", "jacket", "keys", "gamepad", "ladder", "soaptrap", "kvass", "salad"],
 		"plan": [SLEEP, WAKE, P_TEETH, P_COFFEE, P_JARS, P_KVASS, P_FRIDGE, P_BREAD, P_KEYS, P_BULB, P_GAME, P_WASH,
@@ -161,7 +161,7 @@ const _DAYS := [
 		"items": {"workbench": "antifreeze", "toilet": "beer", "sink": "tincture", "basement_jars": "vodka",
 			"boots": "chekushka", "fruit": "banana", "still": "samogon", "salad": "salad"},
 		"tasks": ["mouthwash", "coffee", "fridge", "soda", "jacket", "keys", "phone", "peeltrap", "rods", "salad"],
-		"plan": [SLEEP, WAKE, P_TEETH, P_COFFEE, P_FRIDGE, P_BREAD, P_KEYS, P_RODS, P_CAR, P_SODA, P_ROULETTE, P_WASH,
+		"plan": [SLEEP, WAKE, P_TEETH, P_FRIDGE, P_COFFEE, P_BREAD, P_KEYS, P_RODS, P_CAR, P_SODA, P_ROULETTE, P_WASH,
 			P_COFFEE, P_FRIDGE, P_BREAD, P_KEYS, P_RODS, P_SODA, P_ROULETTE, P_WASH, P_DINNER],
 		"loop": 3,
 		"intro": "Пятница. Сосед собрался на рыбалку — «только чай в термосе». Гараж — за подвалом.",
@@ -185,7 +185,7 @@ const _DAYS := [
 		"items": {"canisters": "antifreeze", "sink": "tincture", "jars": "vodka", "workbench": "chekushka",
 			"toolbox": "bulb", "fruit": "banana", "still": "samogon", "chest": "vodka", "boots": "beer", "salad": "salad"},
 		"tasks": ["mouthwash", "coffee", "fridge", "jacket", "phone", "keys", "ladder", "peeltrap", "kvass", "rods", "brine", "salad"],
-		"plan": [SLEEP, WAKE, P_TEETH, P_BRINE, P_COFFEE, P_FRIDGE, P_BREAD, P_KEYS, P_BULB, P_KVASS, P_RODS, P_ROULETTE, P_WASH,
+		"plan": [SLEEP, WAKE, P_TEETH, P_FRIDGE, P_COFFEE, P_BRINE, P_BREAD, P_KEYS, P_BULB, P_KVASS, P_RODS, P_ROULETTE, P_WASH,
 			P_BRINE, P_COFFEE, P_FRIDGE, P_BREAD, P_KEYS, P_BULB, P_KVASS, P_RODS, P_ROULETTE, P_WASH],
 		"loop": 3,
 		"intro": "Воскресенье. Последний шанс соседа начать новую жизнь с понедельника. Не дадим ему этого шанса.",

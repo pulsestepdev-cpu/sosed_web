@@ -26,7 +26,7 @@ func _process(delta: float) -> void:
 	_t -= delta
 	if _t > 0.0:
 		return
-	_t = 0.25
+	_t = randf_range(0.2, 0.4)     # небольшой разброс — прогоны не одинаковые, процент побед измерим
 	_think()
 
 func _log(s: String) -> void:
