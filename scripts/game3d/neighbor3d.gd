@@ -547,8 +547,9 @@ func finale(salad: bool) -> void:
 		finale_done.emit()
 	while is_inside_tree():
 		Settings.sfx(["snore", "snore_2"].pick_random(), 0.5)
-		bubble = "Хр-р-р…  z Z z"
-		bubble_time = 2.4
+		if not (partner and partner.is_speaking()):     # храп — не поверх реплик героя
+			bubble = "Хр-р-р…  z Z z"
+			bubble_time = 2.4
 		await get_tree().create_timer(3.2, false).timeout
 
 # ---------------------------------------------------------------- пьянство

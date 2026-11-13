@@ -687,7 +687,7 @@ solve_starts("reachMid", REACH_MID, at(a_search_mid, h_search, 0.0),
 solve_starts("chest", HOLD_CHEST, at(a_swap, None, 0.0),
              grip_cost("Right", (-0.07, -0.33, 1.02), palm=(0.3, 0, 1), axis=(0, 0, 1), wp=120, wa=150), ARM_STARTS)
 solve_starts("up", HOLD_UP, at(a_success, None, 0.6),
-             grip_cost("Right", (-0.18, -0.10, 1.62), axis=(0, 0, 1), wa=120), ARM_STARTS)
+             grip_cost("Right", (-0.38, -0.08, 1.58), axis=(0, 0, 1), wa=120), ARM_STARTS)   # вбок над плечом: кепка крупная
 solve_starts("mouthL", MOUTH_L, at(a_laugh, None, 0.0), mouth_cost, ARM_STARTS)
 solve_starts("door", DOOR, at(a_hide_wardrobe, None, 0.12),
              grip_cost("Right", (-0.20, -0.48, 1.0), palm=(1, 0, 0), wp=100), ARM_STARTS)

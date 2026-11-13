@@ -17,6 +17,8 @@ func _process(delta: float) -> void:
 	_t += delta
 	queue_redraw()
 
+var _bubbles: Array[Rect2] = []
+
 func _draw() -> void:
 	var cam: Camera3D = game.cam
 	var k: float = clampf(29.0 / cam.fov, 1.0, 2.2) * 0.75     # крупнее при приближении
@@ -89,7 +91,8 @@ func _draw() -> void:
 		var vr := Rect2(Vector2.ZERO, size)
 		if not vr.grow(-10).has_point(np) or cam.is_position_behind(nb.head_pos()):
 			_offscreen_arrow(np, vr, nb.thought)
-	# реплики
+	# реплики (облачка не налезают друг на друга и на панель «Задания»)
+	_bubbles.clear()
 	for a in [game.neighbor, game.hero]:
 		var ac := a as Actor
 		if ac == null or not ac.visible and ac.bubble == "":
@@ -120,6 +123,18 @@ func _bubble(at: Vector2, text: String, is_neighbor: bool, k: float) -> void:
 	var r := Rect2(at - Vector2(bs.x * 0.5, bs.y + 22), bs)
 	r.position.x = clampf(r.position.x, 8, maxf(8, size.x - 8 - r.size.x))
 	r.position.y = maxf(r.position.y, 150)
+	var panel: Control = game.hud.tasks
+	if panel and panel.is_visible_in_tree():
+		var tr := panel.get_global_rect().grow(6)
+		if r.intersects(tr):           # персонаж у края экрана — облачко левее панели (или под ней)
+			if tr.position.x - r.size.x >= 8:
+				r.position.x = tr.position.x - r.size.x
+			else:
+				r.position.y = tr.end.y
+	for o in _bubbles:                 # второе облачко — под первым
+		if r.intersects(o.grow(4)):
+			r.position.y = o.end.y + 8
+	_bubbles.append(r)
 	var bg := Color("fffaf0") if is_neighbor else Color("e9f6ff")
 	var sb := StyleBoxFlat.new()
 	sb.bg_color = bg
