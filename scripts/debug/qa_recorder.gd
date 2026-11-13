@@ -87,7 +87,7 @@ func _write() -> void:
 		avg += m
 	avg = avg / maxf(1.0, _frame_ms.size())
 	var tasks := {}
-	for t in Hud3D.TASKS:
+	for t in r.task_rows():
 		if t[1] != "":
 			tasks[t[0]] = r._scored.has(t[1])
 	var rep := {

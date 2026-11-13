@@ -14,6 +14,9 @@ const HIDES := {
 	"table":    ["hide_table", Vector3(8.7, 0.0, -1.95), false, 0.0],
 	"sofa":     ["hide_sofa", Vector3(11.6, 0.0, -3.82), false, 0.0],
 	"skis":     ["hide_skis", Vector3(13.25, 0.0, -3.55), false, 0.0],
+	"sacks":    ["hide_sofa", Vector3(9.6, 0.0, -3.2), false, 0.0],
+	"car":      ["hide_sofa", Vector3(13.6, 0.0, -3.5), false, 0.0],
+	"boxes":    ["hide_skis", Vector3(5.9, 0.0, -3.3), false, 0.0],
 }
 
 var game: Node
@@ -85,7 +88,7 @@ func _step_period() -> float:
 
 ## Идти к точке (маршрут строит уровень). Если сидит в укрытии — сначала вылезти.
 func go(points: Array[Vector3]) -> void:
-	if frozen:
+	if frozen or in_portal:
 		return
 	busy = 0.0
 	release()
@@ -140,7 +143,7 @@ func found() -> void:
 	set_face("happy")
 	act("success", 1.2)
 	if randf() < 0.45:
-		say("Опа, заначка!", 1.6)
+		say(Rules3D.FOUND.pick_random(), 1.6)
 	get_tree().create_timer(1.3, false).timeout.connect(func():
 		if not frozen:
 			set_face("sneaky" if sneaking or in_hiding else "normal"))

@@ -13,10 +13,14 @@
 ## Godot
 - Движок: `C:\Users\belya\Desktop\projects\Godot\Godot.exe` (4.7.2). Godot MCP подключён через `.mcp.json`.
 - Скриншоты для проверки: `Godot.exe --path . -- --shot=screenshots/x.png --shot-delay=1.5 [--shot-scene=res://...]`, потом открыть PNG. F12 в игре — `screenshots/last.png`.
-- Стартовая сцена: `scenes/main_menu.tscn` (обложка `assets/ui/menu_bg.jpg`, `scripts/ui/`). Игра: `scenes/game.tscn` →
-  `scripts/game3d/game.gd` (3D-квартира `scenes/level1_3d.tscn`, правила `rules3d.gd`, сосед `neighbor3d.gd`, герой `hero3d.gd`).
-  Отладочные аргументы — в шапке `game.gd` (`--autostart --start=11.2 --log --use=... --click=x:y:сек --finale --hide=sofa`).
-  Автопрогон без окна: `Godot.exe --headless --path . res://scenes/game.tscn -- --autostart --log --speed=6 --use=...`
+- Стартовая сцена: `scenes/main_menu.tscn` (обложка `assets/ui/menu_bg.jpg`, `scripts/ui/`; «Играть» → экран недели
+  `week_screen.gd`). Игра: `scenes/game.tscn` → `scripts/game3d/game.gd` (дом дня `scenes/levels/day_N.tscn`, правила
+  `rules3d.gd`, сосед `neighbor3d.gd`, герой `hero3d.gd`). Неделя Пн–Вс — `scripts/levels/days.gd` (комнаты, задания,
+  тайники, распорядок соседа), прогресс — автозагрузка `Progress`. План недели — `docs/WEEK_PLAN.md`.
+  Сцены дней собирает `Godot.exe --headless --path . --script res://tools/build_level_3d.gd -- --day=all`.
+  Отладочные аргументы — в шапке `game.gd` (`--day=N --autostart --start=11.2 --log --use=... --goto=X,этаж
+  --click=x:y:сек --finale --hide=sofa`); меню: `--week --unlock-all --reset-progress`.
+  Автопрогон без окна: `Godot.exe --headless --path . res://scenes/game.tscn -- --day=N --autostart --log --speed=6 --use=...`
 - Старый 2D-прототип: `scenes/level1.tscn` (`scripts/game/`), больше не основной.
 - Звук и озвучка: `python tools/gen_audio.py [sfx|voice|music]` → `assets/audio/`. Голос — нейросинтез Microsoft Edge
   (`pip install edge-tts`, нужен интернет; ru-RU-DmitryNeural, сосед ниже, герой выше) → `voice/*.mp3`; `voice ключ1,ключ2` —
@@ -27,7 +31,7 @@
   `Godot.exe --headless --path . --script res://tools/chroma_key.gd -- <вход.png> <папка> <префикс> [имена,через,запятую]`
 
 ## Веб-версия
-- Пресет экспорта «Web» (`export_presets.cfg`): без потоков и PWA, в сборку — сцены меню/игры + `scripts/*`, `assets/textures/*`,
+- Пресет экспорта «Web» (`export_presets.cfg`): без потоков и PWA, в сборку — сцены меню/игры/дней + `scripts/*`, `assets/textures/*`,
   звук, модели, иконки (всё, что грузится по имени в коде, добавлять в `include_filter`). `assets/raw` не попадает.
 - Локально: `Godot.exe --headless --path . --export-release "Web" build/web/index.html`, затем
   `python -m http.server 8060` в `build/web` → http://127.0.0.1:8060. Шаблоны: `python tools/fetch_web_templates.py

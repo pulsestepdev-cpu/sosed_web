@@ -1,18 +1,23 @@
 class_name Game3D
 extends Node
-## Уровень 1 в 3D: квартира в разрезе (scenes/level1_3d.tscn), герой, сосед, правила, интерфейс.
+## День недели в 3D: дом в разрезе (scenes/levels/day_N.tscn), герой, сосед, правила, интерфейс.
+## Что открыто в какой день — scripts/levels/days.gd (Days).
 ##
-##   2-й этаж: [лестница][ванная  ][спальня ][балкон ][лестница]
-##   1-й этаж: [лестница][прихожая][кухня   ][зал    ][лестница]
-## Оси: X — вдоль квартиры, Y — вверх, Z — к зрителю. Ходят по «дорожке» z = LANE.
+##   этаж  2: [         чердак                       ]   (дверь с площадки правой лестницы)
+##   этаж  1: [лестница][ванная  ][спальня ][балкон ][лестница]
+##   этаж  0: [лестница][прихожая][кухня   ][зал    ][лестница]
+##   этаж -1: [   подвал                  ][ гараж          ]   (дверь под левой лестницей)
+## Оси: X — вдоль дома, Y — вверх, Z — к зрителю. Ходят по «дорожке» z = LANE.
+## Между этажами — лестницы и двери-переходы (зашёл в дверь на одном этаже — вышел на другом).
 ##
 ## Отладочные аргументы (после --):
+##   --day=N           день недели 1..7 (без него — выбранный на экране недели)
 ##   --autostart       без вступления        --start=H        начать с часа H (например 11.2)
 ##   --timescale=N     игровое время в N раз  --speed=N        Engine.time_scale
 ##   --drunk=N         начальное опьянение    --give=a,b       предметы в сумку
 ##   --swap=a,b        считать подменёнными   --take=a,b       считать унесёнными
 ##   --trap=a,b        ловушки на полу        --salad          салат на столе
-##   --hero-at=X,F     герой в точке X на этаже F (0/1)
+##   --hero-at=X,F     герой в точке X на этаже F (-1..2)   --goto=X,F  герой идёт туда (лестницы, двери)
 ##   --zoom            начать с приближения   --use=a,sel:item,b  герой по очереди использует точки
 ## Автотесты (scripts/debug/, обёртки в tools/qa/):
 ##   --bot=careful|normal|reckless   бот сам проходит уровень
@@ -20,13 +25,11 @@ extends Node
 ##   --quit-on-end       закрыть после итогов   --max-real=сек   страховка по реальному времени
 ##   --perf              печатать FPS раз в 5 с      --quality=low|high|auto  графика
 
-const LEVEL := "res://scenes/level1_3d.tscn"
 const PROPS := "res://assets/models/props/"
+const FH := Days.FH
 const F1 := 0.0
 const F2 := 3.05
 const LANE := -1.0
-const ROOM_MIN := 3.25
-const ROOM_MAX := 13.75
 const START_HOUR := 7.5
 const END_HOUR := 20.0
 const SEC_PER_HOUR := 50.0
@@ -35,8 +38,18 @@ const RESPAWN := Vector3(0.38, F2 * 0.5, -1.0)   # после «люлей» —
 const MATTRESS_H := 0.5       # высота матраса над полом
 const SALAD_SPOT := Vector3(8.7, 0.0, -2.72)   # где сосед встаёт за столом в финале
 const ROOM_NAMES := {"bathroom": "Ванная", "bedroom": "Спальня", "balcony": "Балкон",
-	"hallway": "Прихожая", "kitchen": "Кухня", "living": "Зал", "stairs": "Лестница"}
+	"hallway": "Прихожая", "kitchen": "Кухня", "living": "Зал", "stairs": "Лестница",
+	"basement": "Подвал", "garage": "Гараж", "attic": "Чердак"}
 
+var day: Dictionary              # данные дня (Days.day)
+var day_n := 1
+var house_w := 17.0              # длина дома в этот день
+var has_r := true                # есть правая лестница
+var portals: Array = []          # открытые двери-переходы: {id, a, b, path, door_a, door_b, title_a, title_b}
+var _floors: Array[int] = []     # этажи, где есть комнаты
+var _connectors: Array = []      # лестницы и двери: {a, b, pts, cost}
+var _door_nodes := {}            # двери-переходы: "cellar_a" -> узел двери
+var _ref_dist := 20.5            # расстояние камеры, под которое подобраны приближения (дом среды)
 var level: Node3D
 var furn: Node3D
 var cam: Camera3D
@@ -68,6 +81,7 @@ var _ghost := false
 var _pan := Vector2(8.5, 3.0)  # крупная камера: куда смотрит (x, высота)
 var _manual_cam := false       # игрок сам сдвинул обзор к краю
 var finale_hero := false
+var _week_shown := false
 var _tv: MeshInstance3D
 var _tv_mat: ShaderMaterial
 var _tv_power := 0.0       # финал: камера крупно на танцующем герое
@@ -93,14 +107,29 @@ func _ready() -> void:
 		Settings.quality = args["quality"]
 	hour = float(args.get("start", str(START_HOUR)))
 	zoomed = args.has("zoom") or Settings.camera_close or Settings.is_touch()
+	day_n = int(args.get("day", str(Progress.day)))
+	day = Days.day(day_n)
+	Progress.day = day_n
+	house_w = day["w"]
+	has_r = house_w >= 16.9
+	for id in day["rooms"]:
+		var f: int = Days.ROOMS[id][2]
+		if not f in _floors:
+			_floors.append(f)
+	_floors.sort()
+	_build_connectors()
 
-	level = (load(LEVEL) as PackedScene).instantiate() as Node3D
+	level = (load(day["scene"]) as PackedScene).instantiate() as Node3D
 	level.set_script(null)                 # в сцене — скрипт просмотрщика, в игре он не нужен
 	add_child(level)
 	furn = level.get_node("Furniture") as Node3D
 	cam = level.get_node("Camera") as Camera3D
 	_home = cam.transform
 	_home_fov = cam.fov
+	for id in ["cellar_a", "cellar_b", "attic_a", "attic_b"]:
+		var dn := furn.get_node_or_null("Doors/door_" + id)
+		if dn:
+			_door_nodes[id] = dn
 	# ненужное в игре: персонажи просмотрщика
 	level.get_node("Characters").queue_free()
 	_add_props()
@@ -110,6 +139,8 @@ func _ready() -> void:
 	neighbor.game = self
 	level.add_child(neighbor)
 	neighbor.setup("res://assets/models/characters/neighbor.glb", "neighbor")
+	neighbor.PLAN = day["plan"]
+	neighbor.LOOP_FROM = day["loop"]
 	hero = Hero3D.new()
 	hero.name = "Hero"
 	hero.game = self
@@ -120,6 +151,8 @@ func _ready() -> void:
 	hero.rotation.y = PI / 2
 	hero.target_yaw = PI / 2
 	hero.arrived.connect(_on_hero_arrived)
+	hero.portal_used.connect(_on_portal_used)
+	neighbor.portal_used.connect(_on_portal_used)
 	neighbor.partner = hero        # говорят по очереди: сосед в приоритете, герой ждёт
 	hero.partner = neighbor
 	hero.yields = true
@@ -155,6 +188,20 @@ func _ready() -> void:
 		Engine.time_scale = 1.0
 		get_tree().change_scene_to_file("res://scenes/main_menu.tscn"))
 	hud.resume_pressed.connect(func(): _set_paused(false))
+	hud.next_pressed.connect(func():
+		get_tree().paused = false
+		Engine.time_scale = 1.0
+		Progress.day = mini(7, day_n + 1)
+		get_tree().reload_current_scene())
+	hud.week_pressed.connect(func():
+		if rules.over and rules.drunk >= 100.0 and day_n == 7 and not hud.has_overlay() and not _week_shown:
+			_week_shown = true
+			hud.show_week_results()
+			return
+		get_tree().paused = false
+		Engine.time_scale = 1.0
+		Progress.open_week = true
+		get_tree().change_scene_to_file("res://scenes/main_menu.tscn"))
 	hud.touch_action.connect(_on_touch_action)
 	process_mode = Node.PROCESS_MODE_ALWAYS
 	level.process_mode = Node.PROCESS_MODE_PAUSABLE
@@ -200,6 +247,9 @@ func _apply_debug(args: Dictionary) -> void:
 	if args.has("hero-at"):
 		var q: PackedStringArray = args["hero-at"].split(",")
 		hero.position = lane_point(float(q[0]), int(q[1]))
+	if args.has("goto"):    # герой идёт в точку: --goto=X,этаж (проверка лестниц и дверей-переходов)
+		var g: PackedStringArray = args["goto"].split(",")
+		get_tree().create_timer(0.3).timeout.connect(func(): hero.go(plan_path(hero.position, lane_point(float(g[0]), int(g[1])))))
 	if args.has("use"):
 		_debug_uses = Array(args["use"].split(","))
 		get_tree().create_timer(0.5).timeout.connect(_debug_next_use)
@@ -228,7 +278,7 @@ func _apply_debug(args: Dictionary) -> void:
 		hero.position = hs.walk
 		hero.hide_in(hs)
 	if args.has("finale"):  # сразу довести до 100
-		get_tree().create_timer(0.5).timeout.connect(func(): rules.add_drunk(100.0))
+		get_tree().create_timer(0.5).timeout.connect(func(): rules.add_drunk(100.0, true))
 	if args.has("catch"):   # сосед ловит героя
 		get_tree().create_timer(0.8).timeout.connect(func(): _catch("А ну пошёл отсюда!"))
 	_ghost = args.has("ghost")
@@ -279,23 +329,53 @@ func _apply_debug(args: Dictionary) -> void:
 
 # ---------------------------------------------------------------- геометрия
 func floor_y(f: int) -> float:
-	return F2 if f == 1 else F1
+	return f * FH
 
 func floor_of(p: Vector3) -> int:
-	return 1 if p.y > 1.6 else 0
+	return Days.floor_of_y(p.y)
 
 func lane_point(x: float, f: int) -> Vector3:
 	return Vector3(x, floor_y(f), LANE)
 
+## На лестнице (в лестничной клетке между 1-м и 2-м этажом, в том числе у дверей-переходов там).
 func on_stairs(p: Vector3) -> bool:
-	return p.x < 3.05 or p.x > 13.95
+	if p.y < -0.3 or p.y > F2 + 0.3:
+		return false
+	return p.x < 3.05 or (has_r and p.x > 13.95)
+
+func room_open(id: String) -> bool:
+	return id in day["rooms"]
 
 func room_at(p: Vector3) -> String:
 	if on_stairs(p):
 		return "stairs"
-	if floor_of(p) == 0:
-		return "hallway" if p.x < 7.0 else ("kitchen" if p.x < 10.4 else "living")
-	return "bathroom" if p.x < 6.4 else ("bedroom" if p.x < 10.4 else "balcony")
+	var f := floor_of(p)
+	var best := "stairs"
+	var bd := INF
+	for id in day["rooms"]:
+		var r: Array = Days.ROOMS[id]
+		if r[2] != f:
+			continue
+		if p.x >= r[0] and p.x < r[1]:
+			return id
+		var d := minf(absf(p.x - r[0]), absf(p.x - r[1]))
+		if d < bd:
+			bd = d
+			best = id
+	return best
+
+## Границы дорожки на этаже f (по открытым комнатам), с отступом от стен.
+func floor_range(f: int) -> Vector2:
+	var lo := INF
+	var hi := -INF
+	for id in day["rooms"]:
+		var r: Array = Days.ROOMS[id]
+		if r[2] == f:
+			lo = minf(lo, r[0])
+			hi = maxf(hi, r[1])
+	if lo == INF:
+		return Vector2(3.25, 3.25)
+	return Vector2(lo + 0.25, hi - 0.25)
 
 ## Путь по лестнице s (0 — левая, 1 — правая) снизу вверх: нижний марш спереди, площадка у наружной
 ## стены, верхний марш сзади, выход в комнату 2-го этажа.
@@ -309,11 +389,71 @@ func stair_poly(s: int) -> Array[Vector3]:
 			pts[i].x = 17.0 - pts[i].x
 	return pts
 
-## Маршрут: на другом этаже — через ближайшую лестницу. Сходит с дорожки и возвращается на неё сам.
+static func is_tp(p: Vector3) -> bool:
+	return p.x > Days.TP * 0.5
+
+## Длина пути (точка-телепорт — как пара метров).
+static func path_len(from: Vector3, pts: Array) -> float:
+	var d := 0.0
+	var p := from
+	var jumped := false
+	for q in pts:
+		if is_tp(q):
+			jumped = true
+			continue
+		d += 2.0 if jumped else p.distance_to(q)
+		jumped = false
+		p = q
+	return d
+
+## Связи между этажами: лестницы (0 ↔ 1) и открытые двери-переходы.
+func _build_connectors() -> void:
+	_connectors.clear()
+	portals.clear()
+	var stairs := [0, 1] if has_r else [0]
+	for s in stairs:
+		var pts := stair_poly(s)
+		_connectors.append({"a": 0, "b": 1, "pts": pts, "cost": path_len(pts[0], pts)})
+	for id in Days.PORTALS:
+		var p: Dictionary = Days.PORTALS[id]
+		if not room_open(p["needs"]):
+			continue
+		var pts: Array[Vector3] = []
+		pts.assign(p["path"])
+		var c := {"a": p["a"], "b": p["b"], "pts": pts, "cost": path_len(pts[0], pts) + 1.5, "portal": id}
+		_connectors.append(c)
+		var pd := p.duplicate()
+		pd["id"] = id
+		portals.append(pd)
+
+## Если стоит на подходе к двери-переходу (сошёл с дорожки) — вернуться по подходу на дорожку.
+func _leave_portal_approach(from: Vector3, out: Array[Vector3]) -> Vector3:
+	if absf(from.z - LANE) < 0.05:
+		return from
+	for c in _connectors:
+		if not c.has("portal"):
+			continue
+		var pts: Array = c["pts"]
+		var tp := 0
+		while tp < pts.size() and not is_tp(pts[tp]):
+			tp += 1
+		var side_b: Array = pts.slice(tp + 1)
+		side_b.reverse()
+		for seq in [pts.slice(0, tp), side_b]:    # от дорожки к двери
+			for i in seq.size() - 1:
+				var cp := Geometry3D.get_closest_point_to_segment(from, seq[i], seq[i + 1])
+				if cp.distance_to(from) < 0.12:
+					for k in range(i, -1, -1):
+						out.append(seq[k])
+					return seq[0]
+	return from
+
+## Маршрут: по этажу — по дорожке; на другой этаж — через лучшую цепочку лестниц и дверей-переходов
+## (Дейкстра по точкам входа/выхода). Сходит с дорожки и возвращается на неё сам.
 func plan_path(from: Vector3, to: Vector3) -> Array[Vector3]:
 	var out: Array[Vector3] = []
+	from = _leave_portal_approach(from, out)
 	var tf := floor_of(to)
-	var to_lane := Vector3(to.x, to.y, LANE)
 	if on_stairs(from):
 		var s := 0 if from.x < 8.5 else 1
 		var poly := stair_poly(s)
@@ -324,32 +464,112 @@ func plan_path(from: Vector3, to: Vector3) -> Array[Vector3]:
 			if d < bd:
 				bd = d
 				best = i
-		if tf == 1:
+		if tf >= 1:
 			for k in range(best + 1, poly.size()):
 				out.append(poly[k])
 		else:
 			for k in range(best, -1, -1):
 				out.append(poly[k])
-	else:
-		if absf(from.z - LANE) > 0.05:
-			out.append(Vector3(from.x, from.y, LANE))
-		var ff := floor_of(from)
-		if ff != tf:
-			var best_len := INF
-			var best_poly: Array[Vector3] = []
-			for s in 2:
-				var poly := stair_poly(s)
-				if ff == 1:
-					poly.reverse()
-				var length := absf(from.x - poly[0].x) + absf(poly[-1].x - to.x)
-				if length < best_len:
-					best_len = length
-					best_poly = poly
-			out.append_array(best_poly)
+		from = out[-1] if not out.is_empty() else from
+	elif absf(from.z - LANE) > 0.05:
+		from = Vector3(from.x, from.y, LANE)
+		out.append(from)
+	var ff := floor_of(from)
+	if ff != tf:
+		out.append_array(_route_floors(from, ff, to, tf))
 	if absf(to.z - LANE) > 0.05:
-		out.append(to_lane)
+		out.append(Vector3(to.x, to.y, LANE))
 	out.append(to)
 	return out
+
+func _route_floors(from: Vector3, ff: int, to: Vector3, tf: int) -> Array[Vector3]:
+	# узлы: 0 — старт, 1 — цель, дальше по два на связь (конец a, конец b)
+	var nodes: Array = [[ff, from.x], [tf, to.x]]
+	for c in _connectors:
+		var pts: Array = c["pts"]
+		nodes.append([c["a"], pts[0].x])
+		nodes.append([c["b"], pts[-1].x])
+	var n := nodes.size()
+	var dist: Array[float] = []
+	var prev: Array[int] = []
+	var done: Array[bool] = []
+	for i in n:
+		dist.append(INF)
+		prev.append(-1)
+		done.append(false)
+	dist[0] = 0.0
+	while true:
+		var u := -1
+		for i in n:
+			if not done[i] and dist[i] < INF and (u < 0 or dist[i] < dist[u]):
+				u = i
+		if u < 0 or u == 1:
+			break
+		done[u] = true
+		for v in n:
+			if done[v] or v == u:
+				continue
+			var w := INF
+			if nodes[u][0] == nodes[v][0]:
+				w = absf(nodes[u][1] - nodes[v][1])
+			if u >= 2 and v >= 2 and (u - 2) / 2 == (v - 2) / 2:
+				w = _connectors[(u - 2) / 2]["cost"]
+			if dist[u] + w < dist[v]:
+				dist[v] = dist[u] + w
+				prev[v] = u
+	var out: Array[Vector3] = []
+	if prev[1] < 0:
+		return out
+	var chain: Array[int] = []
+	var k := 1
+	while k >= 0:
+		chain.push_front(k)
+		k = prev[k]
+	for i in chain.size() - 1:
+		var u := chain[i]
+		var v := chain[i + 1]
+		if u >= 2 and v >= 2 and (u - 2) / 2 == (v - 2) / 2:
+			var pts: Array = (_connectors[(u - 2) / 2]["pts"] as Array).duplicate()
+			if u > v:
+				pts.reverse()
+			out.append_array(pts)
+	return out
+
+## Дверь-переход, ближайшая к точке (для анимации двери): "cellar_a" и т.п.
+func _door_near(p: Vector3) -> String:
+	for pd in portals:
+		for side in ["a", "b"]:
+			var dp: Vector3 = pd["door_" + side]
+			if absf(dp.x - p.x) < 0.8 and absf(dp.y - p.y) < 1.0:
+				return "%s_%s" % [pd["id"], side]
+	return ""
+
+## Персонаж входит в дверь-переход или выходит из неё — дверь открывается и закрывается.
+func _on_portal_used(at: Vector3) -> void:
+	var id := _door_near(at)
+	if id == "" or not _door_nodes.has(id):
+		return
+	for ap in (_door_nodes[id] as Node).find_children("*", "AnimationPlayer", true, false):
+		var p := ap as AnimationPlayer
+		if p.has_animation("open"):
+			p.play("open")
+			Settings.sfx("creak", 0.45, randf_range(0.85, 1.1))
+			get_tree().create_timer(0.9, false).timeout.connect(func():
+				p.play_backwards("open")
+				Settings.sfx("thud", 0.18, 1.4))
+			return
+
+## Дверь-переход под точкой экрана: куда она ведёт (точка на дорожке другого этажа) или null.
+func portal_at(mp: Vector2) -> Variant:
+	for pd in portals:
+		for side in ["a", "b"]:
+			var dp: Vector3 = pd["door_" + side]
+			var r := screen_rect(AABB(Vector3(dp.x - 0.45, dp.y, dp.z), Vector3(0.9, 2.1, 0.3)))
+			if r.grow(6).has_point(mp):
+				var pts: Array = pd["path"]
+				var dest: Vector3 = pts[-1] if side == "a" else pts[0]
+				return {"to": dest, "title": pd["title_" + side]}
+	return null
 
 # ---------------------------------------------------------------- предметы и места
 func _bounds(n: Node3D) -> AABB:
@@ -395,19 +615,6 @@ func _add_props() -> void:
 		phone.scale = Vector3.ONE * 2.6
 		phone.position = Vector3(11.15, 0.5, -3.05)
 		phone.rotation_degrees = Vector3(-65, 180, 0)
-	# экран телевизора: включается, пока сосед играет в приставку
-	var tvb := _bounds(furn.get_node("tv") as Node3D)
-	_tv = MeshInstance3D.new()
-	_tv.name = "tv_screen"
-	var qm := QuadMesh.new()
-	qm.size = Vector2(tvb.size.x * 0.88, tvb.size.y * 0.8)
-	_tv.mesh = qm
-	_tv_mat = ShaderMaterial.new()
-	_tv_mat.shader = load("res://assets/tv_game.gdshader")
-	_tv.material_override = _tv_mat
-	furn.add_child(_tv)
-	_tv.position = Vector3(tvb.get_center().x, tvb.get_center().y + tvb.size.y * 0.04, tvb.end.z + 0.006)
-	_tv.visible = false
 	# свежая шпаклёвка на стене спальни, где сосед «работает»
 	var patch := MeshInstance3D.new()
 	patch.name = "putty_patch"
@@ -420,16 +627,46 @@ func _add_props() -> void:
 	patch.material_override = pm
 	furn.add_child(patch)
 	patch.position = Vector3(9.9, F2 + 1.15, -3.982)
-
+	# экран телевизора: включается, пока сосед играет в приставку (если в этот день зал открыт)
+	if furn.get_node_or_null("tv") == null:
+		return
+	var tvb := _bounds(furn.get_node("tv") as Node3D)
+	_tv = MeshInstance3D.new()
+	_tv.name = "tv_screen"
+	var qm := QuadMesh.new()
+	qm.size = Vector2(tvb.size.x * 0.88, tvb.size.y * 0.8)
+	_tv.mesh = qm
+	_tv_mat = ShaderMaterial.new()
+	_tv_mat.shader = load("res://assets/tv_game.gdshader")
+	_tv.material_override = _tv_mat
+	furn.add_child(_tv)
+	_tv.position = Vector3(tvb.get_center().x, tvb.get_center().y + tvb.size.y * 0.04, tvb.end.z + 0.006)
+	_tv.visible = false
+## Места дня: укрытия — во всех открытых комнатах; тайники — те, что есть в items дня (там же — что в них);
+## подмены, «утащить» и ловушки — только для заданий дня.
 func _build_spots() -> void:
+	var items: Dictionary = day["items"]
+	var tasks: Array = day["tasks"]
 	for d in Rules3D.SPOTS:
+		var id: String = d[0]
+		var kind: String = d[1]
+		var walk := lane_point(d[3], d[4])
+		if not room_open(room_at(walk)):
+			continue
+		match kind:
+			"stash":
+				if not items.has(id):
+					continue
+			"swap", "take", "trap":
+				if not id in tasks:
+					continue
 		var s := Spot3D.new()
-		s.id = d[0]
-		s.kind = d[1]
+		s.id = id
+		s.kind = kind
 		s.title = d[5]
-		s.item = d[6]
+		s.item = items[id] if kind == "stash" else d[6]
 		s.floor = d[4]
-		s.walk = lane_point(d[3], s.floor)
+		s.walk = walk
 		var nname: String = d[2]
 		if nname == "salad" or nname == "keys" or nname == "soap_dish":
 			s.node = _props[nname]
@@ -586,6 +823,8 @@ func _auto_quality(delta: float) -> void:
 
 ## Телевизор включён, пока сосед на месте «играет в приставку»: экран «раскрывается» полоской и гаснет.
 func _update_tv(delta: float) -> void:
+	if _tv == null:
+		return
 	var on := neighbor.activity == "играет в приставку" and not neighbor.is_walking()
 	_tv_power = move_toward(_tv_power, 1.0 if on else 0.0, delta * (2.5 if on else 4.0))
 	_tv.visible = _tv_power > 0.001
@@ -621,10 +860,11 @@ func _update_detection(delta: float) -> void:
 			_warned = true
 			neighbor.face_x(hero.position.x)
 			neighbor.set_face("suspicious")
-			neighbor.say("Э… Кто здесь?", 1.5)
+			neighbor.say(["Э… Кто здесь?", "Чё за шорох?", "Кто тут, блядь?"].pick_random(), 1.5)
 			Settings.sfx("alert", 0.5)
 		if neighbor.suspicion >= 1.0:
-			_catch(["А ну пошёл отсюда!", "Иди сюда, засранец!"].pick_random())
+			_catch(["А ну пошёл отсюда!", "Иди сюда, засранец!", "Попался, сучонок!", "Ах ты ж гнида подъездная!",
+				"Я тебе щас покажу, вредитель!"].pick_random())
 	else:
 		neighbor.suspicion = maxf(0.0, neighbor.suspicion - delta * 0.5)
 		if neighbor.suspicion <= 0.0 and _warned:
@@ -632,7 +872,7 @@ func _update_detection(delta: float) -> void:
 			if neighbor.mode == "schedule":
 				neighbor.set_face(rules.default_face())
 				if randf() < 0.5:
-					neighbor.say("Мне показалось?", 1.6)
+					neighbor.say(["Мне показалось?", "Белочка, что ли, пришла?", "Почудилось. Надо меньше пить… А я и не пью!"].pick_random(), 1.6)
 		# шаги слышно на том же этаже
 		if hero.is_noisy() and _noise_cd <= 0.0 and not _ghost and neighbor.mode == "schedule" and not neighbor.on_ladder \
 				and floor_of(hero.position) == floor_of(neighbor.position) and not on_stairs(hero.position) \
@@ -640,7 +880,7 @@ func _update_detection(delta: float) -> void:
 			_noise_cd = 5.0
 			neighbor.face_x(hero.position.x)
 			neighbor.set_face("suspicious")
-			neighbor.say("Кто здесь топает?", 1.6)
+			neighbor.say(["Кто здесь топает?", "Э, кто там шаркает?!"].pick_random(), 1.6)
 			neighbor.suspicion = minf(1.0, neighbor.suspicion + 0.25)
 
 func _catch(line: String) -> void:
@@ -657,7 +897,7 @@ func _catch(line: String) -> void:
 		qa_rec.note_catch()
 	hud.show_toast("Поймал! (%d / 3)" % rules.catches, false)
 	neighbor.catch_hero(hero.position, line, func():
-		hero.say("Ай! Да за что?!", 1.4)
+		hero.say(["Ай! Да за что?!", "Ой, я за солью!", "Ошибся дверью, бывает!", "Ай-ай, больно же, ветродуйка!"].pick_random(), 1.4)
 		var tw := create_tween()
 		tw.tween_interval(0.5)
 		tw.tween_callback(func():
@@ -694,6 +934,8 @@ func _debug_next_use() -> void:
 	_go_spot(spots[id])
 
 func _go_spot(s: Spot3D) -> void:
+	if hero.in_portal:
+		return
 	_pending = s
 	if hero.position.distance_to(s.walk) < 0.05 and not hero.in_hiding:
 		_on_hero_arrived()
@@ -702,6 +944,8 @@ func _go_spot(s: Spot3D) -> void:
 
 func _on_finished(win: bool, reason: String) -> void:
 	Engine.time_scale = 1.0
+	if win and qa_bot == null:
+		Progress.complete(day_n, rules.shame_percent(), rules.score, rules.catches)
 	await get_tree().create_timer(0.8).timeout
 	Settings.sfx("win" if win else "fail", 0.8)
 	hud.show_results(win, reason)
@@ -790,6 +1034,8 @@ func _update_hover() -> void:
 	if s:
 		s.hovered = true
 		hud.set_tooltip(rules.describe(s), mp)
+	elif not hud.has_overlay() and portal_at(mp) != null:
+		hud.set_tooltip("Дверь: " + (portal_at(mp)["title"] as String).to_lower(), mp)
 	elif rules.selected != "" and not hud.has_overlay():
 		hud.set_tooltip("В руке: %s" % rules.item_title(rules.selected), mp)
 	else:
@@ -803,10 +1049,11 @@ func _floor_point(mp: Vector2) -> Variant:
 		return null
 	var t := (LANE - from.z) / dir.z
 	var p := from + dir * t
-	if p.y < -0.5 or p.y > F2 + 2.9:
+	var f := floori((p.y + 0.2) / FH)
+	if not f in _floors:
 		return null
-	var f := 1 if p.y > F2 - 0.2 else 0
-	return lane_point(clampf(p.x, ROOM_MIN, ROOM_MAX), f)
+	var r := floor_range(f)
+	return lane_point(clampf(p.x, r.x, r.y), f)
 
 ## Касания ловим раньше интерфейса (иначе часть событий забирают его элементы); если палец на кнопке, сумке
 ## или окне — касание оставляем интерфейсу.
@@ -878,6 +1125,16 @@ func _click(pos: Vector2) -> void:
 		if Settings.is_touch():
 			hud.flash_tooltip(rules.describe(s), pos)
 		_go_spot(s)
+		return
+	if hero.in_portal:
+		return
+	var door: Variant = portal_at(pos)      # дверь-переход — пройти на другой этаж
+	if door != null:
+		_manual_cam = false
+		_pending = null
+		if Settings.is_touch():
+			hud.flash_tooltip("Дверь: " + door["title"].to_lower(), pos)
+		hero.go(plan_path(hero.position, door["to"]))
 		return
 	var p: Variant = _floor_point(pos)
 	if p != null:
@@ -978,12 +1235,12 @@ func _update_camera(instant: bool, delta := 0.016) -> void:
 	if zoomed and not close_up:
 		_close_cam(instant, delta)
 		target = Vector3(_cam_x, _cam_y, _home.origin.z)
-		fov = CLOSE_FOV
+		fov = _fov_at(CLOSE_FOV)
 	elif close_up:
-		fov = 9.5 if not _focus_n else 5.0
+		fov = _fov_at(9.5 if not _focus_n else 5.0)
 		var f := floor_of(who.position) if not on_stairs(who.position) else (1 if who.position.y > F2 * 0.5 else 0)
 		var y := floor_y(f) + (1.05 if who == hero else (1.0 if not _focus_n else 1.35))
-		var x := clampf(who.position.x, 2.4, 14.6)
+		var x := clampf(who.position.x, 2.4, house_w - 2.4)
 		_cam_x = x if instant else lerpf(_cam_x, x, minf(1.0, delta * 4.0))
 		_cam_y = y if instant else lerpf(_cam_y, y, minf(1.0, delta * 4.0))
 		target = Vector3(_cam_x, _cam_y, _home.origin.z)
@@ -1006,7 +1263,7 @@ const PAN_SPEED := 7.0         # м/с
 
 func _close_cam(instant: bool, delta: float) -> void:
 	var f := floor_of(hero.position) if not on_stairs(hero.position) else (1 if hero.position.y > F2 * 0.5 else 0)
-	var hero_pt := Vector2(clampf(hero.position.x, 2.6, 14.4), floor_y(f) + 1.3)
+	var hero_pt := Vector2(clampf(hero.position.x, 2.6, house_w - 2.6), floor_y(f) + 1.3)
 	var dir := Vector2.ZERO
 	if started and not paused and not hud.has_overlay():
 		var vs := get_viewport().get_visible_rect().size
@@ -1029,11 +1286,17 @@ func _close_cam(instant: bool, delta: float) -> void:
 		_pan += dir * PAN_SPEED * delta
 	if not _manual_cam:
 		_pan = hero_pt
-	_pan.x = clampf(_pan.x, 2.6, 14.4)
-	_pan.y = clampf(_pan.y, F1 + 1.3, F2 + 1.3)
+	_pan.x = clampf(_pan.x, 2.6, house_w - 2.6)
+	_pan.y = clampf(_pan.y, floor_y(_floors[0]) + 1.3, floor_y(_floors[-1]) + 1.3)
 	var kf := 1.0 if instant else minf(1.0, delta * (9.0 if _manual_cam else 4.0))
 	_cam_x = lerpf(_cam_x, _pan.x, kf)
 	_cam_y = lerpf(_cam_y, _pan.y, kf)
+
+## Угол обзора для приближения: подобраны под дом среды (камера в 20.5 м); в доме больше камера дальше —
+## угол уже, чтобы крупный план оставался таким же крупным.
+func _fov_at(base: float) -> float:
+	var d := _home.origin.z + 1.5
+	return rad_to_deg(2.0 * atan(tan(deg_to_rad(base * 0.5)) * _ref_dist / maxf(1.0, d)))
 
 func center_on_hero() -> void:
 	_manual_cam = false

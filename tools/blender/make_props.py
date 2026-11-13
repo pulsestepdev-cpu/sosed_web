@@ -1138,6 +1138,243 @@ def p_kitchen():
         box(0.43, 0.02, 0.66, x=x, y=-0.045, z=1.88, m=CREAM_D, bev=0.008)
         box(0.015, 0.025, 0.1, x=x + 0.17 * (1 if i % 2 else -1), y=-0.06, z=1.62, m=CHROME, bev=0.004)
 
+# ================================================================ подвал, гараж, чердак (дни 4–7)
+COPPER = M("copper", (0.80, 0.45, 0.25), 0.3, 0.9)
+BURLAP = M("burlap", (0.66, 0.52, 0.33), 0.95)
+BURLAP_D = M("burlap_dark", (0.52, 0.40, 0.25), 0.95)
+CARDBOARD = M("cardboard", (0.72, 0.55, 0.34), 0.9)
+RUBBER = M("rubber", (0.10, 0.10, 0.11), 0.85)
+CAR_PAINT = M("car_paint", (0.42, 0.62, 0.72), 0.35, 0.2)
+KVASS = M("kvass", (0.36, 0.17, 0.06), 0.15, 0, 0.85)
+MOON = M("samogon", (0.94, 0.94, 0.86), 0.1, 0, 0.55)
+BRINE = M("brine", (0.78, 0.80, 0.55), 0.1, 0, 0.55)
+PICKLE = M("pickle", (0.30, 0.42, 0.14), 0.6)
+FEATHER = M("feather", (0.55, 0.57, 0.62), 0.8)
+FEATHER_D = M("feather_dark", (0.33, 0.35, 0.40), 0.8)
+BULB_ON = M("bulb_on", (1.0, 0.92, 0.70), 0.3, 0, 1, 3.0)
+
+def samogon_parts(x=0, y=0, z=0):
+    cyl(0.05, 0.22, x=x, y=y, z=z + 0.11, m=GLASS, bev=0.012)
+    cyl(0.047, 0.18, x=x, y=y, z=z + 0.095, m=MOON, bev=0)
+    cyl(0.05, 0.07, x=x, y=y, z=z + 0.255, m=GLASS, r2=0.018, bev=0.004)
+    cyl(0.02, 0.05, x=x, y=y, z=z + 0.31, m=GLASS, bev=0.003)
+    box(0.05, 0.05, 0.04, x=x, y=y, z=z + 0.34, m=CREAM_D, bev=0.012, rot=(0, rad(12), rad(20)))   # пробка из газеты
+
+def kvass_mug_parts(x=0, y=0, z=0):
+    cyl(0.042, 0.13, x=x, y=y, z=z + 0.065, m=GLASS, bev=0.01)
+    cyl(0.038, 0.11, x=x, y=y, z=z + 0.058, m=KVASS, bev=0)
+    cyl(0.039, 0.015, x=x, y=y, z=z + 0.118, m=CREAM, bev=0.004)
+    tor(0.03, 0.008, x=x + 0.05, y=y, z=z + 0.065, m=GLASS, rot=(rad(90), 0, 0))
+
+def jar_parts(x, y, z, r, h, fill):
+    cyl(r, h, x=x, y=y, z=z + h / 2, m=GLASS, bev=0.01)
+    cyl(r * 0.93, h * 0.8, x=x, y=y, z=z + h * 0.42, m=fill, bev=0)
+    cyl(r * 0.8, 0.025, x=x, y=y, z=z + h + 0.01, m=MUSTARD, bev=0.004)
+
+@prop("samogon")
+def p_samogon():
+    samogon_parts()
+
+@prop("kvass_mug")
+def p_kvass_mug():
+    kvass_mug_parts()
+
+@prop("brine_jar")
+def p_brine_jar():
+    jar_parts(0, 0, 0, 0.055, 0.15, BRINE)
+    for i in range(3):
+        cyl(0.012, 0.09, x=-0.02 + i * 0.02, y=0, z=0.06, m=PICKLE, rot=(0, rad(10 - i * 10), 0), bev=0.004)
+
+@prop("moonshine_still")
+def p_still():
+    """Самогонный аппарат: бак на плитке, змеевик, банка-приёмник. Крышка бака поднимается (open) — там самогон."""
+    box(0.36, 0.36, 0.06, x=-0.12, z=0.03, m=GRAPHITE, bev=0.01)                 # плитка
+    for sx in (-1, 1):
+        for sy in (-1, 1):
+            cyl(0.012, 0.3, x=-0.12 + sx * 0.14, y=sy * 0.14, z=0.21, m=STEEL, bev=0)
+    box(0.36, 0.36, 0.03, x=-0.12, z=0.36, m=STEEL, bev=0.004)
+    cyl(0.15, 0.36, x=-0.12, z=0.56, m=COPPER, bev=0.02)                          # бак
+    tor(0.15, 0.012, x=-0.12, z=0.42, m=COPPER)
+    cyl(0.02, 0.3, x=0.0, z=0.9, m=COPPER, rot=(0, rad(60), 0), bev=0)          # отвод
+    cyl(0.06, 0.4, x=0.2, z=0.72, m=STEEL, bev=0.01)                              # холодильник-колонна
+    for k in range(5):
+        tor(0.062, 0.01, x=0.2, z=0.56 + k * 0.08, m=COPPER)
+    cyl(0.008, 0.18, x=0.24, z=0.46, m=COPPER, rot=(0, rad(20), 0), bev=0)
+    jar_parts(0.27, -0.02, 0.0, 0.07, 0.24, MOON)                                 # банка-приёмник
+    samogon_parts(-0.25, -0.08, 0.06)
+    base = finish("moonshine_still")
+    cyl(0.155, 0.04, x=-0.12, z=0.76, m=COPPER, bev=0.01)
+    sph(0.025, x=-0.12, z=0.8, m=BRASS)
+    lid = sub("lid", (-0.12, 0, 0.76))
+    slide(lid, 2, 0.14, 14)
+    PARTS.append(base)
+
+@prop("kvass_barrel")
+def p_barrel():
+    """Бочка кваса на козлах: краник спереди, кружка сверху."""
+    for sx in (-1, 1):
+        box(0.06, 0.5, 0.06, x=sx * 0.28, z=0.03, m=WOOD_D, bev=0.01)
+        box(0.06, 0.06, 0.32, x=sx * 0.28, y=0.0, z=0.18, m=WOOD_D, bev=0.01)
+    cyl(0.3, 0.75, x=0, y=0, z=0.62, m=WOOD, rot=(0, rad(90), 0), bev=0.03)
+    for x in (-0.3, -0.12, 0.12, 0.3):
+        tor(0.305 if abs(x) < 0.2 else 0.29, 0.012, x=x, z=0.62, m=GRAPHITE, rot=(0, rad(90), 0))
+    cyl(0.29, 0.02, x=-0.385, z=0.62, m=WOOD_D, rot=(0, rad(90), 0), bev=0)
+    cyl(0.018, 0.12, x=0, y=-0.32, z=0.44, m=BRASS, rot=(rad(90), 0, 0), bev=0.003)
+    box(0.03, 0.05, 0.03, x=0, y=-0.38, z=0.42, m=BRASS, bev=0.006)
+    kvass_mug_parts(0.1, 0.0, 0.92)
+
+@prop("cellar_shelf")
+def p_cellar_shelf():
+    """Стеллаж с закатками: огурцы, компот, варенье. Передние банки отодвигаются (open) — за ними заначка."""
+    for sx in (-1, 1):
+        for sy in (-1, 1):
+            box(0.04, 0.04, 1.7, x=sx * 0.55, y=sy * 0.15, z=0.85, m=WOOD_D, bev=0.005)
+    for z in (0.05, 0.45, 0.85, 1.25, 1.65):
+        box(1.14, 0.34, 0.025, z=z, m=WOOD, bev=0.004)
+    fills = (PICKLE, M("compote", (0.62, 0.12, 0.18), 0.2, 0, 0.8), M("jam", (0.85, 0.40, 0.10), 0.3), BRINE)
+    for row, z in enumerate((0.065, 0.865, 1.265)):
+        for i in range(5):
+            jar_parts(-0.44 + i * 0.22, 0.05, z, 0.07, 0.24 if row != 2 else 0.18, fills[(i + row) % 4])
+    base = finish("cellar_shelf")
+    for i in range(4):
+        jar_parts(-0.33 + i * 0.22, -0.05, 0.465, 0.075, 0.26, fills[(i + 1) % 4])
+    jars = sub("jars", (0, -0.05, 0.465))
+    slide(jars, 0, -0.35, 16)
+    PARTS.append(base)
+
+@prop("potato_sacks")
+def p_sacks():
+    """Мешки с картошкой — укрытие."""
+    for i, (x, z, s) in enumerate(((-0.32, 0.32, 1.0), (0.3, 0.3, 0.95), (0.0, 0.85, 0.9))):
+        sph(0.36 * s, x=x, y=0, z=z, m=BURLAP if i % 2 == 0 else BURLAP_D, sc=(1.0, 0.75, 0.95))
+        cyl(0.06 * s, 0.14, x=x, y=0, z=z + 0.38 * s, m=BURLAP_D, r2=0.03, bev=0)
+        tor(0.06 * s, 0.012, x=x, y=0, z=z + 0.33 * s, m=SOIL)
+    for i in range(5):
+        sph(0.045, x=-0.55 + i * 0.07, y=-0.25, z=0.04, m=OCHRE, sc=(1.2, 1, 0.8))
+
+@prop("bare_bulb")
+def p_bare_bulb():
+    """Голая лампочка на проводе (точка крепления — потолок)."""
+    cyl(0.03, 0.02, z=-0.01, m=GRAPHITE, bev=0.003)
+    cyl(0.004, 0.45, z=-0.235, m=GRAPHITE, bev=0)
+    cyl(0.02, 0.05, z=-0.48, m=GRAPHITE, bev=0.004)
+    sph(0.04, z=-0.54, m=BULB_ON)
+
+@prop("workbench")
+def p_workbench():
+    """Верстак: тиски, щит с инструментами, ящик выдвигается (open)."""
+    L = 1.2
+    box(L, 0.6, 0.06, z=0.86, m=WOOD_L, bev=0.01)
+    for sx in (-1, 1):
+        for sy in (-1, 1):
+            box(0.06, 0.06, 0.84, x=sx * (L / 2 - 0.05), y=sy * 0.25, z=0.42, m=WOOD_D, bev=0.008)
+    box(L - 0.1, 0.5, 0.03, z=0.2, m=WOOD, bev=0.004)
+    box(0.12, 0.16, 0.12, x=0.42, y=-0.2, z=0.95, m=BLUE, bev=0.01)              # тиски
+    cyl(0.01, 0.2, x=0.42, y=-0.32, z=0.95, m=STEEL, rot=(rad(90), 0, 0))
+    box(L, 0.03, 0.7, y=0.29, z=1.3, m=M("pegboard", (0.75, 0.6, 0.4), 0.8), bev=0.005)   # щит
+    box(0.04, 0.02, 0.28, x=-0.4, y=0.26, z=1.3, m=WOOD_L, bev=0.004)            # молоток
+    box(0.12, 0.03, 0.05, x=-0.4, y=0.26, z=1.45, m=STEEL, bev=0.006)
+    box(0.03, 0.02, 0.25, x=-0.2, y=0.26, z=1.28, m=RED, bev=0.004)              # отвёртки
+    box(0.03, 0.02, 0.25, x=-0.14, y=0.26, z=1.28, m=MUSTARD, bev=0.004)
+    tor(0.06, 0.012, x=0.1, y=0.26, z=1.38, m=STEEL, rot=(rad(90), 0, 0))
+    box(0.2, 0.02, 0.05, x=0.3, y=0.26, z=1.45, m=STEEL, bev=0.004)
+    box(0.22, 0.14, 0.2, x=-0.3, y=-0.05, z=0.99, m=RED, bev=0.015)              # банка краски
+    base = finish("workbench")
+    dr = drawer("drawer", 0.5, 0.5, 0.14, 0.1, -0.02, 0.74, front_m=WOOD, inside=lambda x, y, z: chekushka_parts(x, y, z))
+    slide(dr, 1, -0.32)
+    PARTS.append(base)
+
+@prop("car")
+def p_car():
+    """Старенький седан (мультяшный, без марки): длинной стороной по X."""
+    L, W = 3.7, 1.55
+    box(L, W, 0.5, z=0.55, m=CAR_PAINT, bev=0.12)                                  # кузов
+    box(1.9, W - 0.12, 0.5, x=-0.15, z=1.02, m=CAR_PAINT, bev=0.12)                # кабина
+    for x, w in ((-0.62, 0.72), (0.36, 0.72)):
+        box(w, W - 0.08, 0.36, x=x, z=1.05, m=GLASS, bev=0.04)                    # окна
+    box(0.1, W - 0.2, 0.42, x=-1.12, z=1.0, m=GLASS, bev=0.04, rot=(0, rad(-25), 0))
+    box(0.1, W - 0.2, 0.42, x=0.85, z=1.0, m=GLASS, bev=0.04, rot=(0, rad(25), 0))
+    for sx in (-1, 1):
+        box(0.12, W + 0.04, 0.12, x=sx * (L / 2 + 0.02), z=0.42, m=CHROME, bev=0.04)   # бамперы
+        for sy in (-1, 1):
+            cyl(0.33, 0.24, x=sx * 1.15, y=sy * (W / 2 - 0.08), z=0.33, m=RUBBER, rot=(rad(90), 0, 0), bev=0.04)
+            cyl(0.17, 0.25, x=sx * 1.15, y=sy * (W / 2 - 0.08), z=0.33, m=CHROME, rot=(rad(90), 0, 0), bev=0.02)
+            sph(0.09, x=sx * (L / 2 - 0.02), y=sy * 0.52, z=0.6, m=CREAM if sx > 0 else RED, sc=(0.6, 1, 1))
+    box(0.02, 0.2, 0.06, x=-0.4, y=-W / 2 - 0.01, z=0.72, m=CHROME, bev=0.01)
+    box(0.02, 0.2, 0.06, x=0.5, y=-W / 2 - 0.01, z=0.72, m=CHROME, bev=0.01)
+
+@prop("garage_gate")
+def p_gate():
+    """Ворота гаража (на стену): профнастил, ручка."""
+    W, H = 2.6, 2.2
+    box(W + 0.16, 0.08, H + 0.1, z=(H + 0.1) / 2, y=0.04, m=GRAPHITE, bev=0.01)
+    paint = M("gate_paint", (0.55, 0.62, 0.55), 0.6)
+    for i in range(13):
+        box(W / 13 - 0.02, 0.06, H, x=-W / 2 + (i + 0.5) * W / 13, y=0.0, z=H / 2, m=STEEL if i % 2 else paint, bev=0.006)
+    box(0.3, 0.05, 0.04, y=-0.04, z=1.0, m=GRAPHITE, bev=0.01)
+
+@prop("tires")
+def p_tires():
+    for i in range(3):
+        tor(0.27, 0.1, z=0.1 + i * 0.2, m=RUBBER)
+        cyl(0.18, 0.02, z=0.02 + i * 0.2, m=GRAPHITE, bev=0)
+
+@prop("fishing_rods")
+def p_rods():
+    """Удочки у стены, ведро."""
+    for i, (x, a) in enumerate(((-0.15, -8), (0.0, 2), (0.15, 10))):
+        cyl(0.012, 2.0, x=x, y=0.0, z=1.0, m=(WOOD_L, OLIVE_D, GRAPHITE)[i], rot=(0, rad(a), 0), r2=0.004, bev=0)
+        cyl(0.04, 0.05, x=x - math.sin(rad(a)) * 0.6, y=-0.04, z=0.4, m=GRAPHITE, rot=(rad(90), 0, 0), bev=0.004)
+    cyl(0.14, 0.26, x=0.35, y=-0.1, z=0.13, m=STEEL, r2=0.16, bev=0.01)
+    tor(0.15, 0.008, x=0.35, y=-0.1, z=0.27, m=STEEL)
+
+@prop("old_chest")
+def p_chest():
+    """Дедов сундук: окованный, крышка откидывается (open) — внутри бутылка."""
+    b = box(0.9, 0.5, 0.42, z=0.21, m=WOOD_D, bev=0.015)
+    inner = box(0.84, 0.44, 0.42, z=0.27, m=WOOD_D, bev=0.005)
+    cut(b, inner)
+    for x in (-0.36, 0.0, 0.36):
+        box(0.05, 0.52, 0.44, x=x, z=0.21, m=GRAPHITE, bev=0.006)
+    box(0.08, 0.02, 0.1, y=-0.26, z=0.36, m=BRASS, bev=0.01)
+    vodka_parts(-0.1, 0.0, 0.03)
+    base = finish("old_chest")
+    box(0.92, 0.52, 0.12, z=0.48, m=WOOD_D, bev=0.03)
+    for x in (-0.36, 0.0, 0.36):
+        box(0.05, 0.54, 0.13, x=x, z=0.48, m=GRAPHITE, bev=0.01)
+    lid = sub("lid", (0, 0.26, 0.42))
+    swing(lid, 0, -100, 20)
+    PARTS.append(base)
+
+@prop("attic_boxes")
+def p_boxes():
+    """Картонные коробки со старьём — укрытие."""
+    for x, y, z, sx, sy, sz, r in ((-0.4, 0, 0.3, 0.6, 0.55, 0.6, 0), (0.25, 0.05, 0.25, 0.55, 0.5, 0.5, 6),
+                                   (-0.3, 0.02, 0.85, 0.5, 0.45, 0.5, -8), (0.3, 0.0, 0.72, 0.42, 0.4, 0.44, 4)):
+        box(sx, sy, sz, x=x, y=y, z=z, m=CARDBOARD, bev=0.012, rot=(0, 0, rad(r)))
+        box(sx * 0.98, 0.01, 0.06, x=x, y=y - sy / 2 - 0.002, z=z + sz * 0.3, m=CREAM_D, bev=0, rot=(0, 0, rad(r)))
+
+@prop("pickle_jar")
+def p_pickle_jar():
+    """Трёхлитровая банка рассола на ящике."""
+    box(0.5, 0.36, 0.36, z=0.18, m=WOOD_L, bev=0.01)
+    for z in (0.08, 0.28):
+        box(0.52, 0.37, 0.02, z=z, m=WOOD_D, bev=0.003)
+    jar_parts(0.0, 0.0, 0.36, 0.11, 0.3, BRINE)
+    for i in range(5):
+        cyl(0.018, 0.17, x=-0.05 + i * 0.025, y=0.02 * (i % 2), z=0.47, m=PICKLE, rot=(0, rad(-12 + i * 6), 0), bev=0.006)
+    box(0.1, 0.02, 0.07, y=-0.115, z=0.52, m=CREAM, bev=0.005)
+
+@prop("pigeon")
+def p_pigeon():
+    sph(0.07, z=0.07, m=FEATHER, sc=(1.3, 0.85, 0.9))
+    sph(0.04, x=0.08, z=0.13, m=FEATHER_D)
+    cyl(0.01, 0.03, x=0.12, z=0.125, m=OCHRE, rot=(0, rad(90), 0), r2=0.002, bev=0)
+    box(0.09, 0.05, 0.02, x=-0.1, z=0.07, m=FEATHER_D, bev=0.008, rot=(0, rad(-20), 0))
+    sph(0.007, x=0.105, y=-0.025, z=0.14, m=DARK)
+    sph(0.007, x=0.105, y=0.025, z=0.14, m=DARK)
+
+
 # ---------------------------------------------------------------- запуск
 done = []
 for name, fn in PROPS.items():

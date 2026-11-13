@@ -7,6 +7,8 @@ signal start_pressed
 signal restart_pressed
 signal menu_pressed
 signal resume_pressed
+signal next_pressed          # победа — следующий день
+signal week_pressed          # к экрану недели
 
 const C_TEXT := Color("ffe9b8")
 const C_DIM := Color("e2c697")
@@ -280,23 +282,6 @@ func _rebuild_inventory() -> void:
 # ---------------------------------------------------------------- задания
 ## Список заданий справа: что подменить, какие пакости устроить, финал. Квадратик: пустой — не сделано,
 ## оранжевый — подложено, ждём соседа; зелёная галочка — сработало. Tab — свернуть/развернуть.
-const TASKS := [
-	["Подмены", ""],
-	["Незамерзайка в ополаск.", "swap_mouthwash", "sw:mouthwash"],
-	["Настойка в кофе", "swap_coffee", "sw:coffee"],
-	["Водка вместо минералки", "swap_fridge", "sw:fridge"],
-	["Пиво вместо газировки", "swap_soda", "sw:soda"],
-	["Чекушка в куртку", "swap_jacket", "sw:jacket"],
-	["Пакости", ""],
-	["Спрятать геймпад", "prank_gamepad", "tk:gamepad"],
-	["Спрятать телефон", "prank_phone", "tk:phone"],
-	["Спрятать ключи", "prank_keys", "tk:keys"],
-	["Перегоревшая лампочка", "prank_bulb", "sw:ladder"],
-	["Кожура у холодильника", "prank_peeltrap", "tr:peeltrap"],
-	["Мыло у раковины", "prank_soaptrap", "tr:soaptrap"],
-	["Финал", ""],
-	["Салат на стол", "final_salad", "salad"],
-]
 const TASK_RECT := Rect2(1584, 146, 326, 0)
 
 func _build_tasks() -> void:
@@ -340,7 +325,8 @@ func _draw_tasks() -> void:
 	var w := TASK_RECT.size.x
 	var open := Settings.show_tasks
 	var row := 27.0
-	var h := 44.0 if not open else 50.0 + TASKS.size() * row
+	var rows := rules.task_rows()
+	var h := 44.0 if not open else 50.0 + rows.size() * row
 	tasks.size = Vector2(w, h)
 	var sb := StyleBoxFlat.new()
 	sb.bg_color = Color(0.17, 0.09, 0.04, 0.82)
@@ -350,7 +336,7 @@ func _draw_tasks() -> void:
 	tasks.draw_style_box(sb, Rect2(Vector2.ZERO, tasks.size))
 	var done := 0
 	var total := 0
-	for t in TASKS:
+	for t in rows:
 		if t[1] != "":
 			total += 1
 			if _task_state(t) == 2:
@@ -360,7 +346,7 @@ func _draw_tasks() -> void:
 	if not open:
 		return
 	var y := 50.0
-	for t in TASKS:
+	for t in rows:
 		if t[1] == "":
 			tasks.draw_string(f, Vector2(16, y + 20), t[0], HORIZONTAL_ALIGNMENT_LEFT, -1, 18, Color("d99a4e"))
 			y += row
@@ -402,19 +388,39 @@ func _update_tasks_fade(delta: float) -> void:
 
 # ---------------------------------------------------------------- экраны
 func show_intro() -> void:
-	_overlay("Понедельник. «Больше не пью»",
-		"Сосед в очередной раз завязал и пока спит. До 20:00 доведи его до финала — чтобы уснул (а лучше — лицом в салате).\n\n" +
-		"• Шарь по заначкам (жёлтые кружки) и подменяй напитки, пока он не видит.\n" +
-		"• Подкладывай кожуру и мыло, прячь геймпад, телефон и ключи — пусть звереет.\n" +
-		"• Прячься (голубые кружки) и крадись (ПКМ/Shift) — шаги слышно.\n" +
-		"• Поймает 3 раза — провал.",
-		[["Начать", start_pressed]])
+	var d: Dictionary = rules.game.day
+	var body: String = d["intro"] + "\n\n" + d["hint"]
+	if d["n"] > 1:
+		body += "\n• Прячься (голубые кружки) и крадись (ПКМ/Shift). Поймает 3 раза — провал."
+	_overlay("%s. «%s»" % [d["day_name"], d["title"]], body, [["Начать", start_pressed]])
 
 func show_results(win: bool, reason: String) -> void:
 	var lines := "\n".join(rules.log_done.map(func(s): return "• " + s)) if not rules.log_done.is_empty() else "Ничего не вышло."
-	_overlay("ПОБЕДА!" if win else "Провал",
+	var d: Dictionary = rules.game.day
+	var n: int = d["n"]
+	var buttons := []
+	if win and n < 7:
+		buttons.append(["Дальше: " + Days.NAMES[n], next_pressed])
+	elif win:
+		buttons.append(["Итоги недели", week_pressed])
+	buttons.append(["Ещё раз", restart_pressed])
+	if not (win and n == 7):
+		buttons.append(["К неделе", week_pressed])
+	var head := ("%s пройден!" % d["day_name"]) if win else "Провал"
+	_overlay(head,
 		"%s\n\nОчки: %d   ·   Позор: %d%% — «%s»\n\n%s" % [reason, rules.score, rules.shame_percent(), rules.shame_title(), lines],
-		[["Ещё раз", restart_pressed], ["В меню", menu_pressed]])
+		buttons)
+
+## Итоги недели (после воскресенья): проценты по дням и звание недели.
+func show_week_results() -> void:
+	var rows := []
+	for n in range(1, 8):
+		var b: Dictionary = Progress.best.get(n, {})
+		rows.append("• %s — %s" % [Days.NAMES[n - 1], ("%d%%, поимок: %d" % [b["percent"], b["catches"]]) if not b.is_empty() else "не пройден"])
+	_overlay("Итоги недели",
+		"Сосед всю неделю клялся «больше не пью» — и всю неделю пил не просыхая.\n\n%s\n\nВ среднем: %d%%   ·   Звание недели: «%s»" % [
+			"\n".join(rows), Progress.average_percent(), Progress.week_title()],
+		[["К неделе", week_pressed], ["В меню", menu_pressed]])
 
 func show_pause() -> void:
 	_overlay("Пауза", "", [["Продолжить", resume_pressed], ["Настройки", Signal()], ["Начать заново", restart_pressed], ["В главное меню", menu_pressed]])

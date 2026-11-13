@@ -1,7 +1,7 @@
 class_name Rules3D
 extends Node
-## Правила уровня 1 «Понедельник. Больше не пью» (3D): тайники, подмены, пакости, ловушки, опьянение,
-## цепочки, очки, реакции соседа и подколки героя. Описание — docs/LEVEL1_DESIGN.md.
+## Правила дня (3D): тайники, подмены, пакости, ловушки, опьянение, цепочки, очки, реакции соседа
+## и подколки героя. Что открыто в какой день и какие задания — scripts/levels/days.gd; дизайн — docs/WEEK_PLAN.md.
 ##
 ## Как в классике жанра: герой находит вещи в тайниках, подкладывает/подменяет их, пока сосед не видит;
 ## сосед по расписанию натыкается на подставу и бурно реагирует, а герой в этот момент злорадствует.
@@ -23,6 +23,8 @@ const ITEMS := {
 	"keys":       ["Ключи",        "res://assets/props/misc/misc_keys.png"],
 	"banana":     ["Банановая кожура", "res://assets/props/misc/misc_banana_peel.png"],
 	"soap":       ["Мыло",         "res://assets/props/misc/misc_soap.png"],
+	"samogon":    ["Самогон",      "res://assets/props/drinks/drink_samogon.png"],
+	"rods":       ["Удочки",       "res://assets/props/misc/misc_rods.png"],
 }
 
 ## [id, вид, узел в сцене, x где встать, этаж (0 — 1-й, 1 — 2-й), название, предмет]
@@ -55,6 +57,17 @@ const SPOTS := [
 	["gamepad",   "take",  "gamepad",         12.75, 0, "Геймпад",               "gamepad"],
 	["soda",      "swap",  "soda_bottle",     13.05, 0, "Газировка",             "beer"],
 	["ladder",    "swap",  "stepladder",      6.0,  0, "Стремянка и лампочка",   "bulb"],
+	["dresser",   "stash", "dresser",         6.98, 1, "Комод",                  ""],
+	["still",     "stash", "moonshine_still", 4.3, -1, "Самогонный аппарат",     ""],
+	["kvass",     "swap",  "kvass_barrel",    6.2, -1, "Бочка с квасом",         "samogon"],
+	["basement_jars", "stash", "cellar_shelf", 8.0, -1, "Закатки",               ""],
+	["sacks",     "hide",  "potato_sacks",    9.6, -1, "За мешками",             ""],
+	["workbench", "stash", "workbench",       11.1, -1, "Верстак",               ""],
+	["car",       "hide",  "car",             13.6, -1, "За машиной",            ""],
+	["rods",      "take",  "fishing_rods",    16.4, -1, "Удочки",                "rods"],
+	["chest",     "stash", "old_chest",       4.3,  2, "Дедов сундук",           ""],
+	["boxes",     "hide",  "attic_boxes",     5.9,  2, "За коробками",           ""],
+	["brine",     "swap",  "pickle_jar",      9.0,  2, "Банка с рассолом",       "vodka"],
 ]
 
 ## Подмены: [опьянение, реплика, лицо после глотка]
@@ -64,27 +77,64 @@ const SWAPS := {
 	"fridge":    [25, "Да как так нахуй?!", "shock"],
 	"soda":      [15, "Хм. А газировка-то с пеной…", "tipsy"],
 	"jacket":    [20, "…Это знак.", "happy"],
+	"kvass":     [20, "Ядрёный квасок… Ещё кружечку!", "tipsy"],
+	"brine":     [20, "…Хотя от нервов — самое то.", "happy"],
 }
 
 const RAGE := ["Да ну нахуй!", "Да как так нахуй?!", "Да ну нахер, серьёзно?!", "Это чё за херня, нахуй?!",
-	"Да вы издеваетесь, нахуй?!", "Ну ёпт твою налево!"]
+	"Да вы издеваетесь, нахуй?!", "Ну ёпт твою налево!", "Ёб твою мать, опять?!", "Кто, блядь, тут шарится?!",
+	"Да чтоб тебя через колено!", "Ну всё, пиздец котёнку!", "Я же завязал, ёпта!", "Кто подменил, тому пиздец!",
+	"Сука, ну что за день такой?!", "Мать твою за ногу!"]
 const TAUNTS := ["Пивная открывашка!", "Ветродуйка!", "Турбина перегарная!", "Пей до дна, открывашка!",
-	"Давай-давай, ветродуйка!"]
+	"Давай-давай, ветродуйка!", "Закусывать будешь, бочка с перегаром?", "Твоё здоровье, ветродуйка!",
+	"Трезвость — норма жизни. Но не сегодня!", "Пей, пока горячее, проспиртованный!", "Ещё по одной, гроза минералки!"]
+## Подколки героя после того, как сосед отбушевал (герой ждёт, пока тот замолчит).
+const GLOATS := ["Хе-хе, понеслась!", "Сорвался, ветродуйка!", "Ну и рожа, хе-хе!", "Опять на бутылке, открывашка!",
+	"Красавчик, ёпта!", "Вот это я понимаю — завязал!", "Держись, турбина, держись!", "Ой, не могу! Ха-ха!",
+	"Ну ты и синеглазка!", "Бросать — так красиво!", "Готовься к новой жизни с понедельника!", "Минус трезвость, плюс веселье!"]
 
 ## Герой говорит, пока подстраивает пакость (а не когда сосед попался — тогда говорит сосед):
-## id места -> реплика.
+## id места -> варианты реплики.
 const SETUP_LINES := {
-	"mouthwash": "Пусть прополощет, ветродуйка!", "coffee": "Кофеёк с сюрпризом!",
-	"fridge": "Минералочка, ага. Хе-хе.", "soda": "Газировочка с пенкой!",
-	"jacket": "Сходит он за хлебом, как же!", "ladder": "Электрик, ты где? Хе-хе.",
-	"peeltrap": "Смотри под ноги, турбина перегарная!", "soaptrap": "Скользкого утречка, ветродуйка!",
-	"keys": "Ключики теперь мои!", "gamepad": "Поиграл — и хватит!", "phone": "Позвонишь потом, открывашка!",
-	"salad": "Подушечка готова!",
+	"mouthwash": ["Пусть прополощет, ветродуйка!", "Освежись, турбина перегарная!", "Полощи горло, алкобаза!"],
+	"coffee": ["Кофеёк с сюрпризом!", "Бодрящий, сука, кофеёк!", "Капучино по-нашему!"],
+	"fridge": ["Минералочка, ага. Хе-хе.", "Пей минералку, бочка с перегаром!", "Водичка «Сорокаградусная»!"],
+	"soda": ["Газировочка с пенкой!", "Пузырики подъехали, открывашка!"],
+	"jacket": ["Сходит он за хлебом, как же!", "Хлебушка купишь, синеглазка? Хе-хе."],
+	"ladder": ["Электрик, ты где? Хе-хе.", "Да будет свет! Ага, щас."],
+	"peeltrap": ["Смотри под ноги, турбина перегарная!", "Банановый привет, ветродуйка!"],
+	"soaptrap": ["Скользкого утречка, ветродуйка!", "Мыльная дорожка — прямо в люлю!"],
+	"keys": ["Ключики теперь мои!", "Сиди дома, бродяга!"],
+	"gamepad": ["Поиграл — и хватит!", "Геймер хренов, хе-хе."],
+	"phone": ["Позвонишь потом, открывашка!", "Чат-рулетка закрыта, красавчик!"],
+	"salad": ["Подушечка готова!", "Мордой в оливье — как положено!"],
+	"kvass": ["Квасок с градусом, хе-хе!", "Это тебе не кефир, бродяга!", "Квас «Дедушкин рецепт»!"],
+	"brine": ["Рассольчик тебе, синеглазка!", "Опохмелочка подъехала!", "Лечись, лечись, ветродуйка!"],
+	"rods": ["Рыбалка отменяется, рыбак хренов!", "Ловить будешь белочку, а не карася!"],
 }
+
+## Утренняя клятва соседа по дням (две реплики: проснулся и чуть позже).
+const OATHS := [
+	["Всё, сегодня больше не пью!", "Не, вообще к пиву не тянет."],
+	["Вторник. Разгрузочный день. Только кефир!", "Кефир — это тоже напиток. Почти."],
+	["Среда. Гости не придут — и пить не с кем!", "Одному пить — это алкоголизм. А я не алкоголик!"],
+	["Четверг. Ревизия погреба. Только огурцы считаю!", "Самогонный аппарат — память о деде. Не трогаю!"],
+	["Пятница. Держусь. Я держусь, блядь!", "На рыбалку — только с чаем. Только с чаем, сука."],
+	["Суббота. Генеральная уборка — и никакой синьки!", "Дедов хлам разберу — и спать. Трезвым!"],
+	["Воскресенье. Завтра новая жизнь. А сегодня — репетиция!", "Последний день. Продержусь — и я человек!"],
+]
+## Победная реплика героя в конце дня (воскресенье — финал недели, см. _finale).
+const DAY_WIN := ["Понедельник — день тяжёлый, ветродуйка!", "Разгрузился, ага. На пол-литра!",
+	"Гости не придут? А мы и не звали!", "Погреб проверен. Самогон — тоже!",
+	"Рыбалка удалась! Улов — сорок градусов!", "Генеральная уборка: мозги промыты рассолом!", ""]
+const WEEK_FINALE := ["Ну что, ветродуйка, опять всю неделю пил не просыхал?",
+	"В понедельник — «больше не пью», в воскресенье — лицом в салат. Стабильность!",
+	"Семь дней, семь срывов. Рекорд подъезда, турбина перегарная!",
+	"Завтра понедельник. Начнёшь новую жизнь, ага. Хе-хе."]
+const FOUND := ["Опа, заначка!", "Ну-ка, ну-ка, что тут у нас?", "Конфискация, хе-хе!"]
 
 const STAGES := ["Трезвый", "Чуть-чуть", "Весёлый", "Тренер", "В стельку", "Уснул"]
 const STAGE_FROM := [0, 15, 35, 60, 85, 100]
-const MAX_SCORE := 5 * 100 + 6 * 75 + 4 * 150 + 300
 
 var game: Node                     # Game3D
 var neighbor: Neighbor3D
@@ -108,6 +158,28 @@ func setup(g: Node) -> void:
 	neighbor = g.neighbor
 	hero = g.hero
 
+## Задания дня для списка справа: [заголовок группы, ""] и [текст, ключ очков, условие].
+func task_rows() -> Array:
+	var out := []
+	var day_tasks: Array = game.day["tasks"]
+	for group in ["Подмены", "Пакости", "Финал"]:
+		var rows := []
+		for id in day_tasks:
+			var t: Array = Days.TASKS[id]
+			if t[4] == group:
+				rows.append([t[0], t[1], t[2]])
+		if not rows.is_empty():
+			out.append([group, ""])
+			out.append_array(rows)
+	return out
+
+## Максимум очков дня (все задания дня; цепочки — сверху, процент не больше 100).
+func max_score() -> int:
+	var m := 0
+	for id in game.day["tasks"]:
+		m += int(Days.TASKS[id][3])
+	return maxi(1, m)
+
 # ---------------------------------------------------------------- опьянение
 func stage() -> int:
 	var st := 0
@@ -122,9 +194,10 @@ func stage_name() -> String:
 func default_face() -> String:
 	return ["normal", "tipsy", "drunk", "drunk", "wasted", "sleep"][stage()]
 
-func add_drunk(v: float) -> void:
+## raw — без поправки дня (отладка: --finale).
+func add_drunk(v: float, raw := false) -> void:
 	var before := stage()
-	drunk = minf(drunk + v, 100.0)
+	drunk = minf(drunk + v * (1.0 if raw else float(game.day["drink_k"])), 100.0)
 	if stage() != before:
 		toast.emit("Сосед теперь: «%s»" % stage_name(), true)
 		Settings.sfx("stage", 0.6)
@@ -146,11 +219,11 @@ func gloat(delay := 1.2) -> void:
 	get_tree().create_timer(delay, false).timeout.connect(func():
 		if over and not salad_on_table and drunk < 100.0:
 			return
-		hero.gloat(""))
+		hero.gloat(GLOATS.pick_random() if randf() < 0.55 else ""))
 
 ## Реплика героя, когда он подстраивает пакость.
 func setup_line(id: String, delay := 0.5) -> void:
-	var line: String = SETUP_LINES.get(id, TAUNTS[_taunt_i % TAUNTS.size()])
+	var line: String = (SETUP_LINES[id] as Array).pick_random() if SETUP_LINES.has(id) else TAUNTS[_taunt_i % TAUNTS.size()]
 	_taunt_i += 1
 	get_tree().create_timer(delay, false).timeout.connect(func():
 		if not over:
@@ -245,7 +318,7 @@ func hero_use(s: Spot3D) -> void:
 			s.done = true
 			var what := {"mouthwash": "Незамерзайка вместо ополаскивателя", "coffee": "Настойка в кофе",
 				"fridge": "Водка вместо минералки", "soda": "Пиво вместо газировки", "jacket": "Чекушка в куртке",
-				"ladder": "Лампочка подменена"}
+				"ladder": "Лампочка подменена", "kvass": "Самогон в бочке с квасом", "brine": "Водка вместо рассола"}
 			toast.emit(what.get(s.id, "Готово"), true)
 			setup_line(s.id, 0.6)
 		"trap":
@@ -287,7 +360,7 @@ func neighbor_use(id: String) -> void:
 	match id:
 		"wake":
 			neighbor.wake_up()
-		"mouthwash", "coffee", "soda", "jacket":
+		"mouthwash", "coffee", "soda", "jacket", "kvass", "brine":
 			_use_drink(id)
 		"fridge", "detour":
 			game.open_prop(game.spots["fridge"], 2.2)
@@ -316,6 +389,19 @@ func neighbor_use(id: String) -> void:
 				neighbor.react_seq([{"face": "normal", "clip": "drink", "t": 2.0, "item": "mineral_water", "line": "Минералочка… Успокоился."}])
 			else:
 				neighbor.react_seq([{"face": default_face(), "clip": "drink", "t": 2.0, "item": "mineral_water"}])
+		"rods":
+			if taken.has("rods"):
+				_scored["rage"] = true
+				_award("prank_rods", 75, "Пакость: спрятаны удочки")
+				neighbor.react_seq([
+					{"face": "suspicious", "clip": "suspicious", "t": 1.8, "line": "Где удочки?!"},
+					{"face": "suspicious", "clip": "suspicious", "t": 1.8, "line": "Я их тут ставил, сука!"},
+					{"face": "yell", "clip": "angry", "t": 2.4, "line": rage_line(), "shake": 0.3},
+					{"face": "angry", "clip": "kick", "t": 2.2, "line": "Рыбалка накрылась… Ну и хрен с ней!", "sfx": "thud", "shake": 0.2},
+				], _go_fridge)
+				gloat(2.0)
+			else:
+				neighbor.say(["Удочки на месте. Червей бы ещё…", "Карась, жди меня!"].pick_random(), 2.4)
 		"gamepad", "phone":
 			if taken.has(id):
 				_scored["rage"] = true
@@ -381,7 +467,7 @@ func neighbor_use(id: String) -> void:
 				], _go_fridge)
 				gloat(2.0)
 		"balcony":
-			if inventory.has("vodka") or swapped.has("fridge") or not game.spots["jars"].active:
+			if game.spots.has("jars") and (inventory.has("vodka") or swapped.has("fridge") or not game.spots["jars"].active):
 				neighbor.react_seq([
 					{"face": "suspicious", "clip": "suspicious", "t": 2.4, "line": "Э… А где моя заначка за банками?"},
 					{"face": "angry", "clip": "angry", "t": 2.0, "line": "Домовой, что ли, завёлся?"},
@@ -405,6 +491,10 @@ func _use_drink(id: String) -> void:
 			seq.append({"face": "shock", "clip": "suspicious", "t": 1.4, "sfx": "hiccup", "line": "Кхе-кхе! Это чё такое?!", "shake": 0.2})
 		"coffee":
 			seq.append({"face": "shock", "clip": "suspicious", "t": 1.4, "sfx": "hiccup", "line": "Кхм! Это кофе?!"})
+		"kvass":
+			seq.append({"face": "shock", "clip": "suspicious", "t": 1.4, "sfx": "hiccup", "line": "Кхе! Это чё за квас такой?!", "shake": 0.15})
+		"brine":
+			seq.append({"face": "shock", "clip": "suspicious", "t": 1.4, "sfx": "hiccup", "line": "Тьфу! Рассол водкой пахнет!", "shake": 0.15})
 		"soda":
 			seq.append({"face": "tipsy", "clip": "idle", "t": 1.0, "sfx": "burp"})
 	if id == "jacket" and taken.has("keys"):
@@ -412,11 +502,12 @@ func _use_drink(id: String) -> void:
 	seq.append({"face": sw[2], "clip": "idle" if id != "jacket" else "oath", "t": 2.2, "line": sw[1], "item": ""})
 	seq.append({"face": "happy", "clip": "dance" if id != "coffee" else "idle", "t": 2.2,
 		"line": {"mouthwash": "А ничё так, освежает!", "coffee": "Ну и ладно, допью.",
-			"soda": "Пивасик?! …Ну, раз налито.", "jacket": "За знакомство!"}[id]})
+			"soda": "Пивасик?! …Ну, раз налито.", "jacket": "За знакомство!", "kvass": "Ну и хрен с ним, раз уж налито…",
+			"brine": "Эх, понеслась душа в рай!"}[id]})
 	neighbor.react_seq(seq)
 	add_drunk(sw[0])
 	gloat(2.4)
-	if id in ["coffee", "soda", "jacket"]:
+	if id in ["coffee", "soda", "jacket", "kvass"]:
 		swapped.erase(id)    # выпил — больше не сработает
 		game.spots[id].done = false
 		game.spots[id].active = id != "jacket"
@@ -434,8 +525,8 @@ func trap_hit(id: String) -> void:
 	_scored["rage"] = true
 	neighbor.react_seq([
 		{"face": "shock", "clip": "fall_back", "t": 1.5, "fall": true, "sfx": "thud", "shake": 0.6, "line": "Оп-оп-оп… А-а-а!"},
-		{"face": "yell", "clip": "lie_back", "t": 2.2, "line": "Твою ж… Кто мыло бросил?!" if soap else "Кто кожуру бросил?!"},
-		{"face": "angry", "clip": "lie_back", "t": 1.8, "line": "Ой-ё-ёй… Спина моя…"},
+		{"face": "yell", "clip": "lie_back", "t": 2.2, "line": ("Твою ж… Кто мыло бросил?!" if soap else "Кто кожуру бросил?!") if randf() < 0.6 else "Мать твою за ногу, пол скользкий!"},
+		{"face": "angry", "clip": "lie_back", "t": 1.8, "line": ["Ой-ё-ёй… Спина моя…", "А-а-а, моя спина, блядь!"].pick_random()},
 		{"face": "angry", "clip": "get_up", "t": 1.6},
 		{"face": "yell", "clip": "angry", "t": 2.2, "line": rage_line(), "shake": 0.3},
 		{"face": "suspicious", "clip": "suspicious", "t": 2.0, "line": "Узнаю, кто это сделал — урою!"},
@@ -461,10 +552,19 @@ func _finale() -> void:
 	game.finale_hero = true
 	hero.victory_dance()
 	await get_tree().create_timer(1.0, false).timeout
-	var d := hero.say("Так тебе, ветродуйка!", 2.4)
-	await get_tree().create_timer(maxf(2.4, d + 0.5), false).timeout
-	d = hero.say("И вот опять ты на бутылке!", 2.8)
-	await get_tree().create_timer(maxf(3.2, d + 1.2), false).timeout
+	var lines: Array = ["Так тебе, ветродуйка!", "И вот опять ты на бутылке!"]
+	var n: int = game.day_n
+	if n == 7:
+		lines = WEEK_FINALE.duplicate()
+	elif DAY_WIN[n - 1] != "":
+		lines = [DAY_WIN[n - 1], "И вот опять ты на бутылке!"]
+	for i in lines.size():
+		var d := hero.say(lines[i], 2.6)
+		await get_tree().create_timer(maxf(2.6, d + 0.6), false).timeout
+	if n == 7:   # сосед сквозь сон
+		var d2 := neighbor.say("Всё… с понедельника… завязываю…", 3.0)
+		await get_tree().create_timer(maxf(3.0, d2 + 0.8), false).timeout
+	await get_tree().create_timer(0.6, false).timeout
 	finished.emit(true, "Сосед уснул" + (" лицом в салате!" if salad_on_table else ""))
 
 func caught() -> void:
@@ -482,7 +582,7 @@ func time_up() -> void:
 	finished.emit(false, "Наступил вечер, а сосед всё ещё на ногах")
 
 func shame_percent() -> int:
-	return clampi(roundi(100.0 * score / MAX_SCORE), 0, 100)
+	return clampi(roundi(100.0 * score / max_score()), 0, 100)
 
 func shame_title() -> String:
 	var p := shame_percent()

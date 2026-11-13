@@ -19,18 +19,24 @@ from common import godot, out_dir, utf8_stdout
 
 # сценарий: (аргументы игры, секунд записи, что смотреть)
 PRESETS = {
-    "wake":    ("--start=7.9 --ghost --focus", 18, "сосед встаёт с кровати, клятва, идёт в ванную"),
-    "trap":    ("--start=9.55 --give=banana --use=sel:banana,peeltrap,sofa --ghost --focus", 28,
+    "wake":    ("--day=3 --start=7.9 --ghost --focus", 18, "сосед встаёт с кровати, клятва, идёт в ванную"),
+    "trap":    ("--day=3 --start=9.55 --give=banana --use=sel:banana,peeltrap,sofa --ghost --focus", 28,
                 "сосед поскальзывается на кожуре: падение, лежит, встаёт, злится"),
-    "fridge":  ("--start=9.9 --give=vodka --use=sel:vodka,fridge,sofa --ghost --focus", 34,
+    "fridge":  ("--day=3 --start=9.9 --give=vodka --use=sel:vodka,fridge,sofa --ghost --focus", 34,
                 "водка вместо минералки: глоток, шок, «ну раз уж открыл», танец"),
-    "gaming":  ("--start=9.75 --ghost --focus", 12, "сосед играет: геймпад двумя руками, телевизор включён"),
-    "bulb":    ("--start=10.9 --give=bulb --use=ladder,wardrobe --ghost --focus", 40, "стремянка в прихожей, лампочка"),
-    "catch":   ("--start=9.3 --catch", 9, "поимка: сосед бежит, удар, герой исчезает"),
-    "hide":    ("--start=8.6 --hero-at=8.0,1 --use=bed --ghost", 8, "герой ныряет под кровать, глаза из укрытия"),
-    "finale":  ("--start=10 --salad --finale --ghost --hero-at=12.0,0", 34,
+    "gaming":  ("--day=3 --start=9.75 --ghost --focus", 12, "сосед играет: геймпад двумя руками, телевизор включён"),
+    "bulb":    ("--day=3 --start=10.9 --give=bulb --use=ladder,wardrobe --ghost --focus", 40, "стремянка в прихожей, лампочка"),
+    "catch":   ("--day=3 --start=9.3 --catch", 9, "поимка: сосед бежит, удар, герой исчезает"),
+    "hide":    ("--day=3 --start=8.6 --hero-at=8.0,1 --use=bed --ghost", 8, "герой ныряет под кровать, глаза из укрытия"),
+    "finale":  ("--day=3 --start=10 --salad --finale --ghost --hero-at=12.0,0", 34,
                 "финал: сосед идёт к салату, падает лицом, камера на героя, танец, реплики"),
-    "overview": ("--start=8.0 --ghost", 20, "общий план: мысли соседа, метка цели, точки предметов"),
+    "overview": ("--day=3 --start=8.0 --ghost", 20, "общий план: мысли соседа, метка цели, точки предметов"),
+    "cellar":  ("--day=4 --start=8.2 --ghost --hero-at=5.0,0 --goto=5.0,-1", 16,
+                "дверь под лестницей: герой входит, дверь закрывается, выходит из двери в подвале"),
+    "attic":   ("--day=6 --start=8.2 --ghost --hero-at=12.6,1 --goto=8.0,2", 16,
+                "дверь с площадки правой лестницы: герой поднимается на чердак"),
+    "week":    ("--day=7 --start=10 --salad --finale --ghost --hero-at=8.0,0", 46,
+                "финал недели: сосед лицом в салат, герой: «опять всю неделю пил не просыхал?», сосед во сне"),
 }
 
 

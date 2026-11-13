@@ -1,12 +1,14 @@
 ---
 description: Полная проверка игры агентами (прохождение, сложность, анимация, производительность/звук, веб). Аргумент — что проверять: all (по умолчанию), quick, level, balance, anim, perf, web.
-argument-hint: "[all|quick|level|balance|anim|perf|web]"
+argument-hint: "[all|quick|week|level|balance|anim|perf|web]"
 ---
 Проведи проверку игры «Сосед на бутылке» агентами. Режим: «$ARGUMENTS» (пусто = all).
 
 Агенты (файлы в `.claude/agents/`): level-runner, balance, anim-review, perf-audio, web-qa.
 
-- **quick** — только level-runner (стратегии careful,normal по 1 прогону). Для проверки после мелких правок.
+- **quick** — только level-runner (стратегии careful,normal по 1 прогону, дни 1, 4 и 7). Для проверки после мелких правок.
+- **week** — level-runner и balance по всей неделе (`--day all`), общая таблица по дням: победы, поимки, время финала,
+  выполненные задания; кривая сложности Пн → Вс должна расти за счёт заданий и дома, а не за счёт «злого» соседа.
 - **level / balance / anim / perf / web** — один соответствующий агент.
 - **all** — запусти параллельно (в одном сообщении, фоном): level-runner, balance, anim-review, web-qa.
   perf-audio запускай ПОСЛЕ них отдельно: он открывает окно игры на минуты и меряет FPS — параллельная нагрузка исказит цифры.

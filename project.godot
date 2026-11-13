@@ -22,6 +22,7 @@ driver/output_latency.web=120
 [autoload]
 
 Settings="*res://scripts/autoload/settings.gd"
+Progress="*res://scripts/autoload/progress.gd"
 DebugScreenshot="*res://scripts/debug/screenshot.gd"
 
 [display]

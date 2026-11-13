@@ -113,13 +113,22 @@ func _go(s: Spot3D, why: String) -> void:
 	game._go_spot(s)
 
 func _dist(s: Spot3D) -> float:
-	var path: Array[Vector3] = game.plan_path(game.hero.position, s.walk)
-	var d := 0.0
-	var p: Vector3 = game.hero.position
-	for q in path:
-		d += p.distance_to(q)
-		p = q
-	return d
+	return Game3D.path_len(game.hero.position, game.plan_path(game.hero.position, s.walk))
+
+## Проходит ли путь к месту через комнату, где опасно (сосед там или идёт туда).
+func _path_danger(s: Spot3D, danger: Array) -> bool:
+	if danger.is_empty():
+		return false
+	var prev: Vector3 = game.hero.position
+	for q in game.plan_path(game.hero.position, s.walk):
+		if Game3D.is_tp(q):
+			continue
+		for k in 3:       # и точки между вершинами пути (по дорожке через комнату)
+			var p: Vector3 = prev.lerp(q, (k + 1) / 3.0)
+			if not game.on_stairs(p) and _room(p) in danger:
+				return true
+		prev = q
+	return false
 
 func _value(s: Spot3D) -> float:
 	var r: Rules3D = game.rules
@@ -147,7 +156,7 @@ func _best_task() -> Spot3D:
 		var v := _value(s)
 		if v <= 0.0:
 			continue
-		if strategy != "reckless" and _room(s.walk) in danger:
+		if strategy != "reckless" and (_room(s.walk) in danger or _path_danger(s, danger)):
 			continue
 		var score := v * 10.0 - _dist(s)
 		if score > best_score:
@@ -171,7 +180,7 @@ func _best_hide(near: bool) -> Spot3D:
 				best_score = d
 				best = s
 		else:
-			if _room(s.walk) in danger:
+			if _room(s.walk) in danger or _path_danger(s, danger):
 				continue
 			var away: float = -s.walk.distance_to(game.neighbor.position)
 			if away + d * 0.2 < best_score:

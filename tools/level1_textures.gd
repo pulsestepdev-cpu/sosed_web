@@ -1,6 +1,7 @@
 extends SceneTree
 ## Текстуры для 3D-уровня 1: кирпич (срезы стен и перекрытий), обои комнат, полы, небо.
-## Godot.exe --headless --path . --script res://tools/level1_textures.gd
+## Godot.exe --headless --path . --script res://tools/level1_textures.gd [-- new]
+## «new» — только текстуры подвала, гаража и чердака (остальные уже импортированы).
 ## Все текстуры бесшовные (тайлятся), материалы накладывают их в мировых координатах (triplanar).
 
 const OUT := "res://assets/textures/level1/"
@@ -8,6 +9,16 @@ const S := 512
 
 func _init() -> void:
 	DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path(OUT))
+	blocks("wall_basement", Color("8d8a82"), Color("6f6c66"), 4, 6)
+	concrete("floor_concrete", Color("8a8780"), false)
+	blocks("wall_garage", Color("a7aa9c"), Color("8c8f82"), 3, 5)
+	concrete("floor_garage", Color("7c7a74"), true)
+	planks("wall_attic", Color("a0703f"), Color("7a5028"), true)
+	planks("floor_attic", Color("9a6a3a"), Color("6e4824"), false)
+	if "new" in OS.get_cmdline_user_args():
+		print("TEXTURES_OK")
+		quit()
+		return
 	brick()
 	wallpaper("wall_hall", Color("d9a95b"), Color("c48a3e"), "stripes")
 	wallpaper("wall_kitchen", Color("e8dcc0"), Color("8fb8a6"), "check")
@@ -150,3 +161,55 @@ func sky() -> void:
 	img.generate_mipmaps()
 	img.save_png(OUT + "sky.png")
 	print("TEX sky")
+
+## Бетонные блоки (подвал, гараж): n блоков в ряд, rows рядов, со сдвигом через ряд.
+func blocks(name: String, a: Color, seam: Color, n: int, rows: int) -> void:
+	var img := Image.create(S, S, false, Image.FORMAT_RGB8)
+	var bw := S / n
+	var bh := S / rows
+	for y in S:
+		var row := y / bh
+		var off := (bw / 2) if row % 2 == 1 else 0
+		for x in S:
+			var xx := (x + off) % S
+			var col := xx / bw
+			var c := a.lerp(a.darkened(0.18), _noise(col + row * 5, row, 51))
+			c = c.darkened(_noise(x, y, 53) * 0.1 + _noise(x / 6, y / 6, 55) * 0.06)
+			if xx % bw < 4 or y % bh < 4:
+				c = seam.darkened(_noise(x, y, 57) * 0.1)
+			img.set_pixel(x, y, c)
+	_save(img, name)
+
+## Бетонный пол: пятна, трещинки; stains — масляные пятна (гараж).
+func concrete(name: String, a: Color, stains: bool) -> void:
+	var img := Image.create(S, S, false, Image.FORMAT_RGB8)
+	for y in S:
+		for x in S:
+			var c := a.darkened(_noise(x, y, 61) * 0.08 + _noise(x / 16, y / 16, 63) * 0.1)
+			if (x + int(sin(float(y) * 0.05) * 9.0)) % 256 == 0 or (y + int(sin(float(x) * 0.04) * 7.0)) % 256 == 0:
+				c = c.darkened(0.3)
+			if stains:
+				for st in [[140, 180, 60], [380, 330, 80], [260, 460, 45]]:
+					var d := Vector2(x - st[0], (y - st[1]) * 1.4).length()
+					if d < st[2]:
+						c = c.lerp(Color("2b2a28"), 0.55 * (1.0 - d / st[2]))
+			img.set_pixel(x, y, c)
+	_save(img, name)
+
+## Доски (чердак): vertical — вертикальная вагонка, иначе — широкие половицы.
+func planks(name: String, a: Color, b: Color, vertical: bool) -> void:
+	var img := Image.create(S, S, false, Image.FORMAT_RGB8)
+	var w := S / 6
+	for y in S:
+		for x in S:
+			var u := x if vertical else y
+			var v := y if vertical else x
+			var plank := u / w
+			var c := a.lerp(b, _noise(plank, 0, 71) * 0.6)
+			c = c.darkened(sin(float(v) * 0.09 + _noise(plank, 1, 73) * 12.0) * 0.05 + _noise(x, y, 75) * 0.06)
+			if u % w < 4:
+				c = c.darkened(0.45)
+			if _noise(plank, v / 90, 77) > 0.93 and absf(float(u % w) - w * 0.5) < 5 and v % 90 < 10:
+				c = c.darkened(0.5)       # сучок / гвоздь
+			img.set_pixel(x, y, c)
+	_save(img, name)

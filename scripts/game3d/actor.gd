@@ -4,6 +4,7 @@ extends Node3D
 ## плавный разворот, лицо (подмена текстуры), реплика над головой с озвучкой, звук шагов.
 
 signal arrived
+signal portal_used(at: Vector3)    # вошёл в дверь-переход или вышел из неё (точка у двери)
 
 const FACE_DIR := "res://assets/models/characters/"
 const LOOPED := ["idle", "walk", "sneak", "walk_drunk", "drink", "work", "phone", "game", "kick", "sleep", "dance",
@@ -35,6 +36,9 @@ var _queued_secs := 0.0
 var _queued_wait := 0.0
 var _faces := {}
 var _clip := ""
+var in_portal := false          # прямо сейчас «за дверью» (переход между этажами)
+var _portal_t := 0.0
+const PORTAL_TIME := 0.9        # сколько секунд персонажа не видно в двери
 
 func setup(glb_path: String, who: String) -> void:
 	kind = who
@@ -137,6 +141,8 @@ func walk_path(points: Array[Vector3]) -> void:
 	path = points.duplicate()
 
 func stop() -> void:
+	if in_portal:
+		_finish_portal()
 	path.clear()
 
 func is_walking() -> bool:
@@ -176,12 +182,20 @@ func _process(delta: float) -> void:
 		elif _queued_wait <= 0.0:
 			_queued = ""
 	rotation.y = lerp_angle(rotation.y, target_yaw, minf(1.0, delta * 9.0))
+	if in_portal:
+		_portal_t -= delta
+		if _portal_t <= 0.0:
+			_finish_portal()
+		return
 	if path.is_empty():
 		if not hold:
 			play(idle_clip)
 		return
 	var step := speed * speed_mul * delta
 	while step > 0.0 and not path.is_empty():
+		if path[0].x > Days.TP * 0.5:     # дверь-переход: скрыться в двери, через PORTAL_TIME выйти из парной
+			_start_portal()
+			return
 		var to := path[0] - position
 		var flat := Vector3(to.x, 0, to.z)
 		if flat.length() > 0.02:
@@ -205,6 +219,31 @@ func _process(delta: float) -> void:
 		if _step_t <= 0.0:
 			_step_t = _step_period()
 			Settings.sfx("%s_%d" % [step_sfx, randi() % 4], step_vol, randf_range(0.9, 1.1))
+
+func _start_portal() -> void:
+	in_portal = true
+	_portal_t = PORTAL_TIME
+	portal_used.emit(position)
+	var tw := create_tween()
+	tw.tween_property(model, "scale", Vector3(0.92, 0.92, 0.92), 0.15)
+	tw.tween_callback(func():
+		if in_portal:
+			model.visible = false
+			model.scale = Vector3.ONE)
+
+## Выйти из парной двери: следующая точка пути — порог двери на другом этаже.
+func _finish_portal() -> void:
+	in_portal = false
+	if not path.is_empty() and path[0].x > Days.TP * 0.5:
+		path.remove_at(0)
+	if not path.is_empty():
+		position = path[0]
+		path.remove_at(0)
+	model.visible = true
+	model.scale = Vector3.ONE
+	portal_used.emit(position)
+	if path.is_empty():
+		arrived.emit()
 
 func _walk_anim_k() -> float:
 	return 1.0

@@ -11,10 +11,12 @@ model: opus
 - `python tools/qa/record.py --list` — готовые сценарии: wake, trap, fridge, gaming, bulb, catch, hide, finale, overview.
 - `python tools/qa/record.py --preset trap` — запись (откроется окно Godot на время записи — это нормально).
   Печатает пути к листам `sheet_NN.png` (сетка 4×4, подпись секунд) — смотри их Read-ом. Отдельные кадры — в `frames/`.
-- Свой сценарий: `python tools/qa/record.py --args "--start=9.75 --focus --ghost" --seconds 12 --name my`.
+- Свой сценарий: `python tools/qa/record.py --args "--day=3 --start=9.75 --focus --ghost" --seconds 12 --name my`.
+- Неделя: сценарии `cellar` (дверь в подвал), `attic` (дверь на чердак), `week` (финал недели); `--goto=X,этаж` — герой идёт
+  туда (через лестницы и двери). Дни и комнаты — `scripts/levels/days.gd`.
   Аргументы игры — в шапке `scripts/game3d/game.gd`: `--focus` (камера крупно на соседе), `--ghost` (сосед не ловит),
   `--use=a,b` (герой по очереди идёт к точкам), `--give=предмет`, `--start=час`, `--hero-at=x,этаж`, `--zoom`.
-- Быстрый одиночный скриншот: `"/c/Users/belya/Desktop/projects/Godot/Godot.exe" --path . res://scenes/game.tscn -- --autostart --start=9.75 --ghost --shot=screenshots/qa/x.png --shot-delay=3`
+- Быстрый одиночный скриншот: `"/c/Users/belya/Desktop/projects/Godot/Godot.exe" --path . res://scenes/game.tscn -- --day=3 --autostart --start=9.75 --ghost --shot=screenshots/qa/x.png --shot-delay=3`
 - Модели: `assets/models/characters/*.glb` (клипы: `tools/check_glb.gd`), предметы `assets/models/props/`.
   Как держатся предметы — `hold_item()` / `_update_pad()` в `scripts/game3d/neighbor3d.gd`.
 

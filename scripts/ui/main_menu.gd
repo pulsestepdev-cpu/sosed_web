@@ -1,5 +1,5 @@
 extends Control
-## Главный экран: обложка игры на весь экран, кнопки «Играть», «Настройки», «Выход».
+## Главный экран: обложка игры на весь экран, кнопки «Играть» (экран недели), «Настройки», «Выход».
 
 const GAME := "res://scenes/game.tscn"
 
@@ -41,7 +41,7 @@ func _ready() -> void:
 	_buttons.offset_bottom = -70
 	add_child(_buttons)
 	var play := UiStyle.button("Играть", 56, 460)
-	play.pressed.connect(_play)
+	play.pressed.connect(_open_week)
 	_buttons.add_child(play)
 	var opts := UiStyle.button("Настройки", 44, 460)
 	opts.pressed.connect(func(): add_child(SettingsPanel.new()))
@@ -65,7 +65,12 @@ func _ready() -> void:
 	create_tween().tween_property(_buttons, "modulate:a", 1.0, 0.6).set_delay(0.2)
 	Settings.qa_mark("menu_ready")
 	var dbg := Settings.debug_args()
-	if dbg.has("play"):
+	if Progress.open_week:
+		Progress.open_week = false
+		_open_week.call_deferred()
+	if dbg.has("week"):
+		_open_week.call_deferred()
+	elif dbg.has("play"):
 		_play.call_deferred()
 	elif dbg.has("qa"):            # автотест в браузере: старт по первому клику/касанию — как у живого игрока
 		_qa_wait = true            # (браузер включает звук только после жеста пользователя)
@@ -75,6 +80,18 @@ func _input(ev: InputEvent) -> void:
 	if _qa_wait and ((ev is InputEventMouseButton and ev.pressed) or (ev is InputEventScreenTouch and ev.pressed)):
 		_qa_wait = false
 		_play()
+
+func _open_week() -> void:
+	if get_node_or_null("Week"):
+		return
+	var w := WeekScreen.new()
+	w.name = "Week"
+	_buttons.visible = false
+	w.day_chosen.connect(func(_n):
+		w.queue_free()
+		_play())
+	w.closed.connect(func(): _buttons.visible = true)
+	add_child(w)
 
 func _play() -> void:
 	_buttons.visible = false

@@ -40,6 +40,12 @@ func _draw() -> void:
 			var rr := (7.0 + sin(_t * 4.0 + top.x * 0.01) * 1.8) * k
 			draw_circle(top, rr + 3.0 * k, Color(0, 0, 0, 0.35))
 			draw_circle(top, rr, Color(col, 0.95))
+	# таблички над дверями-переходами: куда ведёт
+	if not game.rules.over:
+		for pd in game.portals:
+			for side in ["a", "b"]:
+				var dp: Vector3 = pd["door_" + side]
+				_door_sign(cam.unproject_position(dp + Vector3(0, 2.32, 0.15)), pd["title_" + side], k)
 	# герой в укрытии — выглядывают глаза
 	var h := game.hero as Hero3D
 	if h.in_hiding and not h.visible and h.hide_spot:
@@ -112,6 +118,20 @@ func _bubble(at: Vector2, text: String, is_neighbor: bool, k: float) -> void:
 	draw_colored_polygon(PackedVector2Array([tip + Vector2(-10, -2), tip + Vector2(10, -2), tip + Vector2(0, 16)]), bg)
 	draw_polyline(PackedVector2Array([tip + Vector2(-10, 0), tip + Vector2(0, 16), tip + Vector2(10, 0)]), Color("3a1b0c"), 3)
 	draw_string(_font, r.position + Vector2(pad.x, pad.y + fs * 0.92), text, HORIZONTAL_ALIGNMENT_LEFT, -1, fs, Color("2b1208"))
+
+## Табличка над дверью-переходом: тёмная плашка с подписью и треугольником-стрелкой вниз.
+func _door_sign(at: Vector2, text: String, k: float) -> void:
+	var fs := int(20 * clampf(k, 0.9, 1.5))
+	var w := _font.get_string_size(text, HORIZONTAL_ALIGNMENT_LEFT, -1, fs).x
+	var r := Rect2(at - Vector2(w * 0.5 + 12, fs + 10), Vector2(w + 24, fs + 12))
+	var sb := StyleBoxFlat.new()
+	sb.bg_color = Color(0.16, 0.09, 0.05, 0.9)
+	sb.border_color = Color("9fe3ff")
+	sb.set_border_width_all(2)
+	sb.set_corner_radius_all(8)
+	draw_style_box(sb, r)
+	draw_colored_polygon(PackedVector2Array([Vector2(at.x - 7, r.end.y), Vector2(at.x + 7, r.end.y), Vector2(at.x, r.end.y + 8)]), Color("9fe3ff"))
+	draw_string(_font, Vector2(r.position.x + 12, r.end.y - 8), text, HORIZONTAL_ALIGNMENT_LEFT, -1, fs, Color("e9f6ff"))
 
 ## Метка цели соседа на полу: пульсирующее кольцо и стрелка вниз.
 func _goal_mark(at: Vector2, k: float) -> void:
