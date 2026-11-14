@@ -480,8 +480,16 @@ VOICES = {   # кто -> (голос, скорость, высота)
     "h": ("ru-RU-DmitryNeural", "+10%", "+16Hz"),
 }
 
-def tts_text(text):
+## Что говорить синтезатору вместо текста реплики (на экране — текст из LINES): сервис на некоторых фразах
+## отвечает «нет звука» (NoAudioReceived), например «Нокаут. Чисто» с точкой посередине.
+TTS_SAY = {
+    "n_w060": "Нокаут, чисто",
+}
+
+def tts_text(text, key=""):
     """Текст для синтеза: многоточия — паузы, тире — запятые."""
+    if key in TTS_SAY:
+        return TTS_SAY[key]
     return text.replace("…", "... ").replace(" — ", ", ").strip(" .")
 
 def gen_voice(only=None):
@@ -495,7 +503,7 @@ def gen_voice(only=None):
         path = os.path.join(d, key + ".mp3")
         for attempt in range(6):   # сервис иногда отвечает пусто — повторить
             try:
-                await edge_tts.Communicate(tts_text(text), voice, rate=rate, pitch=pitch).save(path)
+                await edge_tts.Communicate(tts_text(text, key), voice, rate=rate, pitch=pitch).save(path)
                 if os.path.getsize(path) > 2000:
                     print("MP3", key, text)
                     return True
@@ -524,6 +532,26 @@ def gen_voice(only=None):
     index = {text: key for key, who, text in LINES if ok(key)}
     json.dump(index, open(os.path.join(d, "index.json"), "w", encoding="utf-8"), ensure_ascii=False, indent=1)
     print("index:", len(index), "/", len(LINES))
+    unstick_imports(d, [key for key, who, text in LINES if ok(key)])
+
+def unstick_imports(d, keys):
+    """Если Godot импортировал mp3, пока тот был пустым, в .import остаётся valid=false — и Godot больше
+    никогда его не переимпортирует (реплика молчит и в игре, и в веб-сборке). Возвращаем путь импорта
+    (uid тот же); следующий `Godot.exe --headless --path . --import` импортирует файл заново."""
+    import hashlib, re
+    for key in keys:
+        p = os.path.join(d, key + ".mp3.import")
+        if not os.path.exists(p):
+            continue
+        txt = open(p, encoding="utf-8").read()
+        if "valid=false" not in txt:
+            continue
+        res = "res://assets/audio/voice/%s.mp3" % key
+        dest = "res://.godot/imported/%s.mp3-%s.mp3str" % (key, hashlib.md5(res.encode()).hexdigest())
+        txt = txt.replace("valid=false\n", 'path="%s"\n' % dest)
+        txt = re.sub(r'(source_file="[^"]+"\n)', lambda m: m.group(1) + 'dest_files=["%s"]\n' % dest, txt)
+        open(p, "w", encoding="utf-8", newline="\n").write(txt)
+        print("UNSTICK", key, "— нужен --import")
 
 if __name__ == "__main__":
     what = sys.argv[1] if len(sys.argv) > 1 else "all"
