@@ -274,6 +274,15 @@ func _offscreen_arrow(target: Vector2, vr: Rect2, thought: String) -> void:
 		t = minf(t, ((inner.end.y if d.y > 0 else inner.position.y) - c.y) / d.y)
 	var p := c + d * t
 	var dir := d.normalized()
+	var panel: Control = game.hud.tasks
+	if panel and panel.is_visible_in_tree():   # не под панелью «Задания» (на телефоне она ниже, как раз на краю)
+		var tr := panel.get_global_rect().grow(8)
+		var ar := Rect2(p - Vector2(46, 46), Vector2(92, 92 + 54 + 22))   # кружок со стрелкой и подпись под ним
+		if ar.intersects(tr):
+			if tr.end.y + 46.0 <= inner.end.y:
+				p.y = tr.end.y + 46.0
+			else:
+				p.x = tr.position.x - 50.0
 	var col := Color("ff8a3d")
 	var pulse := 1.0 + sin(_t * 6.0) * 0.08
 	draw_circle(p, 30.0 * pulse, Color("3a1b0c"))

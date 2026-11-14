@@ -344,7 +344,8 @@ func _draw_tasks() -> void:
 			if _task_state(t) == 2:
 				done += 1
 	tasks.draw_string(f, Vector2(16, 30), "Задания  %d / %d" % [done, total], HORIZONTAL_ALIGNMENT_LEFT, -1, 24, C_TEXT)
-	tasks.draw_string(f, Vector2(w - 60, 30), "Tab", HORIZONTAL_ALIGNMENT_LEFT, -1, 18, Color("b8966a"))
+	if not touch_bar:            # на телефоне клавиши Tab нет — панель открывает кнопка «Задания»
+		tasks.draw_string(f, Vector2(w - 60, 30), "Tab", HORIZONTAL_ALIGNMENT_LEFT, -1, 18, Color("b8966a"))
 	if not open:
 		return
 	var y := 50.0
