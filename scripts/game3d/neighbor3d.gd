@@ -429,6 +429,26 @@ func _update_pad() -> void:
 func _process(delta: float) -> void:
 	super._process(delta)
 	_update_pad()
+	_update_chore_item()
+
+## Предмет в руках по ходу клипа дела: [модель, с какой доли клипа, по какую] (окно может переходить через конец
+## цикла). Доли — по ключам хвата в tools/blender/rig_neighbor.py (h_inspect: банка двумя руками;
+## h_rummage: находка в кулаке до броска; клип rummage сдвинут на RUMMAGE_T0 = 0.45).
+const CHORE_ITEMS := {"inspect": ["brine_jar", 0.17, 0.85], "rummage": ["chekushka", 0.9, 0.15]}
+var _chore_model := ""
+
+func _update_chore_item() -> void:
+	var c := clip()
+	if CHORE_ITEMS.has(c) and ap.current_animation == c:
+		var it: Array = CHORE_ITEMS[c]
+		var u := ap.current_animation_position / maxf(0.001, ap.current_animation_length)
+		var on: bool = (u >= it[1] and u <= it[2]) if it[1] <= it[2] else (u >= it[1] or u <= it[2])
+		_chore_model = it[0]
+		hold_item(_chore_model if on else "")
+	elif _chore_model != "":
+		if _hand_name == _chore_model:     # убрать только свой предмет (реакция могла дать в руку бутылку)
+			hold_item("")
+		_chore_model = ""
 
 ## Модель предмета для «использует» с учётом подмены.
 func hand_for(use_id: String) -> String:
