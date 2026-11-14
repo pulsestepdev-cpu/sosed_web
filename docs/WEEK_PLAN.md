@@ -69,6 +69,12 @@
 (`RAGE`, `TAUNTS`, `GLOATS`, `SETUP_LINES`, `OATHS`, `DAY_WIN`, `WEEK_FINALE`, `FOUND`), `neighbor3d.gd`
 (`GRUMBLE`, `DRUNK_LINES`), `game.gd` (поимка, подозрения). Озвучка — `tools/gen_audio.py voice missing`.
 
+Проверка 14.11: в `LINES` 232 реплики, озвучено 230 (`check_voice.gd` — все грузятся). Не озвучены
+h_w125 «Сюда бы незамерзайки…» и h_w128 «Сюда бы пивка…» — сервис синтеза не отдал звук (ограничение частоты),
+дозаписать `voice missing` позже. Записаны, но в коде не используются: h_heh, h_oops, h_ouch, h_win,
+h_w102–h_w104 (старые реплики поимки — заменены хрипом при удушении `CHOKE_LINES`).
+Если сервис упорно не синтезирует фразу — `TTS_SAY` в gen_audio.py (другой текст для синтезатора).
+
 ## 5. Код и графика ✅
 
 - Сборщик `tools/build_level_3d.gd -- --day=N|all` → `scenes/levels/day_N.tscn`: закрытые части дома — глухая
