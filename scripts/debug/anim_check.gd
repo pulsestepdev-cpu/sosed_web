@@ -120,6 +120,13 @@ func _check_hide(s: Spot3D) -> void:
 	h.position = s.walk
 	h.rotation.y = PI / 2
 	h.target_yaw = PI / 2
+	# Телепорт к новому укрытию: сразу чистая поза стоя, без плавного перехода — иначе первые кадры скелет
+	# доигрывает позу прошлого укрытия (лёжа под кроватью, за диваном) уже на новом месте, и это ложный
+	# «сквозь стену» (в игре герой из укрытия не телепортируется — он вылезает и идёт).
+	h.ap.stop()                     # обрывает и переход (play("idle") не помог бы: idle уже «текущий»)
+	h.ap.play("idle", 0.0)
+	h.ap.advance(0.0)
+	await get_tree().process_frame
 	await get_tree().process_frame
 	var clip_name: String = Hero3D.hide_data(s.id)[0]
 	var solids := _solids(s)
@@ -132,6 +139,7 @@ func _check_hide(s: Spot3D) -> void:
 	var face_dot := 1.0
 	var hips0 := Vector3.ZERO
 	var hits := {}
+	var deep := {}                 # насколько глубоко (м) заходит за стену/пол — для отчёта
 	while h.hide_stage != 3 and t < 9.0:
 		await get_tree().process_frame
 		t += get_process_delta_time()
@@ -146,6 +154,7 @@ func _check_hide(s: Spot3D) -> void:
 		for n in pts.keys():
 			var q: Vector3 = pts[n]
 			var what := ""
+			var depth := 0.0
 			for so in solids:
 				if (so[1] as AABB).has_point(q):
 					what = so[0]
@@ -153,13 +162,17 @@ func _check_hide(s: Spot3D) -> void:
 			if what == "":
 				if q.z < -3.98:
 					what = "задняя стена"
+					depth = -3.98 - q.z
 				elif q.x < room[0] - 0.02 or q.x > room[1] + 0.02:
 					what = "стена комнаты"
+					depth = maxf(room[0] - q.x, q.x - room[1])
 				elif q.y < fy - 0.03:
 					what = "пол"
+					depth = fy - q.y
 			if what != "":
 				var key := "%s сквозь «%s»" % [n, what]
 				hits[key] = hits.get(key, 0) + 1
+				deep[key] = maxf(deep.get(key, 0.0), depth)
 	var hips1: Vector3 = _bone_points(h).get("Hips", h.position)
 	var to2 := obj - hips0
 	to2.y = 0
@@ -171,7 +184,8 @@ func _check_hide(s: Spot3D) -> void:
 		_ok(face_dot > 0.5, "%s: лицом к укрытию (%.2f)" % [tag, face_dot])
 	_ok(d.dot(to2.normalized()) > 0.08, "%s: двигается к укрытию на %.2f м" % [tag, d.dot(to2.normalized())])
 	var bad := hits.keys().filter(func(k): return hits[k] >= 2)
-	_ok(bad.is_empty(), "%s: не проходит сквозь мебель и стены%s" % [tag, "" if bad.is_empty() else " — " + ", ".join(bad.map(func(k): return "%s ×%d" % [k, hits[k]]))])
+	_ok(bad.is_empty(), "%s: не проходит сквозь мебель и стены%s" % [tag, "" if bad.is_empty() else " — " + ", ".join(bad.map(func(k): return "%s ×%d%s" % [k, hits[k],
+		" (до %d см)" % roundi(deep[k] * 100.0) if deep.get(k, 0.0) > 0.0 else ""]))])
 	h.leave_hiding()
 	await get_tree().process_frame
 
