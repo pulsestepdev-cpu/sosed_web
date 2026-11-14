@@ -101,7 +101,8 @@ for g in (bm.verts, bm.edges, bm.faces):
 hood_faces = []
 for f in bm.faces:
     c = f.calc_center_median()
-    if not (X_REAR + eps < c.x < X_FRONT - eps and abs(c.y) < Y_SIDE - eps and c.z > 0.6):
+    # ниже 0.70 — загиб обшивки на передних углах (над фарами, на 15 см вниз): поднятый, он торчал бы шипом
+    if not (X_REAR + eps < c.x < X_FRONT - eps and abs(c.y) < Y_SIDE - eps and c.z > 0.70):
         continue
     hit = cut.ray_cast(Vector((c.x, c.y, 3.0)), Vector((0, 0, -1)))
     first = hit[0] is not None and (hit[2] == f.index or abs(hit[0].z - c.z) < 0.01)
@@ -179,7 +180,7 @@ hv = [v.co for v in hood.data.vertices]
 hlo = Vector((min(v.x for v in hv), min(v.y for v in hv), min(v.z for v in hv)))
 hhi = Vector((max(v.x for v in hv), max(v.y for v in hv), max(v.z for v in hv)))
 print("HOOD bounds", tuple(round(c, 3) for c in hlo), tuple(round(c, 3) for c in hhi))
-if hlo.x < X_REAR - 0.03 or hhi.x > X_FRONT + 0.03 or max(-hlo.y, hhi.y) > Y_SIDE + 0.03 or hlo.z < 0.58:
+if hlo.x < X_REAR - 0.03 or hhi.x > X_FRONT + 0.03 or max(-hlo.y, hhi.y) > Y_SIDE + 0.03 or hlo.z < 0.66:
     sys.exit("car_hood: капот вылез за контур — шипы от толщины или лишние грани")
 pivot = Vector((X_REAR, 0.0, top_z(X_REAR + 0.005, 0.0)))
 bpy.context.scene.cursor.location = pivot
