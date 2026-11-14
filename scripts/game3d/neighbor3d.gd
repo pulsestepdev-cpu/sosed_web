@@ -344,8 +344,10 @@ func _on_arrived() -> void:
 		act(e[3], -1.0, 0.45 if e[3] in BENT_CLIPS else 0.2)   # в наклон — плавно, а не рывком за 0.2 с
 	if e[2] == "шпаклюет стену" and randf() < 0.6:
 		say("Так-с… шпаклёвочка…", 2.2)
-	if e[2] == "чинит машину" and randf() < 0.7:
-		say(CAR_LOVE.pick_random(), 2.6)
+	if e[2] == "чинит машину":
+		game.car_hood(true)               # закрывает game._update_hood, когда он отошёл от дела
+		if randf() < 0.7:
+			say(CAR_LOVE.pick_random(), 2.6)
 	if chaser and e[4] == "soda":     # с отлучки к холодильнику (водка) — сразу к газировке: запить
 		say(CHASER_LINES.pick_random(), 2.2)
 	chaser = false
@@ -776,7 +778,7 @@ func sees(h: Hero3D, hour: float) -> bool:
 	var r := view_range(hour)
 	if absf(dx) < 0.45:
 		return r > 0.0
-	if c < -0.6:            # стоит лицом к стене — видит только краем глаза рядом
+	if c < -0.6 or clip() == "repair":   # лицом к стене / носом в моторе — видит только краем глаза рядом
 		return absf(dx) <= r * 0.35
 	if c > 0.6:             # лицом к игроку — по бокам видит, но хуже
 		return absf(dx) <= r * 0.7

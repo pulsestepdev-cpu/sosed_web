@@ -122,6 +122,12 @@ func _hide_enter() -> void:
 		if tok != _hide_token:
 			return
 	rotation.y = target_yaw
+	if s.id == "car":                    # сосед чинит машину — капот открыт: сначала захлопнуть (прыжок через капот)
+		var wait: float = game.car_hood(false)
+		if wait > 0.0:
+			await get_tree().create_timer(wait + 0.05, false).timeout
+			if tok != _hide_token:
+				return
 	Settings.sfx("hide", 0.6)
 	act(h[0])
 	if s.id == "car" and randf() < 0.5:

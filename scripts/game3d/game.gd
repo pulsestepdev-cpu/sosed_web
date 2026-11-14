@@ -80,6 +80,8 @@ var _noise_cd := 0.0
 var _caught_cd := 0.0
 var _warned := false
 var _props := {}               # доп. предметы: keys, salad, salad_table, peeltrap, soaptrap
+var _hood_open := false        # капот машины открыт (car_hood)
+var _hood_tok := 0
 var _last_nx := 0.0
 var _car_lines: Array = []    # реплики героя про машину соседа, без повторов подряд
 var _car_seen := 0
@@ -758,6 +760,48 @@ func open_prop(s: Spot3D, seconds: float) -> void:
 			get_tree().create_timer(seconds, false).timeout.connect(func(): p.play_backwards("open"))
 			return
 
+## Капот машины (гараж, место «За машиной»): открыт, пока сосед «чинит машину» (открывает neighbor3d по приходу
+## к делу; _update_hood закрывает — ушёл, реакция, погоня, финал — и открывает снова), и закрыт, пока герой
+## прячется за машиной (hide_hood — прыжок через капот). Возвращает, сколько секунд капот ещё едет (герой ждёт).
+func car_hood(open: bool) -> float:
+	var s: Spot3D = spots.get("car")
+	if s == null or s.node == null:
+		return 0.0
+	if open and hero.in_hiding and hero.hide_spot == s:
+		return 0.0
+	for ap in s.node.find_children("*", "AnimationPlayer", true, false):
+		var p := ap as AnimationPlayer
+		if not p.has_animation("open"):
+			continue
+		if open != _hood_open:
+			_hood_open = open
+			if open:
+				p.play("open")
+				Settings.sfx("creak", 0.3, 0.75)
+			else:
+				p.play_backwards("open")
+		if not p.is_playing():
+			return 0.0
+		var left := p.current_animation_length - p.current_animation_position
+		if p.get_playing_speed() < 0.0:          # едет назад (закрывается)
+			left = p.current_animation_position
+		if not open:
+			var tok := _hood_tok + 1
+			_hood_tok = tok
+			get_tree().create_timer(left, false).timeout.connect(func():
+				if tok == _hood_tok and not _hood_open:
+					Settings.sfx("thud", 0.35, 1.3))     # захлопнулся
+		return left
+	return 0.0
+
+func _update_hood() -> void:
+	var busy: bool = neighbor.mode == "schedule" and neighbor.activity == "чинит машину"
+	var hero_there: bool = hero.in_hiding and hero.hide_spot != null and hero.hide_spot.id == "car"
+	if _hood_open and (not busy or hero_there):
+		car_hood(false)
+	elif not _hood_open and busy and not hero_there:      # герой вылез из-за машины, а сосед ещё чинит
+		car_hood(true)
+
 ## Финал: за сколько секунд клипа fall_forward голова опускается к салату и на сколько сдвинуть соседа,
 ## чтобы она попала точно в миску. Возвращает [время, сдвиг].
 ## Финал: когда (с) в клипе faceplant лицо падает в миску и на сколько сдвинуть соседа, чтобы голова попала
@@ -924,6 +968,7 @@ func _car_envy(delta: float) -> void:
 func _process(delta: float) -> void:
 	_update_camera(false, delta)
 	_update_hover()
+	_update_hood()
 	var running := started and not paused and not rules.over
 	if running:
 		hour = minf(hour + delta * time_scale / SEC_PER_HOUR, END_HOUR)
