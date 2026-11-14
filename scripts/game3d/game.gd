@@ -1066,7 +1066,9 @@ func _catch(line: String) -> void:
 			hero.visible = true
 			_caught_cd = 3.0
 			if rules.catches >= 3:
-				hero.set_face("scared")))
+				hero.set_face("scared")
+			if not hero.is_speaking() and hero._queued == "" and randf() < 0.7:   # выкинули — жалуется (хрип не обрывает и не вытесняет)
+				hero.say(Rules3D.THROWN_LINES.pick_random(), 1.6)))
 
 func _on_hero_arrived() -> void:
 	if _pending:

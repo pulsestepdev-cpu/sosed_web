@@ -174,6 +174,12 @@ const CHOKE_LINES := ["Кх-х… пусти, дядя…", "Хр-р… я за 
 const KICK_BOAST := "Я пол жизни занимался спортом! Кикбоксинг, фул-контакт!"
 const KICK_PLEAD := "Дядь… может, договоримся?"
 const KO_LINES := ["Нокаут. Чисто.", "Фул-контакт, сынок!", "Вот так, тля. Вертушечка!"]
+## Герой, когда его заметили (сосед бежит): оправдывается — если успеет до того, как схватят.
+const CAUGHT_LINES := ["Ой-ой-ой!", "Ой, я за солью!", "Ошибся дверью, бывает!"]
+## Герой, когда его отшвырнули (1-я и 2-я поимка).
+const THROWN_LINES := ["Ай! Да за что?!", "Ай-ай, больно же, ветродуйка!"]
+const GLOAT_HEH := "Хе-хе-хе…"          # злорадный смешок вместо молчаливого смеха
+const WIN_NO_SALAD := "Готов, голубчик!"   # сосед уснул где стоял, без салата
 
 const STAGES := ["Трезвый", "Чуть-чуть", "Весёлый", "Тренер", "В стельку", "Уснул"]
 const STAGE_FROM := [0, 15, 35, 60, 85, 100]
@@ -299,7 +305,8 @@ func gloat(delay := 1.2) -> void:
 	get_tree().create_timer(delay, false).timeout.connect(func():
 		if over and not salad_on_table and drunk < 100.0:
 			return
-		hero.gloat(GLOATS.pick_random() if randf() < 0.55 else ""))
+		var r := randf()
+		hero.gloat(GLOATS.pick_random() if r < 0.55 else (GLOAT_HEH if r < 0.75 else "")))
 
 ## Реплика героя, когда он подстраивает пакость.
 func setup_line(id: String, delay := 0.5) -> void:
@@ -645,6 +652,8 @@ func _finale() -> void:
 		lines = WEEK_FINALE.duplicate()
 	elif DAY_WIN[n - 1] != "":
 		lines = [DAY_WIN[n - 1], "И вот опять ты на бутылке!"]
+	if n != 7 and not salad_on_table:
+		lines.push_front(WIN_NO_SALAD)
 	for i in lines.size():
 		var d := hero.say(lines[i], 2.6)
 		await get_tree().create_timer(maxf(2.6, d + 0.6), false).timeout

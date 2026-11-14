@@ -189,6 +189,8 @@ func get_caught() -> void:
 	busy = 0.0
 	set_face("scared")
 	act("caught")
+	if randf() < 0.6:          # ждёт, пока сосед доорёт; схватит раньше — реплику оборвёт его крик
+		say(Rules3D.CAUGHT_LINES.pick_random(), 1.6)
 
 ## Держат за шею и трясут (клип choked идёт в такт с grab_shake соседа).
 func choke() -> void:
