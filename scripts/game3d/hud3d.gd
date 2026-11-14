@@ -107,7 +107,7 @@ func _ready() -> void:
 func _layout() -> void:
 	var vs := get_viewport().get_visible_rect().size
 	if touch_bar:     # на телефоне сумка — между колонками экранных кнопок
-		_inv_panel.custom_minimum_size.x = minf(900.0, vs.x - 2.0 * 230.0)
+		_inv_panel.custom_minimum_size.x = minf(900.0, vs.x - 2.0 * 250.0)
 	# узкий экран (телефон 16:9 с крупным интерфейсом): правая панель уже, строка статуса обрезается, а не наезжает
 	var narrow := vs.x < 1450.0
 	_right.custom_minimum_size.x = 470.0 if narrow else 610.0
@@ -124,7 +124,7 @@ func _layout() -> void:
 	_hint.visible = not Settings.is_touch()
 	toasts.position = Vector2(vs.x * 0.5 - 400, vs.y * 0.62)
 	if tasks:
-		tasks.position = Vector2(vs.x - TASK_RECT.size.x - (232.0 if touch_bar else 10.0), 146 if not touch_bar else 176)
+		tasks.position = Vector2(vs.x - TASK_RECT.size.x - (252.0 if touch_bar else 10.0), 146 if not touch_bar else 176)
 	if touch_bar:
 		touch_bar.size = vs
 	if overlay:
@@ -132,7 +132,7 @@ func _layout() -> void:
 		for c in overlay.get_children():
 			(c as Control).size = vs
 
-## Экранные кнопки для телефона: справа — крадучись, задания, камера, к герою; слева — пауза, на весь экран.
+## Экранные кнопки для телефона: справа — на цыпочках, задания, камера, к герою; слева — пауза, на весь экран.
 func _build_touch_bar() -> void:
 	touch_bar = Control.new()
 	touch_bar.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -145,7 +145,7 @@ func _build_touch_bar() -> void:
 	right_col.offset_right = -16
 	right_col.offset_bottom = -16
 	touch_bar.add_child(right_col)
-	_sneak_btn = _touch_btn(right_col, "Крадучись", "sneak")
+	_sneak_btn = _touch_btn(right_col, "На цыпочках", "sneak")
 	_sneak_btn.toggle_mode = true
 	_touch_btn(right_col, "Задания", "tasks")
 	_touch_btn(right_col, "Камера", "camera")
@@ -173,6 +173,8 @@ func _touch_btn(parent: Control, text: String, what: String) -> Button:
 		sb.border_color = Color("c98a3c")
 		sb.set_border_width_all(3)
 		sb.set_corner_radius_all(18)
+		sb.content_margin_left = 16        # надпись не упирается в рамку («На цыпочках» — самая длинная)
+		sb.content_margin_right = 16
 		b.add_theme_stylebox_override(st, sb)
 	b.add_theme_color_override("font_color", C_TEXT)
 	b.add_theme_color_override("font_pressed_color", Color.WHITE)
@@ -392,6 +394,8 @@ func show_intro() -> void:
 	var body: String = d["intro"] + "\n\n" + d["hint"]
 	if d["n"] > 1:
 		body += "\n• Прячься (голубые кружки) и крадись (ПКМ/Shift). Поймает 3 раза — провал."
+	if Settings.is_touch():            # на телефоне нет ПКМ/Shift — есть кнопка «На цыпочках»
+		body = body.replace("крадись (ПКМ/Shift)", "ходи на цыпочках (кнопка «На цыпочках»)")
 	_overlay("%s. «%s»" % [d["day_name"], d["title"]], body, [["Начать", start_pressed]])
 
 func show_results(win: bool, reason: String) -> void:
