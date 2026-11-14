@@ -62,7 +62,7 @@ const TASKS := {
 
 ## Сколько пьянит одна порция в этот день: в поздние дни соседа «берёт» хуже — нужно больше подстав
 ## (сложность — через количество заданий, а не через скорость или зоркость соседа).
-const DRINK_K := [1.0, 1.0, 0.95, 0.8, 0.7, 0.75, 0.75]
+const DRINK_K := [1.0, 1.0, 0.95, 0.8, 0.7, 0.85, 0.85]
 
 const NAMES := ["Понедельник", "Вторник", "Среда", "Четверг", "Пятница", "Суббота", "Воскресенье"]
 const SHORT := ["Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Вс"]
@@ -72,27 +72,27 @@ const DONE := ["Понедельник пройден!", "Вторник про�
 ## Распорядок: [x, этаж, что делает, клип, использует, куда смотрит, секунд на месте, z (необяз.)]
 const SLEEP := [8.4, 1, "спит", "sleep", "", "front", 0]
 const WAKE := [9.35, 1, "проснулся", "idle", "wake", "front", 6]
-const P_TEETH := [4.92, 1, "чистит зубы", "brush", "mouthwash", "back", 10]
-const P_WASH := [4.92, 1, "умывается", "wash", "mouthwash", "back", 9]
+const P_TEETH := [4.92, 1, "чистит зубы", "brush", "mouthwash", "back", 10, -3.1]   # вплотную к раковине
+const P_WASH := [4.92, 1, "умывается", "wash", "mouthwash", "back", 9, -3.1]
 const P_COFFEE := [8.3, 0, "пьёт кофе", "idle", "coffee", "back", 10]
 const P_PUTTY := [9.85, 1, "шпаклюет стену", "work", "", "back", 13, -3.25]
 const P_FRIDGE := [9.45, 0, "пьёт минералку", "idle", "fridge", "back", 8]
 const P_DINNER := [9.45, 0, "ужинает", "idle", "fridge", "back", 10]
 const P_GAME := [12.75, 0, "играет в приставку", "game", "gamepad", "tv", 13]
 const P_AIR := [12.0, 1, "дышит воздухом", "stretch", "balcony", "back", 10]
-const P_STASH := [12.0, 1, "проверяет заначку", "inspect", "balcony", "back", 9]
+const P_STASH := [11.0, 1, "проверяет заначку", "inspect", "balcony", "back", 9, -3.25]   # у стеллажа с банками
 const P_BULB := [6.0, 0, "меняет лампочку", "bulb", "ladder", "front", 3]
 const P_SODA := [13.05, 0, "пьёт газировку", "idle", "soda", "back", 7]
 const P_ROULETTE := [11.1, 0, "сидит в чат-рулетке", "phone", "phone", "front", 14]
 const P_BREAD := [5.45, 0, "собирается за хлебом", "idle", "jacket", "back", 8]
 const P_KEYS := [4.62, 0, "ищет ключи", "suspicious", "keys", "back", 8]
-const P_JARS := [8.0, -1, "проверяет закатки", "inspect", "", "back", 10]
+const P_JARS := [8.0, -1, "проверяет закатки", "inspect", "", "back", 10, -3.25]   # у стеллажа
 const P_KVASS := [6.2, -1, "пьёт квас", "idle", "kvass", "back", 8]
 const P_CAR := [12.3, -1, "чинит машину", "repair", "", "back", 14]
 const P_RODS := [16.4, -1, "собирает удочки", "suspicious", "rods", "back", 8]
-const P_JUNK := [4.3, 2, "разбирает хлам", "rummage", "", "back", 12, -2.95]     # у сундука, не у голой стены
+const P_JUNK := [4.3, 2, "разбирает хлам", "rummage", "", "back", 12, -3.05]     # у сундука, руки внутри
 const P_BRINE := [9.0, 2, "пьёт рассол", "idle", "brine", "back", 8]
-const P_PIGEONS := [11.75, 2, "смотрит на голубей", "gaze", "", "tv", 9]       # сбоку от окна — голубей видно
+const P_PIGEONS := [11.75, 2, "смотрит на голубей", "gaze", "", "tv", 9, -2.6]   # сбоку от окна — голубей видно
 
 ## Дни. rooms — открытые комнаты; w — длина дома (10.4 — без зала, 14 — без правой лестницы, 17 — весь);
 ## items — какие тайники открыты и что в них лежит; tasks — задания дня; plan/loop — распорядок соседа.
@@ -113,9 +113,9 @@ const _DAYS := [
 		"items": {"toilet": "tincture", "sink": "antifreeze", "dresser": "vodka", "boots": "chekushka",
 			"fruit": "banana", "salad": "salad"},
 		"tasks": ["mouthwash", "coffee", "fridge", "jacket", "peeltrap", "salad"],
-		"plan": [SLEEP, WAKE, P_TEETH, P_COFFEE, P_PUTTY, P_FRIDGE, P_BREAD, P_BULB, P_WASH, P_COFFEE, P_PUTTY,
-			P_FRIDGE, P_BREAD, P_WASH, P_DINNER],
-		"loop": 3,
+		# после зубов — кофе на кухне; после шпаклёвки умывается
+		"plan": [SLEEP, WAKE, P_TEETH, P_COFFEE, P_PUTTY, P_WASH, P_FRIDGE, P_BREAD, P_BULB],
+		"loop": 2,
 		"intro": "Сосед в очередной раз завязал и пока спит. До 20:00 доведи его до финала — чтобы уснул (а лучше — лицом в салате).",
 		"hint": "• Шарь по заначкам (жёлтые кружки) и подменяй напитки, пока он не видит.\n• Кожура у холодильника — пусть звереет.\n• Прячься (голубые кружки) и крадись (ПКМ/Shift) — шаги слышно.\n• Поймает 3 раза — провал.",
 	},
@@ -125,21 +125,21 @@ const _DAYS := [
 		"items": {"toilet": "beer", "sink": "antifreeze", "dresser": "vodka", "boots": "tincture",
 			"fruit": "banana", "salad": "salad"},
 		"tasks": ["mouthwash", "coffee", "fridge", "soda", "gamepad", "peeltrap", "salad"],
-		"plan": [SLEEP, WAKE, P_TEETH, P_COFFEE, P_PUTTY, P_FRIDGE, P_GAME, P_BULB, P_WASH, P_SODA, P_PUTTY,
-			P_COFFEE, P_FRIDGE, P_GAME, P_SODA, P_WASH, P_DINNER],
-		"loop": 3,
+		# после зубов — сразу приставка и следом газировка (нет геймпада — к холодильнику, потом газировкой запить)
+		"plan": [SLEEP, WAKE, P_TEETH, P_GAME, P_SODA, P_BULB, P_FRIDGE, P_COFFEE, P_PUTTY],
+		"loop": 2,
 		"intro": "Вторник. У соседа «разгрузочный день» — только кефир и приставка. Разгрузим его как следует.",
 		"hint": "• Новая комната — зал: приставка и газировка.\n• Спрячешь геймпад — сосед озвереет и пойдёт «успокаиваться» к холодильнику.",
 	},
 	{   # Ср — вся квартира (+балкон, вторая лестница), 8 заданий
 		"title": "Гости не придут",
 		"rooms": ["hallway", "kitchen", "living", "bathroom", "bedroom", "balcony"], "w": 17.0,
-		"items": {"toilet": "beer", "sink": "tincture", "soapdish": "soap", "jars": "vodka", "canisters": "antifreeze",
-			"toolbox": "bulb", "boots": "chekushka", "fruit": "banana", "salad": "salad"},
+		"items": {"toilet": "beer", "sink": "", "soapdish": "soap", "jars": "vodka", "canisters": "antifreeze",
+			"toolbox": "bulb", "boots": "", "salad": "salad"},           # раковина и ботинки — пустые обманки
 		"tasks": ["mouthwash", "fridge", "soda", "phone", "keys", "ladder", "soaptrap", "salad"],
-		"plan": [SLEEP, WAKE, P_TEETH, P_COFFEE, P_FRIDGE, P_GAME, P_AIR, P_BULB, P_KEYS, P_ROULETTE, P_SODA, P_WASH,
-			P_PUTTY, P_FRIDGE, P_BULB, P_KEYS, P_ROULETTE, P_SODA, P_STASH, P_WASH, P_DINNER],
-		"loop": 4,
+		# после зубов — на балкон подышать
+		"plan": [SLEEP, WAKE, P_TEETH, P_AIR, P_KEYS, P_ROULETTE, P_SODA, P_BULB, P_FRIDGE, P_STASH],
+		"loop": 2,
 		"intro": "Среда. Гости не придут — значит, и пить не с кем, решил сосед. Открыт балкон с его заначками.",
 		"hint": "• На балконе — банки, канистра и ящик с инструментами.\n• Перегоревшая лампочка на стремянке: пьяный электрик падает эффектнее.",
 	},
@@ -147,11 +147,11 @@ const _DAYS := [
 		"title": "Ревизия погреба",
 		"rooms": ["hallway", "kitchen", "living", "bathroom", "bedroom", "balcony", "basement"], "w": 17.0,
 		"items": {"still": "samogon", "basement_jars": "vodka", "jars": "chekushka", "sink": "tincture", "toolbox": "bulb",
-			"soapdish": "soap", "toilet": "beer", "salad": "salad"},
+			"soapdish": "soap", "toilet": "", "salad": "salad"},           # бачок — пустая обманка
 		"tasks": ["coffee", "fridge", "jacket", "keys", "gamepad", "ladder", "soaptrap", "kvass", "salad"],
-		"plan": [SLEEP, WAKE, P_TEETH, P_COFFEE, P_JARS, P_KVASS, P_FRIDGE, P_BREAD, P_KEYS, P_BULB, P_GAME, P_WASH,
-			P_COFFEE, P_KVASS, P_FRIDGE, P_BREAD, P_KEYS, P_BULB, P_GAME, P_WASH],
-		"loop": 4,
+		# после зубов — сразу в погреб к закаткам, потом наверх к холодильнику и снова вниз за кваском
+		"plan": [SLEEP, WAKE, P_TEETH, P_JARS, P_FRIDGE, P_KVASS, P_BREAD, P_KEYS, P_BULB, P_GAME, P_COFFEE],
+		"loop": 2,
 		"intro": "Четверг. Сосед полез в погреб «проверить закатки». В подвал ведёт дверь под лестницей — зашёл тут, вышел там.",
 		"hint": "• Дверь под левой лестницей — в подвал (и обратно).\n• В подвале самогонный аппарат и бочка с квасом. Сосед любит квасок…",
 	},
@@ -159,11 +159,11 @@ const _DAYS := [
 		"title": "Рыбалка отменяется",
 		"rooms": ["hallway", "kitchen", "living", "bathroom", "bedroom", "balcony", "basement", "garage"], "w": 17.0,
 		"items": {"workbench": "antifreeze", "toilet": "beer", "sink": "tincture", "basement_jars": "vodka",
-			"boots": "chekushka", "fruit": "banana", "still": "samogon", "salad": "salad"},
+			"boots": "chekushka", "fruit": "banana", "still": "", "salad": "salad"},   # аппарат — пустая обманка
 		"tasks": ["mouthwash", "coffee", "fridge", "soda", "jacket", "keys", "phone", "peeltrap", "rods", "salad"],
-		"plan": [SLEEP, WAKE, P_TEETH, P_FRIDGE, P_COFFEE, P_BREAD, P_KEYS, P_RODS, P_CAR, P_SODA, P_ROULETTE, P_WASH,
-			P_COFFEE, P_FRIDGE, P_BREAD, P_KEYS, P_RODS, P_SODA, P_ROULETTE, P_WASH, P_DINNER],
-		"loop": 3,
+		# после зубов — сразу в гараж к удочкам, потом к холодильнику, снова в гараж к машине; руки в мазуте — умываться
+		"plan": [SLEEP, WAKE, P_TEETH, P_RODS, P_FRIDGE, P_CAR, P_WASH, P_COFFEE, P_BREAD, P_KEYS, P_ROULETTE, P_SODA],
+		"loop": 2,
 		"intro": "Пятница. Сосед собрался на рыбалку — «только чай в термосе». Гараж — за подвалом.",
 		"hint": "• Гараж открыт: верстак, машина, удочки.\n• Нет удочек — нет рыбалки. А с горя сосед идёт к холодильнику…",
 	},
@@ -171,11 +171,12 @@ const _DAYS := [
 		"title": "Генеральная уборка",
 		"rooms": ["hallway", "kitchen", "living", "bathroom", "bedroom", "balcony", "basement", "garage", "attic"], "w": 17.0,
 		"items": {"canisters": "antifreeze", "jars": "vodka", "toilet": "beer", "workbench": "chekushka",
-			"toolbox": "bulb", "soapdish": "soap", "still": "samogon", "chest": "vodka", "salad": "salad"},
+			"toolbox": "bulb", "soapdish": "soap", "still": "samogon", "chest": "vodka", "boots": "", "salad": "salad"},
 		"tasks": ["mouthwash", "fridge", "soda", "jacket", "gamepad", "ladder", "soaptrap", "kvass", "rods", "brine", "salad"],
-		"plan": [SLEEP, WAKE, P_TEETH, P_BRINE, P_JUNK, P_FRIDGE, P_BREAD, P_BULB, P_KVASS, P_RODS, P_GAME, P_SODA, P_WASH,
-			P_BRINE, P_FRIDGE, P_BREAD, P_BULB, P_KVASS, P_RODS, P_GAME, P_SODA, P_WASH],
-		"loop": 3,
+		# после зубов — сразу на чердак к дедову хламу, потом вниз по делам, рассол — позже; приставка и следом
+		# газировка; в конце круга — на чердак к голубям
+		"plan": [SLEEP, WAKE, P_TEETH, P_JUNK, P_FRIDGE, P_BREAD, P_BULB, P_BRINE, P_KVASS, P_RODS, P_GAME, P_SODA, P_PIGEONS],
+		"loop": 2,
 		"intro": "Суббота. Генеральная уборка: сосед полез на чердак разбирать дедов хлам. Дверь на чердак — с площадки правой лестницы.",
 		"hint": "• Чердак: дедов сундук и банка рассола — сосед лечится им «от нервов».\n• Двери-переходы — ещё и способ уйти от соседа.",
 	},
@@ -183,11 +184,12 @@ const _DAYS := [
 		"title": "Последний шанс",
 		"rooms": ["hallway", "kitchen", "living", "bathroom", "bedroom", "balcony", "basement", "garage", "attic"], "w": 17.0,
 		"items": {"canisters": "antifreeze", "sink": "tincture", "jars": "vodka", "workbench": "chekushka",
-			"toolbox": "bulb", "fruit": "banana", "still": "samogon", "chest": "vodka", "boots": "beer", "salad": "salad"},
+			"toolbox": "bulb", "fruit": "banana", "still": "samogon", "chest": "vodka", "boots": "", "toilet": "",
+			"salad": "salad"},                                          # ботинки и бачок — пустые обманки
 		"tasks": ["mouthwash", "coffee", "fridge", "jacket", "phone", "keys", "ladder", "peeltrap", "kvass", "rods", "brine", "salad"],
-		"plan": [SLEEP, WAKE, P_TEETH, P_FRIDGE, P_COFFEE, P_BRINE, P_BREAD, P_KEYS, P_BULB, P_KVASS, P_RODS, P_ROULETTE, P_WASH,
-			P_BRINE, P_COFFEE, P_FRIDGE, P_BREAD, P_KEYS, P_BULB, P_KVASS, P_RODS, P_ROULETTE, P_WASH],
-		"loop": 3,
+		# после зубов — в погреб за кваском, потом к холодильнику, оттуда в гараж к удочкам
+		"plan": [SLEEP, WAKE, P_TEETH, P_KVASS, P_FRIDGE, P_RODS, P_COFFEE, P_BRINE, P_BREAD, P_KEYS, P_BULB, P_ROULETTE],
+		"loop": 2,
 		"intro": "Воскресенье. Последний шанс соседа начать новую жизнь с понедельника. Не дадим ему этого шанса.",
 		"hint": "• Весь дом открыт: подвал, гараж, чердак.\n• Предметы лежат далеко от мест, где они нужны, — планируй маршрут.",
 	},

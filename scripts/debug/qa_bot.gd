@@ -50,6 +50,28 @@ func _danger_rooms() -> Array:
 	out.append(_room(n.position))
 	if strategy == "careful" and n.goal != Vector3.INF:
 		out.append(_room(n.goal))
+	if strategy == "careful":
+		for r in _path_rooms(n):
+			if not r in out:
+				out.append(r)
+	return out
+
+## Комнаты на оставшемся пути соседа (осторожный игрок видит, куда он идёт: через прихожую в подвал и т. п.).
+func _path_rooms(n: Neighbor3D) -> Array:
+	var out := []
+	if not n.is_walking():
+		return out
+	var prev: Vector3 = n.position
+	for q in n.path:
+		if Game3D.is_tp(q):
+			continue
+		for k in 3:
+			var p: Vector3 = prev.lerp(q, (k + 1) / 3.0)
+			if not game.on_stairs(p):
+				var r := _room(p)
+				if not r in out:
+					out.append(r)
+		prev = q
 	return out
 
 func _in_danger() -> bool:
@@ -64,6 +86,8 @@ func _in_danger() -> bool:
 	var same := _room(h.position) == _room(n.position)
 	if strategy == "careful" and n.goal != Vector3.INF and _room(n.goal) == _room(h.position) and n.is_walking():
 		return true
+	if strategy == "careful" and _room(h.position) in _path_rooms(n):    # пройдёт через мою комнату
+		return true
 	return same and n.view_range(game.hour) > 0.0
 
 # ---------------------------------------------------------------- решение
@@ -71,6 +95,12 @@ func _think() -> void:
 	var h: Hero3D = game.hero
 	if h.frozen or h.busy > 0.0:
 		return
+	if strategy == "careful":     # крадётся, когда сосед может услышать (свой этаж, ближе 6 м; слышит с 3.6), иначе идёт
+		var n: Neighbor3D = game.neighbor
+		var near: bool = _neighbor_active() and game.floor_of(n.position) == game.floor_of(h.position) \
+			and absf(n.position.x - h.position.x) < 6.0
+		if near != h.sneaking:
+			h.toggle_sneak()
 	# 1) опасно — спрятаться (или сидеть, если уже спрятался)
 	if _in_danger():
 		if h.in_hiding:
@@ -84,10 +114,19 @@ func _think() -> void:
 			h.go(game.plan_path(h.position, game.lane_point(3.2, game.floor_of(h.position))))
 			_log("ухожу на лестницу")
 		return
-	# 2) идём к цели — не дёргаться, пока не дошли (но и не залипать)
+	# 2) идём к цели — не дёргаться, пока не дошли (но и не залипать). Осторожный разворачивается, если сосед
+	#    собрался туда же или пойдёт через путь к цели (видно по облачку-мысли и метке на полу).
 	if _target and (h.is_walking() or game._pending == _target):
-		if game.hour - _target_since < 1.0:
+		var danger := _danger_rooms()
+		var turn_back: bool = strategy == "careful" and _target.kind != "hide" and \
+			(_room(_target.walk) in danger or _path_danger(_target, danger))
+		if game.hour - _target_since < 1.0 and not turn_back:
 			return
+		if turn_back:
+			_log("передумал: %s — туда идёт сосед" % _target.title)
+			_target = null
+			game._pending = null
+			h.stop()
 	# 3) выбрать дело
 	var best := _best_task()
 	if best:
@@ -150,6 +189,10 @@ func _value(s: Spot3D) -> float:
 
 func _best_task() -> Spot3D:
 	var danger := _danger_rooms()
+	# под вечер (или сосед уже «в стельку» и ждёт салат) осторожный рискует, как обычный игрок: обходит только
+	# комнату, где сосед сейчас, — иначе так и не решится поставить салат на кухне
+	if strategy == "careful" and _neighbor_active() and (game.hour >= 17.0 or game.rules.drunk >= 85.0):
+		danger = [_room(game.neighbor.position)]
 	var best: Spot3D = null
 	var best_score := -INF
 	for s in game.spots.values():
@@ -169,15 +212,20 @@ func _best_hide(near: bool) -> Spot3D:
 	var best: Spot3D = null
 	var best_score := INF
 	var danger := _danger_rooms()
+	var r: Rules3D = game.rules
 	for s in game.spots.values():
 		if s.kind != "hide" or not s.active:
 			continue
+		if s.id == "table" and r.inventory.has("salad") and not r.salad_on_table:
+			continue        # с салатом в сумке клик по столу ставит салат, а не прячет
 		var d := _dist(s)
 		if near:
-			if d > 4.5:
+			# поближе (до 4.5 м); осторожный, если рядом нет, бежит и подальше (подвал: мешки у дальней стены)
+			if d > (8.0 if strategy == "careful" else 4.5):
 				continue
-			if d < best_score:
-				best_score = d
+			var score := d if d <= 4.5 else d + 100.0
+			if score < best_score:
+				best_score = score
 				best = s
 		else:
 			if _room(s.walk) in danger or _path_danger(s, danger):

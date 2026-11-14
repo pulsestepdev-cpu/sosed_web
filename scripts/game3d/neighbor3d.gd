@@ -51,6 +51,10 @@ const ACT_LINES := {
 	"дышит воздухом": ["Ух, воздух-то какой… Трезвый!", "Хорошо… Аж голова прояснилась.", "Вдох… выдох… Не пью. Не пью."],
 	"играет в приставку": ["Ну! Ну! Гол!", "Да как он отбил?!", "Ещё один матч — и всё."],
 }
+## Клипы дел в наклоне / с руками у предмета: в них плавнее входить, а оглядывается он выпрямившись.
+const BENT_CLIPS := ["wash", "rummage", "inspect", "repair"]
+## Выпил водки у холодильника и пришёл к газировке — запивает.
+const CHASER_LINES := ["Водочку — газировочкой запить!", "Ух… Теперь запить. Газировочка!"]
 const ACT_LINE_AFTER := 3.0
 const ACT_LINE_P := 0.6
 const GRUMBLE := ["Бу-бу-бу… никто не ценит…", "Эх, жизнь…", "Хм-м… Ну и ладно.", "Трезвым жить — скучно, но надо…",
@@ -88,6 +92,10 @@ var _stay_entry := -1          # пункт, для которого идёт о
 var _stay_left := 0.0
 var _here := false             # дошёл до места текущего дела
 var _act_line_entry := -1      # для какого пункта распорядка уже была реплика за делом (ACT_LINES)
+var gone := {}                 # вещи, пропажу которых он обнаружил (id -> true): к их делам больше не ходит
+var _after_detour := false     # вернулся с отлучки — дальше следующее дело, а не прерванное
+var chaser := false            # только что выпил водки у холодильника — газировкой «запить» (Rules3D)
+var _look_clip := ""           # клип дела, прерванный оглядыванием (вернуть, когда повернётся обратно)
 var _hand: Node3D              # предмет в руке
 var _hand_name := ""
 var _hand_cache := {}
@@ -182,7 +190,7 @@ func update_schedule(hour: float, delta: float) -> void:
 func _act_line() -> void:
 	if _act_line_entry == current or current < 0 or not ACT_LINES.has(activity):
 		return
-	if _use_timer > 0.0 or bubble != "" or _stay_left < 2.5:
+	if (_use_timer > 0.0 and _use_timer < 3.0) or bubble != "" or _stay_left < 2.5:   # до глотка успеет договорить
 		return
 	if float(PLAN[current][6]) - _stay_left < ACT_LINE_AFTER:
 		return
@@ -214,8 +222,22 @@ func skip_to(hour: float) -> void:
 	release()
 	_go_to_current()
 
+## Следующее дело по кругу, пропуская дела с вещами, пропажу которых он уже обнаружил (gone).
 func _next_index() -> int:
-	return current + 1 if current + 1 < PLAN.size() else LOOP_FROM
+	var i := current
+	for _k in PLAN.size():
+		i = i + 1 if i + 1 < PLAN.size() else LOOP_FROM
+		if not _entry_gone(i):
+			return i
+	return i
+
+## Дело с вещью, которой больше нет (геймпад, телефон, ключи, удочки) — туда он больше не ходит.
+func _entry_gone(i: int) -> bool:
+	return i >= 0 and i < PLAN.size() and gone.has(PLAN[i][4])
+
+## Сосед обнаружил, что вещи нет (Rules3D: реакция «Где геймпад?!» и т. п.) — к её делу больше не ходит.
+func mark_gone(id: String) -> void:
+	gone[id] = true
 
 func _plan_point(i: int) -> Vector3:
 	var e: Array = PLAN[i]
@@ -252,8 +274,15 @@ func _go_to_current() -> void:
 	else:
 		walk_path(game.plan_path(position, target))
 
+## Вернуться к делам после реакции, погони, отлучки. После отлучки (к холодильнику «успокоиться») — уже
+## к следующему делу, а не к прерванному (без геймпада играть не сядет: пошёл пить, потом — газировка).
 func _resume() -> void:
-	if current >= 0:
+	if current < 0:
+		return
+	if _after_detour or _entry_gone(current):
+		_after_detour = false
+		next_task()
+	else:
 		_go_to_current()
 
 func _ready() -> void:
@@ -310,17 +339,23 @@ func _on_arrived() -> void:
 	activity = e[2]
 	_face_activity(e[5])
 	set_face(rules.default_face())
+	_look_clip = ""
 	if e[3] != "idle":
-		act(e[3])
+		act(e[3], -1.0, 0.45 if e[3] in BENT_CLIPS else 0.2)   # в наклон — плавно, а не рывком за 0.2 с
 	if e[2] == "шпаклюет стену" and randf() < 0.6:
 		say("Так-с… шпаклёвочка…", 2.2)
 	if e[2] == "чинит машину" and randf() < 0.7:
 		say(CAR_LOVE.pick_random(), 2.6)
+	if chaser and e[4] == "soda":     # с отлучки к холодильнику (водка) — сразу к газировке: запить
+		say(CHASER_LINES.pick_random(), 2.2)
+	chaser = false
 	if e[4] in ["gamepad", "phone"] and not rules.taken.has(e[4]):
 		hold_item(HAND[e[4]][0])
 	if e[4] != "" and _used_entry != current:
 		_use_id = e[4]
 		_use_timer = USE_DELAY
+		if e[4] == "mouthwash":            # сначала чистит / умывается, полощет рот — под конец
+			_use_timer = maxf(USE_DELAY, float(e[6]) - 3.5)
 
 ## Предмет в правой руке (модель из assets/models/props), "" — убрать. Держит за кость RightHandGrip
 ## (бутылки, кружка, лампочка — ось кости к горлышку) или RightHandPhone (телефон, геймпад).
@@ -424,6 +459,7 @@ func _finish_detour() -> void:
 	var id: String = _detour.get("use", "")
 	mode = "schedule"
 	_detour = {}
+	_after_detour = true
 	rules.neighbor_use(id)
 	if mode == "schedule":
 		_resume()
@@ -756,9 +792,15 @@ func look_around(delta: float) -> void:
 		_look_back -= delta
 		if _look_back <= 0.0:
 			target_yaw = _activity_yaw
+			if _look_clip != "":           # повернулся обратно — снова за дело
+				act(_look_clip, -1.0, 0.3)
+				_look_clip = ""
 		return
 	_look_t -= delta
 	if _look_t <= 0.0:
 		_look_t = randf_range(5.0, 9.0)
 		_look_back = randf_range(1.4, 2.4)
 		target_yaw = PI / 2 if randf() < 0.5 else -PI / 2
+		if clip() in BENT_CLIPS:           # оглядывается выпрямившись, а не «умывается в воздух» в сторону
+			_look_clip = clip()
+			act("idle", -1.0, 0.3)

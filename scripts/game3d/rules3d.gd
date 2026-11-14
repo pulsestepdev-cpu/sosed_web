@@ -132,6 +132,8 @@ const WEEK_FINALE := ["Ну что, ветродуйка, опять всю не
 	"Семь дней, семь срывов. Рекорд подъезда, турбина перегарная!",
 	"Завтра понедельник. Начнёшь новую жизнь, ага. Хе-хе."]
 const FOUND := ["Опа, заначка!", "Ну-ка, ну-ка, что тут у нас?", "Конфискация, хе-хе!"]
+## Тайник-обманка (в данных дня пусто: Days, items id -> ""): герой ничего не нашёл.
+const EMPTY_LINES := ["Пусто… Зря лазил.", "Ничего тут нет. Эх.", "Тьфу, пустышка!"]
 ## Герой у места подмены, а нужной вещи в сумке нет: предмет -> реплика (озвучены; прочие — «Сюда бы… …»).
 const NEED_LINES := {
 	"antifreeze": "Сюда бы незамерзайки…",
@@ -257,6 +259,16 @@ func add_drunk(v: float, raw := false) -> void:
 	if drunk >= 100.0:
 		_finale()
 
+## Сколько пьянит глоток из подменённого: первый — полностью, каждый следующий из того же места (холодильник,
+## ополаскиватель, рассол — они не кончаются) — слабее (REPEAT_SIP). Иначе каждая пакость с отлучкой «успокоиться»
+## к холодильнику даёт полную порцию водки, и сосед засыпает за первый круг, не дождавшись половины заданий.
+const REPEAT_SIP := 0.75
+var _sips := {}
+func _sip(id: String, base: float) -> float:
+	var n: int = _sips.get(id, 0)
+	_sips[id] = n + 1
+	return base if n == 0 else base * REPEAT_SIP
+
 func _award(key: String, points: int, text: String) -> bool:
 	if _scored.has(key):
 		return false
@@ -362,6 +374,10 @@ func hero_use(s: Spot3D) -> void:
 			Settings.sfx("rustle", 0.7)
 			get_tree().create_timer(1.3, false).timeout.connect(func():
 				if over:
+					return
+				if s.item == "":          # тайник-обманка: время потратил, а там пусто
+					toast.emit("%s — пусто" % s.title, false)
+					hero.say(EMPTY_LINES.pick_random(), 1.8)
 					return
 				_give(s.item)
 				hero.found()
@@ -475,15 +491,18 @@ func neighbor_use(id: String) -> void:
 						{"face": "tipsy", "clip": "drink", "t": 2.2, "item": "vodka",
 							"line": ["Ну ещё по одной…", "За ремонт!", "Последняя. Точно."].pick_random()},
 					])
+				if id == "detour":
+					neighbor.chaser = true      # следующим делом газировка — запьёт
 				if id == "detour" and _scored.has("rage"):
 					_award("chain_grief", 150, "Цепочка «Сорвался с горя»")
-				add_drunk(25)
+				add_drunk(_sip("fridge", 25))
 			elif id == "detour":
 				neighbor.react_seq([{"face": "normal", "clip": "drink", "t": 2.0, "item": "mineral_water", "line": "Минералочка… Успокоился."}])
 			else:
 				neighbor.react_seq([{"face": default_face(), "clip": "drink", "t": 2.0, "item": "mineral_water"}])
 		"rods":
 			if taken.has("rods"):
+				neighbor.mark_gone("rods")      # к удочкам больше не ходит
 				_scored["rage"] = true
 				_award("prank_rods", 75, "Пакость: спрятаны удочки")
 				neighbor.react_seq([
@@ -497,6 +516,7 @@ func neighbor_use(id: String) -> void:
 				neighbor.say(["Удочки на месте. Червей бы ещё…", "Карась, жди меня!"].pick_random(), 2.4)
 		"gamepad", "phone":
 			if taken.has(id):
+				neighbor.mark_gone(id)          # к приставке / чат-рулетке больше не ходит
 				_scored["rage"] = true
 				_award("prank_" + id, 75, "Пакость: спрятан " + ("геймпад" if id == "gamepad" else "телефон"))
 				neighbor.react_seq([
@@ -551,6 +571,7 @@ func neighbor_use(id: String) -> void:
 					{"face": default_face(), "clip": "idle", "t": 0.4, "item": "", "down": true}])
 		"keys":
 			if taken.has("keys"):
+				neighbor.mark_gone("keys")      # ключи больше не ищет
 				_scored["rage"] = true
 				_award("prank_keys", 75, "Пакость: спрятаны ключи")
 				neighbor.react_seq([
@@ -568,15 +589,17 @@ func neighbor_use(id: String) -> void:
 				])
 
 func _use_drink(id: String) -> void:
+	# рука была у рта (чистит зубы, умывается) — сначала опустить, потом взять бутылку: без скачка предмета к лицу
+	var pre: Array = [{"face": default_face(), "clip": "idle", "t": 0.3}] if neighbor.clip() in ["brush", "wash"] else []
 	if not swapped.has(id):
 		if id == "jacket":
 			return
-		neighbor.react_seq([{"face": default_face(), "clip": "drink", "t": 2.0, "item": neighbor.hand_for(id)}])
+		neighbor.react_seq(pre + [{"face": default_face(), "clip": "drink", "t": 2.0, "item": neighbor.hand_for(id)}])
 		return
 	var sw: Array = SWAPS[id]
 	_award("swap_" + id, 100, "Подмена: " + game.spots[id].title)
 	Settings.sfx("drink", 0.6)
-	var seq: Array = []
+	var seq: Array = pre.duplicate()
 	if id == "jacket":
 		seq.append({"face": "suspicious", "clip": "suspicious", "t": 1.6, "line": "Опа… А это чё в кармане?"})
 	seq.append({"face": default_face(), "clip": "drink", "t": 1.8, "item": neighbor.hand_for(id)})
@@ -599,7 +622,7 @@ func _use_drink(id: String) -> void:
 			"soda": "Пивасик?! …Ну, раз налито.", "jacket": "За знакомство!", "kvass": "Ну и хрен с ним, раз уж налито…",
 			"brine": "Эх, понеслась душа в рай!"}[id]})
 	neighbor.react_seq(seq)
-	add_drunk(sw[0])
+	add_drunk(_sip(id, sw[0]))
 	gloat(2.4)
 	if id in ["coffee", "soda", "jacket", "kvass"]:
 		swapped.erase(id)    # выпил — больше не сработает
