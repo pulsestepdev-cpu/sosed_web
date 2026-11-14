@@ -72,27 +72,27 @@ const DONE := ["Понедельник пройден!", "Вторник про�
 ## Распорядок: [x, этаж, что делает, клип, использует, куда смотрит, секунд на месте, z (необяз.)]
 const SLEEP := [8.4, 1, "спит", "sleep", "", "front", 0]
 const WAKE := [9.35, 1, "проснулся", "idle", "wake", "front", 6]
-const P_TEETH := [4.92, 1, "чистит зубы", "work", "mouthwash", "back", 10]
-const P_WASH := [4.92, 1, "умывается", "work", "mouthwash", "back", 9]
+const P_TEETH := [4.92, 1, "чистит зубы", "brush", "mouthwash", "back", 10]
+const P_WASH := [4.92, 1, "умывается", "wash", "mouthwash", "back", 9]
 const P_COFFEE := [8.3, 0, "пьёт кофе", "idle", "coffee", "back", 10]
 const P_PUTTY := [9.85, 1, "шпаклюет стену", "work", "", "back", 13, -3.25]
 const P_FRIDGE := [9.45, 0, "пьёт минералку", "idle", "fridge", "back", 8]
 const P_DINNER := [9.45, 0, "ужинает", "idle", "fridge", "back", 10]
 const P_GAME := [12.75, 0, "играет в приставку", "game", "gamepad", "tv", 13]
-const P_AIR := [12.0, 1, "дышит воздухом", "idle", "balcony", "back", 10]
-const P_STASH := [12.0, 1, "проверяет заначку", "idle", "balcony", "back", 9]
+const P_AIR := [12.0, 1, "дышит воздухом", "stretch", "balcony", "back", 10]
+const P_STASH := [12.0, 1, "проверяет заначку", "inspect", "balcony", "back", 9]
 const P_BULB := [6.0, 0, "меняет лампочку", "bulb", "ladder", "front", 3]
 const P_SODA := [13.05, 0, "пьёт газировку", "idle", "soda", "back", 7]
 const P_ROULETTE := [11.1, 0, "сидит в чат-рулетке", "phone", "phone", "front", 14]
 const P_BREAD := [5.45, 0, "собирается за хлебом", "idle", "jacket", "back", 8]
 const P_KEYS := [4.62, 0, "ищет ключи", "suspicious", "keys", "back", 8]
-const P_JARS := [8.0, -1, "проверяет закатки", "work", "", "back", 10]
+const P_JARS := [8.0, -1, "проверяет закатки", "inspect", "", "back", 10]
 const P_KVASS := [6.2, -1, "пьёт квас", "idle", "kvass", "back", 8]
-const P_CAR := [12.3, -1, "чинит машину", "work", "", "back", 14]
+const P_CAR := [12.3, -1, "чинит машину", "repair", "", "back", 14]
 const P_RODS := [16.4, -1, "собирает удочки", "suspicious", "rods", "back", 8]
-const P_JUNK := [4.3, 2, "разбирает хлам", "work", "", "back", 12, -2.95]     # у сундука, не у голой стены
+const P_JUNK := [4.3, 2, "разбирает хлам", "rummage", "", "back", 12, -2.95]     # у сундука, не у голой стены
 const P_BRINE := [9.0, 2, "пьёт рассол", "idle", "brine", "back", 8]
-const P_PIGEONS := [11.75, 2, "смотрит на голубей", "idle", "", "tv", 9]       # сбоку от окна — голубей видно
+const P_PIGEONS := [11.75, 2, "смотрит на голубей", "gaze", "", "tv", 9]       # сбоку от окна — голубей видно
 
 ## Дни. rooms — открытые комнаты; w — длина дома (10.4 — без зала, 14 — без правой лестницы, 17 — весь);
 ## items — какие тайники открыты и что в них лежит; tasks — задания дня; plan/loop — распорядок соседа.

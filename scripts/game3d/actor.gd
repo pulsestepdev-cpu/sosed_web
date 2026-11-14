@@ -8,7 +8,8 @@ signal portal_used(at: Vector3)    # вошёл в дверь-переход и�
 
 const FACE_DIR := "res://assets/models/characters/"
 const LOOPED := ["idle", "walk", "sneak", "walk_drunk", "drink", "work", "phone", "game", "kick", "sleep", "dance",
-	"lie_back", "lie_forward", "bulb", "search_low", "search_mid"]
+	"lie_back", "lie_forward", "bulb", "search_low", "search_mid",
+	"brush", "wash", "inspect", "repair", "rummage", "gaze", "stretch"]     # бытовые дела соседа по распорядку
 
 var kind := "neighbor"          # neighbor | hero (имя файла модели и текстур лица)
 var model: Node3D
