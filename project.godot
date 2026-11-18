@@ -21,6 +21,7 @@ driver/output_latency.web=120
 
 [autoload]
 
+Patches="*res://scripts/autoload/patches.gd"
 Settings="*res://scripts/autoload/settings.gd"
 Progress="*res://scripts/autoload/progress.gd"
 DebugScreenshot="*res://scripts/debug/screenshot.gd"
@@ -31,6 +32,7 @@ window/size/viewport_width=1920
 window/size/viewport_height=1080
 window/stretch/mode="canvas_items"
 window/stretch/aspect="expand"
+window/size/mode.windows=2
 
 [rendering]
 

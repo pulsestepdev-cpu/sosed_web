@@ -47,6 +47,17 @@
 - Выкладка: push в `main` → GitHub Actions (`.github/workflows/web.yml`) собирает и деплоит в CapRover (`deploy/`: Dockerfile
   с nginx, gzip, no-cache). Секреты репозитория: `CAPROVER_SERVER` и `CAPROVER_APP_TOKEN` или `CAPROVER_PASSWORD` (пароль панели); переменная `CAPROVER_APP` (по умолч. sosed).
 
+## Версия для Windows (exe) и патчи
+- Пресет «Windows» (`build/windows/sosed.exe` + `sosed.pck`, ANGLE встроен в exe). Шаблон: `python tools/fetch_web_templates.py
+  "%APPDATA%/Godot/export_templates/4.7.2.stable" windows_release_x86_64`.
+- `python tools/build_windows.py --full` — новая полная версия `releases/vN/sosed_vN.zip` (для друзей) + базовый `sosed.pck`;
+  `--patch` — `releases/vN/patch_K.pck`, только изменённые с vN файлы (каждый патч включает все прошлые). Друг кладёт патч рядом
+  с sosed.exe; автозагрузка `Patches` (первая!) грузит патч с наибольшим K (рядом с exe или `user://patches/`), версия — в углу меню.
+- `releases/` не в git — не удалять, без базового `sosed.pck` патчи не собрать. Изменения `project.godot`, `export_presets.cfg`,
+  `scripts/autoload/patches.gd` патчем не доходят → нужен `--full` (скрипт проверяет сам).
+- Бот в exe: `sosed.exe --headless -- --play --day=N --autostart --bot=normal --quit-on-end --report=...` (сцену в релизном exe
+  из командной строки задать нельзя — только через `--play` из меню).
+
 ## Автотесты и агенты
 - Самопроверка `scripts/debug/selftest.gd` (`--day=N --autostart --selftest [--touch]` → `SELFTEST PASS`): клики у стола
   с салатом и правило «последней капли» — то, что бот не проверяет (он выбирает места напрямую, без мыши).

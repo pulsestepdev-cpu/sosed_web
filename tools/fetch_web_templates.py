@@ -1,7 +1,7 @@
-# Скачать из официального архива шаблонов Godot только веб-шаблоны (~90 МБ вместо 1,3 ГБ):
-# zip читается по HTTP кусками (Range-запросы), извлекаются version.txt и web*.zip.
-#   python tools/fetch_web_templates.py <папка шаблонов>   (Windows: %APPDATA%/Godot/export_templates/4.7.2.stable,
-#                                                          Linux: ~/.local/share/godot/export_templates/4.7.2.stable)
+# Скачать из официального архива шаблонов Godot только нужные шаблоны (~90 МБ вместо 1,3 ГБ):
+# zip читается по HTTP кусками (Range-запросы), извлекаются version.txt и файлы с заданными префиксами.
+#   python tools/fetch_web_templates.py <папка шаблонов> [префиксы]   (по умолч. web; для Windows: windows_release_x86_64)
+#   папка: Windows — %APPDATA%/Godot/export_templates/4.7.2.stable, Linux — ~/.local/share/godot/export_templates/4.7.2.stable
 import io, os, sys, urllib.request, zipfile
 
 VERSION = "4.7.2-stable"
@@ -27,15 +27,15 @@ class Remote(io.RawIOBase):
         self.pos += len(data)
         return len(data)
 
-def main(out):
+def main(out, prefixes=("web",)):
     os.makedirs(out, exist_ok=True)
     z = zipfile.ZipFile(io.BufferedReader(Remote(URL), buffer_size=1 << 20))
     for info in z.infolist():
         name = os.path.basename(info.filename)
-        if name == "version.txt" or name.startswith("web"):
+        if name == "version.txt" or name.startswith(tuple(prefixes)):
             with open(os.path.join(out, name), "wb") as f:
                 f.write(z.read(info))
             print(name, info.file_size)
 
 if __name__ == "__main__":
-    main(sys.argv[1])
+    main(sys.argv[1], sys.argv[2].split(",") if len(sys.argv) > 2 else ("web",))

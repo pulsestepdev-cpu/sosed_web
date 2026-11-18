@@ -59,6 +59,15 @@ func _ready() -> void:
 	_loading.visible = false
 	add_child(_loading)
 
+	if Patches.label() != "":                     # версия для ПК: по ней видно, какой патч стоит у друга
+		var ver := UiStyle.label(Patches.label(), 22, Color(1, 1, 1, 0.55), 4)
+		ver.set_anchors_preset(Control.PRESET_BOTTOM_RIGHT)
+		ver.grow_horizontal = Control.GROW_DIRECTION_BEGIN
+		ver.grow_vertical = Control.GROW_DIRECTION_BEGIN
+		ver.offset_right = -18
+		ver.offset_bottom = -12
+		add_child(ver)
+
 	Settings.music("main_musik")
 	# появление кнопок
 	_buttons.modulate.a = 0.0

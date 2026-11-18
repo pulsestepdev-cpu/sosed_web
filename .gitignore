@@ -15,3 +15,7 @@ __pycache__/
 
 # Сборки (веб-версия собирается в GitHub Actions)
 build/
+
+# Версия ПК-сборки (пишет tools/build_windows.py) и релизы с базовыми .pck для патчей
+version.cfg
+releases/
